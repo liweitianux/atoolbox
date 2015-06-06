@@ -1,0 +1,12 @@
+# .gitignore
+# 
+
+*~
+*.swp
+*.un~
+*_bak
+
+# python
+*.pyc
+**/__pycache__
+
