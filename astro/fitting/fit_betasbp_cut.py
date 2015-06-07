@@ -11,6 +11,11 @@
 # 2015/05/29
 #
 # Changelogs:
+# v0.5.0, 2015/06/07, Aaron LI
+#   * added 'fit_model_bounds' using 'scipy.optimize.minimize' to
+#     perform function minimization with bounds
+#   * split the data cut section to function 'cut_data'
+#   * added argument 'options' to 'fit_model_bounds'
 # v0.4.0, 2015/06/06, Aaron LI
 #   * replace getopt with 'argparse'
 #   * added 'get_parameter' to process model parameter initial value and bounds
@@ -28,14 +33,17 @@
 #   * Support read model initial parameter values from input file.
 #
 # TODO:
-#   * to allow restrict the range of parameters / just fix it
+# * calculate fitting parameter's standard deviation
+# * to normalize fitting paramters to be the same order of magnitude
+#   for better minimization
+#   Ref: http://stackoverflow.com/questions/21369139/normalization-for-optimization-in-python
 #
 
 
 from __future__ import print_function, division
 
-__version__ = "0.4.0"
-__date__ = "2015/06/06"
+__version__ = "0.5.0"
+__date__ = "2015/06/07"
 
 import numpy as np
 from scipy.optimize import curve_fit, minimize
@@ -49,6 +57,8 @@ import argparse
 # modes of to cut data
 CUT_POINT = 'CUT_POINT'
 CUT_RADIUS = 'CUT_RADIUS'
+# default minimize method
+MINIMIZE_METHOD = 'L-BFGS-B'
 
 
 def beta_model(r, s0, rc, beta, c):
@@ -62,6 +72,15 @@ def calc_chisq(func, xdata, ydata, yerrdata, *args):
     """
     Calculate the chi-squared values for the given function according
     to the provided data points.
+
+    Arguments:
+        xdata: x values of data points
+        ydata: y values of data points
+        yerrdata: y standard deviation values
+        args: additional arguments for 'func'
+
+    Return:
+        chi-squared value
     """
     xdata = np.array(xdata)
     ydata = np.array(ydata)
@@ -69,46 +88,29 @@ def calc_chisq(func, xdata, ydata, yerrdata, *args):
     return np.sum(((ydata - func(xdata, *args)) / yerrdata) ** 2)
 
 
-def fit_model(func, xdata, ydata, yerrdata, p0,
-        cutmode=CUT_POINT, cutvalue=0):
+def fit_model(func, xdata, ydata, yerrdata, p0):
     """
     Fit the provided data with the beta model.
 
     Arguments:
         p0: initial values for the parameters of beta model
-        cutmode: 'point' / 'radius'; ignore data by number of data points,
-            or by radius value less than the given value
-        cutvalue: the cut limit
 
     Return:
-        (popt, pcov, infodict)
+        (popt, infodict)
         popt: optimal values for the parameters
-        pcov: 2d array; the estimated covariance of popt
         infodict:
             * fvec: the function evaluated at the output parameters
             * dof: degree of freedom
             * chisq: chi-squared
             * perr: one standard deviation errors on the parameters
     """
-    if cutmode == CUT_POINT:
-        xdata2 = xdata[cutvalue:]
-        ydata2 = ydata[cutvalue:]
-        yerrdata2 = yerrdata[cutvalue:]
-    elif cutmode == CUT_RADIUS:
-        ii = xdata >= cutvalue
-        xdata2 = xdata[ii]
-        ydata2 = ydata[ii]
-        yerrdata2 = yerrdata[ii]
-    else:
-        raise ValueError('Unknown cut mode: %s' % cutmode)
-    popt, pcov = curve_fit(func, xdata2, ydata2,
-            p0=p0, sigma=yerrdata2)
+    popt, pcov = curve_fit(func, xdata, ydata, p0=p0, sigma=yerrdata)
     # the function evaluated at the output parameters
     fvec = lambda x: func(x, *popt)
     # degree of freedom
-    dof = len(xdata2) - len(popt)
+    dof = len(xdata) - len(popt)
     # chi squared
-    chisq = np.sum(((ydata2 - fvec(xdata2)) / yerrdata2) ** 2)
+    chisq = np.sum(((ydata - fvec(xdata)) / yerrdata) ** 2)
     # one standard deviation errors on the parameters
     perr = np.sqrt(np.diag(pcov))
     infodict = {
@@ -117,7 +119,84 @@ def fit_model(func, xdata, ydata, yerrdata, p0,
             'chisq': chisq,
             'perr': perr
     }
-    return (popt, pcov, infodict)
+    return (popt, infodict)
+
+
+def fit_model_bounds(func, xdata, ydata, yerrdata, p0=None, bounds=None,
+        options=None):
+    """
+    Fit the provided data with the beta model.
+
+    Arguments:
+        p0: initial values for the parameters of beta model
+        bounds: (min, max) pairs for each parameter bound
+        options: a dict of solver options (=> minimize: options)
+
+    Return:
+        (popt, infodict)
+        popt: optimal values for the parameters
+        infodict:
+            * fvec: the function evaluated at the output parameters
+            * dof: degree of freedom
+            * chisq: chi-squared
+            * perr: one standard deviation errors on the parameters
+    """
+    # objective function to be minimized, required format of 'f(x, *args)'
+    f = lambda x: calc_chisq(func, xdata, ydata, yerrdata, *x)
+    # minimize the given function using 'scipy.optimize.minimize' with bounds
+    res = minimize(f, p0, method=MINIMIZE_METHOD, bounds=bounds,
+            options=options)
+    popt = res.x
+    print("DEBUG: minimization results:\n", res, file=sys.stderr)
+
+    # check minimization results
+    if not res.success:
+        print("*** WARNING: minimization exited with error: ***\n" + \
+                "*** %s ***" % res.message, file=sys.stderr)
+
+    # the function evaluated at the output parameters
+    fvec = lambda x: func(x, *popt)
+    # degree of freedom
+    dof = len(xdata) - len(popt)
+    # chi squared
+    chisq = res.fun
+    # one standard deviation errors on the parameters
+    perr = popt * 0.0 # FIXME
+    infodict = {
+            'fvec': fvec,
+            'dof': dof,
+            'chisq': chisq,
+            'perr': perr
+    }
+    return (popt, infodict)
+
+
+def cut_data(xdata, ydata, yerrdata, cutmode=CUT_POINT, cutvalue=0):
+    """
+    Cut the given data with the provided cutmode and cutvalue,
+    return the cut data.
+
+    Arguments:
+        xdata, ydata, yerrdata: input data (x, y, yerr)
+        cutmode: 'point' / 'radius'; ignore data by number of data points,
+            or by radius value less than the given value
+        cutvalue: the cut limit
+
+    Return:
+        (xdata_cut, ydata_cut, yerrdata_cut)
+    """
+    if cutmode == CUT_POINT:
+        xdata_cut = xdata[cutvalue:]
+        ydata_cut = ydata[cutvalue:]
+        yerrdata_cut = yerrdata[cutvalue:]
+    elif cutmode == CUT_RADIUS:
+        ii = xdata >= cutvalue
+        xdata_cut = xdata[ii]
+        ydata_cut = ydata[ii]
+        yerrdata_cut = yerrdata[ii]
+    else:
+        raise ValueError('Unknown cut mode: %s' % cutmode)
+    return (xdata_cut, ydata_cut, yerrdata_cut)
 
 
 def get_parameter(pstring):
@@ -172,7 +251,7 @@ def main():
             epilog="Version: %s (%s)" % (__version__, __date__))
     parser.add_argument("-v", "--verbose", dest="verbose",
             action="store_true", default=False,
-            help="show verbose/debug information")
+            help="show verbose/debug information (False)")
     parser.add_argument("-V", "--version", action="version",
             version="%(prog)s " + "%s (%s)" % (__version__, __date__))
     parser.add_argument("-i", "--infile",
@@ -189,6 +268,9 @@ def main():
                  # c_0 = init_value, lower_limit, upper_limit""")
     parser.add_argument("-o", "--outfile", dest="outfilename",
             help="output file to store the fitted data")
+    parser.add_argument("-b", "--bounds", dest="bounds",
+            action="store_true", default=False,
+            help="whether apply paramenter bounds (False)")
     parser.add_argument("-c", "--cut-point",
             dest="cut_point", metavar="N", type=int, default=0,
             help="number of inner-most data points to be ignored")
@@ -226,6 +308,8 @@ def main():
         cutvalue = args.cut_radius
 
     if args.verbose:
+        print('DEBUG: apply parameter bounds: %s' % args.bounds,
+                file=sys.stderr)
         print("DEBUG: cutmode: %s, cutvalue: %s" % (cutmode, cutvalue))
 
     # input data list
@@ -315,17 +399,32 @@ def main():
     rerr_data = np.array(rerr_data)
     s_data = np.array(s_data)
     serr_data = np.array(serr_data)
+    # cut data
+    r_data_cut, s_data_cut, serr_data_cut = cut_data(r_data, s_data,
+            serr_data, cutmode=cutmode, cutvalue=cutvalue)
+
     # model parameters
     par_names = ["s0", "rc", "beta", "c"]
     # initial values
-    par_0 = [s0_0, rc_0, beta_0, c_0]
+    par_0 = np.array([s0_0, rc_0, beta_0, c_0])
     # parameter bounds
     par_bounds = [(s0_lower, s0_upper), (rc_lower, rc_upper),
                   (beta_lower, beta_upper), (c_lower, c_upper)]
+    # set eps for the parameters (required for the minimize method,
+    # otherwise error 'ABNORMAL_TERMINATION_IN_LNSRCH' occurs, which
+    # may due to the different order of magnitude of each parameters)
+    par_eps = par_0 * 1e-4
 
-    ## 'fit_beta_model' do not support parameter bounds
-    par_fit, cov_fit, infodict = fit_model(beta_model, r_data, s_data,
-            serr_data, p0=par_0, cutmode=cutmode, cutvalue=cutvalue)
+    if args.bounds:
+        ## 'fit_model_bounds' to perform fitting with bounds
+        par_fit, infodict = fit_model_bounds(beta_model, r_data_cut,
+                s_data_cut, serr_data_cut, p0=par_0, bounds=par_bounds,
+                options={'eps': par_eps})
+    else:
+        # 'fit_model' do not support parameter bounds
+        par_fit, infodict = fit_model(beta_model, r_data_cut,
+                s_data_cut, serr_data_cut, p0=par_0)
+
     fvec = infodict['fvec']
     dof = infodict['dof']
     chisq = infodict['chisq']
