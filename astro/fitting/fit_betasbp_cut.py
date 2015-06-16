@@ -11,6 +11,9 @@
 # 2015/05/29
 #
 # Changelogs:
+# v0.5.1, 2015/06/07, Aaron LI
+#   * fixed 'dof' calculation with 'n-p-1'
+#   * fixed 'par_eps' calculation/configuration
 # v0.5.0, 2015/06/07, Aaron LI
 #   * added 'fit_model_bounds' using 'scipy.optimize.minimize' to
 #     perform function minimization with bounds
@@ -33,7 +36,7 @@
 #   * Support read model initial parameter values from input file.
 #
 # TODO:
-# * calculate fitting parameter's standard deviation
+# * calculate fitting parameter's confidence interval / confidence bounds
 # * to normalize fitting paramters to be the same order of magnitude
 #   for better minimization
 #   Ref: http://stackoverflow.com/questions/21369139/normalization-for-optimization-in-python
@@ -42,7 +45,7 @@
 
 from __future__ import print_function, division
 
-__version__ = "0.5.0"
+__version__ = "0.5.1"
 __date__ = "2015/06/07"
 
 import numpy as np
@@ -108,7 +111,7 @@ def fit_model(func, xdata, ydata, yerrdata, p0):
     # the function evaluated at the output parameters
     fvec = lambda x: func(x, *popt)
     # degree of freedom
-    dof = len(xdata) - len(popt)
+    dof = len(xdata) - len(popt) - 1
     # chi squared
     chisq = np.sum(((ydata - fvec(xdata)) / yerrdata) ** 2)
     # one standard deviation errors on the parameters
@@ -122,10 +125,12 @@ def fit_model(func, xdata, ydata, yerrdata, p0):
     return (popt, infodict)
 
 
-def fit_model_bounds(func, xdata, ydata, yerrdata, p0=None, bounds=None,
-        options=None):
+def fit_model_bounds(func, xdata, ydata, yerrdata, p0=None,
+        bounds=None, options=None):
     """
-    Fit the provided data with the beta model.
+    Fit the provided data with the beta model, and apply parameter
+    bounds requirements.
+    Using 'scipy.optimize.minimize'.
 
     Arguments:
         p0: initial values for the parameters of beta model
@@ -142,12 +147,12 @@ def fit_model_bounds(func, xdata, ydata, yerrdata, p0=None, bounds=None,
             * perr: one standard deviation errors on the parameters
     """
     # objective function to be minimized, required format of 'f(x, *args)'
-    f = lambda x: calc_chisq(func, xdata, ydata, yerrdata, *x)
+    f = lambda p: calc_chisq(func, xdata, ydata, yerrdata, *p)
     # minimize the given function using 'scipy.optimize.minimize' with bounds
     res = minimize(f, p0, method=MINIMIZE_METHOD, bounds=bounds,
             options=options)
     popt = res.x
-    print("DEBUG: minimization results:\n", res, file=sys.stderr)
+    #print("DEBUG: minimization results:\n", res, file=sys.stderr)
 
     # check minimization results
     if not res.success:
@@ -157,7 +162,7 @@ def fit_model_bounds(func, xdata, ydata, yerrdata, p0=None, bounds=None,
     # the function evaluated at the output parameters
     fvec = lambda x: func(x, *popt)
     # degree of freedom
-    dof = len(xdata) - len(popt)
+    dof = len(xdata) - len(popt) - 1
     # chi squared
     chisq = res.fun
     # one standard deviation errors on the parameters
@@ -408,12 +413,15 @@ def main():
     # initial values
     par_0 = np.array([s0_0, rc_0, beta_0, c_0])
     # parameter bounds
-    par_bounds = [(s0_lower, s0_upper), (rc_lower, rc_upper),
-                  (beta_lower, beta_upper), (c_lower, c_upper)]
+    par_bounds = np.array([(s0_lower, s0_upper), (rc_lower, rc_upper),
+                           (beta_lower, beta_upper), (c_lower, c_upper)])
     # set eps for the parameters (required for the minimize method,
     # otherwise error 'ABNORMAL_TERMINATION_IN_LNSRCH' occurs, which
     # may due to the different order of magnitude of each parameters)
-    par_eps = par_0 * 1e-4
+    par_eps = np.absolute(par_0) * 1e-3
+    par_eps[ par_eps<1e-15 ] = 1e-15  # set par_eps >= 1e-14
+    if args.verbose:
+        print("DEBUG: parameters eps:\n", par_eps, file=sys.stderr)
 
     if args.bounds:
         ## 'fit_model_bounds' to perform fitting with bounds
