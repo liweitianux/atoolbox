@@ -16,6 +16,7 @@ import sys
 import argparse
 import subprocess
 import re
+import os
 
 
 def marx_pntsrc(pfile, ra, dec, flux, outdir):
@@ -32,15 +33,40 @@ def marx_pntsrc(pfile, ra, dec, flux, outdir):
 def marxcat(indirs, outdir):
     """
     Concatenate a list of MARX simulation results.
+
+    Note: the number of MARX results to be concatenated at *one* time
+          can not be to many, otherwise the 'marxcat' tool will failed.
     """
     if isinstance(indirs, list):
-        marxdirs = " ".join(indirs)
+        pass
     elif isinstance(indirs, str):
-        marxdirs = indirs
+        indirs = indirs.split()
     else:
         raise ValueError("invalid indirs type: %s" % indirs)
-    cmd = "marxcat %(marxdirs)s %(outdir)s" % \
-            {"marxdirs": marxdirs, "outdir": outdir}
+    pid = os.getpid()
+    tempdir = "_marx_tmp%d" % pid
+    cmd = "cp -a %(marxdir)s %(tempdir)s" % \
+            {"marxdir": indirs[0], "tempdir": tempdir}
+    print("CMD: %s" % cmd, file=sys.stderr)
+    subprocess.call(cmd, shell=True)
+    del indirs[0]
+    while len(indirs) > 0:
+        # concatenated 10 directories each time
+        catdirs = indirs[:9]
+        del indirs[:9]
+        catdirs = tempdir + " " + " ".join(catdirs)
+        # concatenate MARX results
+        cmd = "marxcat %(catdirs)s %(outdir)s" % \
+                {"catdirs": catdirs, "outdir": outdir}
+        print("CMD: %s" % cmd, file=sys.stderr)
+        subprocess.call(cmd, shell=True)
+        # move output results to temporary directory
+        cmd = "rm -rf %(tempdir)s && mv %(outdir)s %(tempdir)s" % \
+                {"tempdir": tempdir, "outdir": outdir}
+        print("CMD: %s" % cmd, file=sys.stderr)
+        subprocess.call(cmd, shell=True)
+    cmd = "mv %(tempdir)s %(outdir)s" % \
+            {"tempdir": tempdir, "outdir": outdir}
     print("CMD: %s" % cmd, file=sys.stderr)
     subprocess.call(cmd, shell=True)
 
@@ -78,7 +104,7 @@ def main():
         ra, dec, flux = map(float, line.split())
         print("INFO: ra = %g, dec = %g, flux = %g" % (ra, dec, flux),
                 file=sys.stderr)
-        outdir = "%sp%02d" % (args.outprefix, i)
+        outdir = "%sp%03d" % (args.outprefix, i)
         print("INFO: outdir = %s" % outdir, file=sys.stderr)
         outdirs.append(outdir)
         marx_pntsrc(args.pfile, ra, dec, flux, outdir)
