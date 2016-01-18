@@ -312,8 +312,11 @@ def main():
     if args.outregion:
         reg_r = '3"'
         reg_header = ["# Region file format: DS9 version 4.1", "fk5"]
-        regions = ["circle(%.9f,%.9f,%s) # text={%.9g}" % (ra, dec, reg_r, f)
-                for ((ra, dec), f) in zip(coord, flux)]
+        regions = [
+                "circle(%.9f,%.9f,%s) # text={%.9g}" % \
+                (ra, dec, reg_r, f*factor) \
+                for ((ra, dec), f) in zip(coord, flux)
+        ]
         regfile = open(args.outregion, "w")
         regfile.write("\n".join(reg_header + regions))
         regfile.close()
