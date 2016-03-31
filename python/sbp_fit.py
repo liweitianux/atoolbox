@@ -3,9 +3,13 @@
 #
 # Aaron LI
 # Created: 2016-03-13
-# Updated: 2016-03-14
+# Updated: 2016-03-31
 #
 # Changelogs:
+# 2016-03-31:
+#   * Remove `ci_report()'
+#   * Add `make_results()' to orgnize all results as s Python dictionary
+#   * Report results as json string
 # 2016-03-28:
 #   * Add `main()', `make_model()'
 #   * Use `configobj' to handle configurations
@@ -24,6 +28,7 @@ Fit the surface brightness profile (SBP) with the single-beta model:
 or the double-beta model:
   s(r) = s01 * [1.0 + (r/rc1)^2] ^ (0.5-3*beta1) +
          s02 * [1.0 + (r/rc2)^2] ^ (0.5-3*beta2) + bkg
+
 
 Sample config file:
 -------------------------------------------------
@@ -61,8 +66,8 @@ bkg   = 1.0e-9, 0.0,  1.0e-7
 -------------------------------------------------
 """
 
-__version__ = "0.4.0"
-__date__    = "2016-03-28"
+__version__ = "0.5.0"
+__date__    = "2016-03-31"
 
 import numpy as np
 import lmfit
@@ -76,6 +81,8 @@ import os
 import sys
 import re
 import argparse
+import json
+from collections import OrderedDict
 
 
 plt.style.use("ggplot")
@@ -456,54 +463,69 @@ class SbpFit:
         if not hasattr(self, "f_residual") or self.f_residual is None:
             self.set_residual()
         self.fitter = lmfit.Minimizer(self.f_residual, self.model.params)
-        self.results = self.fitter.minimize(method=method)
-        self.fitted_model = lambda x: self.model.func(x, self.results.params)
+        self.fitted = self.fitter.minimize(method=method)
+        self.fitted_model = lambda x: self.model.func(x, self.fitted.params)
 
     def calc_ci(self, sigmas=[0.68, 0.90]):
         # `conf_interval' requires the fitted results have valid `stderr',
         # so we need to re-fit the model with method `leastsq'.
-        results = self.fitter.minimize(method="leastsq",
-                params=self.results.params)
-        self.ci, self.trace = lmfit.conf_interval(self.fitter, results,
+        fitted = self.fitter.minimize(method="leastsq",
+                params=self.fitted.params)
+        self.ci, self.trace = lmfit.conf_interval(self.fitter, fitted,
                 sigmas=sigmas, trace=True)
 
-    @staticmethod
-    def ci_report(ci, with_offset=True):
+    def make_results(self):
         """
-        Format and return the report for confidence intervals.
-        This function is intended to replace the `lmfit.ci_report()`
-        which do not use scitenfic notation for small values.
+        Make the `self.results' dictionary which contains all the fitting
+        results as well as the confidence intervals.
         """
-        pnames = list(ci.keys())
-        plen = max(map(len, pnames))
-        report = []
-        # header
-        sigmas = [ v[0] for v in ci.get(pnames[0]) if v[0] > 0.0 ]
-        fmt = "{:<%d}" % (plen+1) + \
-                "  {:11.2%}  {:11.2%}     _BEST_    {:11.2%}  {:11.2%}"
-        report.append(fmt.format(" ", *sigmas))
-        # parameters ci
-        for par in pnames:
-            values = [ v[1] for v in ci.get(par) ]
-            if with_offset:
-                N = len(values)
-                offsets = [ values[N//2] for i in range(N) ]
-                offsets[N//2] = 0.0
-                values = list(map(lambda a,b: a-b, values, offsets))
-            fmt = "{:<%d}" % (plen+1) + \
-                    "  {:+11.5g}  {:+11.5g}  {:11.5g}  {:+11.5g}  {:+11.5g}"
-            report.append(fmt.format(par+":", *values))
-        return "\n".join(report)
+        fitted = self.fitted
+        self.results = OrderedDict()
+        ## fitting results
+        self.results.update(
+                nfev   = fitted.nfev,
+                ndata  = fitted.ndata,
+                nvarys = fitted.nvarys,  # number of varible paramters
+                nfree  = fitted.nfree,  # degree of freem
+                chisqr = fitted.chisqr,
+                redchi = fitted.redchi,
+                aic    = fitted.aic,
+                bic    = fitted.bic)
+        params = fitted.params
+        pnames = list(params.keys())
+        pvalues = OrderedDict()
+        for pn in pnames:
+            par = params.get(pn)
+            pvalues[pn] = [par.value, par.min, par.max, par.vary]
+        self.results["params"] = pvalues
+        ## confidence intervals
+        if hasattr(self, "ci") and self.ci is not None:
+            ci = self.ci
+            ci_values = OrderedDict()
+            ci_sigmas = [ "ci%02d" % (v[0]*100) for v in ci.get(pnames[0]) ]
+            ci_names = sorted(list(set(ci_sigmas)))
+            ci_idx = { k: [] for k in ci_names }
+            for cn, idx in zip(ci_sigmas, range(len(ci_sigmas))):
+                ci_idx[cn].append(idx)
+            # parameters ci
+            for pn in pnames:
+                ci_pv = OrderedDict()
+                pv = [ v[1] for v in ci.get(pn) ]
+                # best
+                pv_best = pv[ ci_idx["ci00"][0] ]
+                ci_pv["best"] = pv_best
+                # ci of each sigma
+                pv2 = [ v-pv_best for v in pv ]
+                for cn in ci_names[1:]:
+                    ci_pv[cn] = [ pv2[idx] for idx in ci_idx[cn] ]
+                ci_values[pn] = ci_pv
+            self.results["ci"] = ci_values
 
     def report(self, outfile=sys.stdout):
-        if hasattr(self, "results") and self.results is not None:
-            p = lmfit.fit_report(self.results)
-            print(p, file=outfile)
-        if hasattr(self, "ci") and self.ci is not None:
-            print("-----------------------------------------------",
-                    file=outfile)
-            p = self.ci_report(self.ci)
-            print(p, file=outfile)
+        if not hasattr(self, "results") or self.results is None:
+            self.make_results()
+        jd = json.dumps(self.results, indent=2)
+        print(jd, file=outfile)
 
     def plot(self, ax=None, fig=None):
         if ax is None:
@@ -525,7 +547,7 @@ class SbpFit:
         ypred = self.fitted_model(xpred)
         ymin = min(min(self.ydata), min(ypred))
         ymax = max(max(self.ydata), max(ypred))
-        self.model.plot(params=self.results.params, xdata=xpred, ax=ax)
+        self.model.plot(params=self.fitted.params, xdata=xpred, ax=ax)
         ax.set_xscale("log")
         ax.set_yscale("log")
         ax.set_xlim(1.0, xmax)
@@ -537,8 +559,8 @@ class SbpFit:
         ax.set_xlabel("Radius (pixel)")
         ax.set_ylabel(r"Surface Brightness (photons/cm$^2$/pixel$^2$/s)")
         ax.text(x=xmax, y=ymax,
-                s="redchi: %.2f / %.2f = %.2f" % (self.results.chisqr,
-                    self.results.nfree, self.results.chisqr/self.results.nfree),
+                s="redchi: %.2f / %.2f = %.2f" % (self.fitted.chisqr,
+                    self.fitted.nfree, self.fitted.chisqr/self.fitted.nfree),
                 horizontalalignment="right", verticalalignment="top")
         return (fig, ax)
 
