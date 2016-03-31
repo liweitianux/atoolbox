@@ -530,4 +530,4 @@ def main():
 if __name__ == "__main__":
     main()
 
-#  vim: set ts=4 sw=4 tw=0 fenc= ft=python: #
+#  vim: set ts=4 sw=4 tw=0 fenc=utf-8 ft=python: #
