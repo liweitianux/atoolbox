@@ -2,28 +2,46 @@
 # -*- coding: utf-8 -*-
 #
 # References:
-# [?] astropy - FITS format code
+# [1] Definition of RMF and ARF file formats
+#     https://heasarc.gsfc.nasa.gov/docs/heasarc/caldb/docs/memos/cal_gen_92_002/cal_gen_92_002.html
+# [2] CIAO: Auxiliary Response File
+#     http://cxc.harvard.edu/ciao/dictionary/arf.html
+# [3] CIAO: Redistribution Matrix File
+#     http://cxc.harvard.edu/ciao/dictionary/rmf.html
+# [4] astropy - FITS format code
 #     http://docs.astropy.org/en/stable/io/fits/usage/table.html#column-creation
-# [?] XSPEC - Spectral Fitting
+# [5] XSPEC - Spectral Fitting
 #     https://heasarc.gsfc.nasa.gov/docs/xanadu/xspec/manual/XspecSpectralFitting.html
 #
 #
 # Weitian LI
 # Created: 2016-03-26
-# Updated: 2016-04-01
+# Updated: 2016-04-02
 #
 # ChangeLog:
+# 2016-04-02:
+#   * Interpolate ARF in order to match the spectral channel energies
+#   * Add version and date information
+#   * Update documentations
+#   * Update header history contents
 # 2016-04-01:
 #   * Greatly update the documentations (e.g., description, sample config)
 #   * Add class `RMF'
 #   * Add method `get_energy()' for class `ARF'
+#   * Split out class `SpectrumSet' from `Spectrum'
+#   * Implement background subtraction
+#   * Add config `subtract_bkg' and corresponding argument
 #
-# TODO/XXX:
-#   * Add background spectrum fields
-#   * Subtract background spectrum before correcting crosstalk effects
-#   * Estimate channel errors by Monte Carlo simulations
-#   * Split classes ARF, RMF, Spectrum to a separate module
+# XXX/FIXME:
+#   * SpectrumSet: estimate channel errors by Monte Carlo simulations
 #
+# TODO:
+#   * Spectrum: implement the grouping function (and quality columns)
+#   * Split classes ARF, RMF, Spectrum, and SpectrumSet to a separate module
+#
+
+__version__ = "0.3.0"
+__date__    = "2016-04-02"
 
 
 """
@@ -37,6 +55,8 @@ Sample config file (in `ConfigObj' syntax):
 -----------------------------------------------------------
 verbose = True
 clobber = False
+# whether to subtract the background before crosstalk correction
+subtract_bkg = True
 # whether to fix the negative channel values due to spectral subtractions
 fix_negative = True
 
@@ -73,6 +93,7 @@ bkg = reg2_bkg.pi
 
 import numpy as np
 import scipy as sp
+import scipy.interpolate
 from astropy.io import fits
 from configobj import ConfigObj
 
@@ -92,6 +113,9 @@ class ARF:  # {{{
     multiplied together to create the ARF, resulting in [cm^2 counts/photon].
 
     **CAVEAT/NOTE**:
+    Generally, the "ENERG_LO" and "ENERG_HI" columns of an ARF are *different*
+    to the "E_MIN" and "E_MAX" columns of a RMF (which are corresponding
+    to the spectrum channel energies).
     For the XMM EPIC *pn* and Chandra *ACIS*, the generated ARF does NOT have
     the same number of data points to that of spectral channels, i.e., the
     "ENERG_LO" and "ENERG_HI" columns of ARF is different to the "E_MIN" and
@@ -115,6 +139,8 @@ class ARF:  # {{{
     energ_lo = None
     energ_hi = None
     specresp = None
+    # function of the interpolated ARF
+    f_interp = None
 
     def __init__(self, filename):
         self.filename = filename
@@ -162,17 +188,19 @@ class ARF:  # {{{
           If x is None, then the interpolated function is returned,
           otherwise, the interpolated data are returned.
         """
-        energy = self.get_energy()
-        arf = self.get_data(copy=False)
-        if verbose:
-            print("INFO: ARF interpolating (this may take a while) ...",
-                    file=sys.stderr)
-        f_interp = sp.interpolate.interp1d(energy, arf, kind="cubic",
-                bounds_error=False, fill_value=0.0, assume_sorted=True)
+        if not hasattr(self, "f_interp") or self.f_interp is None:
+            energy = self.get_energy()
+            arf    = self.get_data(copy=False)
+            if verbose:
+                print("INFO: ARF interpolating (this may take a while) ...",
+                        file=sys.stderr)
+            f_interp = sp.interpolate.interp1d(energy, arf, kind="cubic",
+                    bounds_error=False, fill_value=0.0, assume_sorted=True)
+            self.f_interp = f_interp
         if x is not None:
-            return f_interp(x)
+            return self.f_interp(x)
         else:
-            return f_interp
+            return self.f_interp
 # class ARF }}}
 
 
@@ -194,13 +222,13 @@ class RMF:  # {{{
     manipulate and understand.
 
     **CAVEAT/NOTE**:
-    + See the above ARF CAVEAT/NOTE for the XMM EPIC pn.
-    + This class (currently) only deals with the "EBOUNDS" extension, which
-      contains the `CHANNEL', `E_MIN' and `E_MAX' columns.  This `CHANNEL'
-      is the same as that of a spectrum.  Therefore, the energy values can
-      be used to interpolate and extrapolate the ARF curve.
-    + The `ENERG_LO' and `ENERG_HI' columns of "MATRIX" extension are the
-      same as that of a ARF.
+    + See also the above ARF CAVEAT/NOTE.
+    + The "EBOUNDS" extension contains the `CHANNEL', `E_MIN' and `E_MAX'
+      columns.  This `CHANNEL' is the same as that of a spectrum.  Therefore,
+      the energy values determined from the `E_MIN' and `E_MAX' columns are
+      used to interpolate and extrapolate the ARF curve.
+    + The `ENERG_LO' and `ENERG_HI' columns of the "MATRIX" extension are
+      the same as that of a ARF.
 
     References:
     [1] CIAO: Redistribution Matrix File
@@ -302,9 +330,6 @@ class RMF:  # {{{
 class Spectrum:  # {{{
     """
     Class that deals with the X-ray spectrum file (usually *.pi).
-
-    TODO:
-    * to implement the grouping function (and quality columns)
     """
     filename  = None
     # FITS object return by `fits.open()'
@@ -400,10 +425,6 @@ class SpectrumSet(Spectrum):  # {{{
     This class handles a set of spectrum, including the source spectrum,
     RMF, ARF, and the background spectrum.
 
-    TODO:
-    * Subtract background spectrum before correcting crosstalk effects
-    * Estimate channel errors by Monte Carlo simulations
-
     **NOTE**:
     The "COUNTS" column data are converted from "int32" to "float32",
     since this spectrum will be subtracted/compensated according to the
@@ -438,22 +459,35 @@ class SpectrumSet(Spectrum):  # {{{
     def get_energy(self, mean="geometric"):
         """
         Get the energy values of each channel if RMF present.
+
+        NOTE:
+        The "E_MIN" and "E_MAX" columns of the RMF is required to calculate
+        the spectrum channel energies.
+        And the channel energies are generally different to the "ENERG_LO"
+        and "ENERG_HI" of the corresponding ARF.
         """
         if self.rmf is None:
             return None
         else:
             return self.rmf.get_energy(mean=mean)
 
-    def get_arf(self, copy=True):
+    def get_arf(self, mean="geometric", copy=True):
         """
-        Get the corresponding ARF curve data for this spectrum.
+        Get the corresponding ARF curve data if the ARF presents.
+
+        Return:
+          [ energy, resp ]
+          where the "energy" and "resp" are the ARF energy values and
+          spectral response array, respectively.
         """
         if self.arf is None:
             return None
         else:
-            return self.arf.get_data(copy=copy)
+            energy = self.arf.get_energy(mean=mean)
+            resp   = self.arf.get_data(copy=copy)
+            return [ energy, resp ]
 
-    def subtract_bkg(self, inplace=True):
+    def subtract_bkg(self, inplace=True, verbose=False):
         """
         Subtract the background contribution from the source spectrum.
         The `EXPOSURE' and `BACKSCAL' values are required to calculate
@@ -471,13 +505,19 @@ class SpectrumSet(Spectrum):  # {{{
         ratio = (self.EXPOSURE / self.bkg.EXPOSURE) * \
                 (self.BACKSCAL / self.bkg.BACKSCAL) * \
                 (self.AREASCAL / self.bkg.AREASCAL)
+        operation = "  SUBTRACT_BACKGROUND: %s - %s * %s" % \
+                (self.filename, ratio, self.bkg.filename)
+        if verbose:
+            print(operation, file=sys.stderr)
         spec_data_subbkg = self.spec_data - ratio * self.bkg.get_data()
         if inplace:
             self.spec_data = spec_data_subbkg
             self.spec_bkg_subtracted = True
+            # also record history
+            self.header.add_history(operation)
         return spec_data_subbkg
 
-    def subtract(self, spectrum, cross_arf, verbose=False):
+    def subtract(self, spectrumset, cross_arf, verbose=False):
         """
         Subtract the photons that originate from the surrounding regions
         but were scattered into this spectrum due to the finite PSF.
@@ -487,17 +527,23 @@ class SpectrumSet(Spectrum):  # {{{
         correction, as well as the below `compensate()' procedure.
 
         NOTE:
-        The crosstalk ARF must be provided, since the `spectrum.arf' is
-        required to be its ARF without taking crosstalk into account:
-            spec1_new = spec1 - spec2 * (cross_arf_2_to_1 / arf2)
+        1. The crosstalk ARF must be provided, since the `spectrumset.arf'
+           is required to be its ARF without taking crosstalk into account:
+               spec1_new = spec1 - spec2 * (cross_arf_2_to_1 / arf2)
+        2. The ARF are interpolated to match the energies of spetral channels.
         """
         operation = "  SUBTRACT: %s - (%s/%s) * %s" % (self.filename,
-                cross_arf.filename, spectrum.arf.filename, spectrum.filename)
+                cross_arf.filename, spectrumset.arf.filename,
+                spectrumset.filename)
         if verbose:
             print(operation, file=sys.stderr)
-        arf_ratio = cross_arf.get_data() / spectrum.get_arf()
+        energy        = self.get_energy()
+        arfresp_spec  = spectrumset.arf.interpolate(x=energy, verbose=verbose)
+        arfresp_cross = cross_arf.interpolate(x=energy, verbose=verbose)
+        arf_ratio     = arfresp_cross / arfresp_spec
+        # fix nan values due to division by zero
         arf_ratio[np.isnan(arf_ratio)] = 0.0
-        self.spec_data -= spectrum.get_data() * arf_ratio
+        self.spec_data -= spectrumset.get_data() * arf_ratio
         # record history
         self.header.add_history(operation)
 
@@ -513,7 +559,11 @@ class SpectrumSet(Spectrum):  # {{{
                 cross_arf.filename, self.arf.filename, self.filename)
         if verbose:
             print(operation, file=sys.stderr)
-        arf_ratio = cross_arf.get_data() / self.get_arf()
+        energy        = self.get_energy()
+        arfresp_this  = self.arf.interpolate(x=energy, verbose=verbose)
+        arfresp_cross = cross_arf.interpolate(x=energy, verbose=verbose)
+        arf_ratio     = arfresp_cross / arfresp_this
+        # fix nan values due to division by zero
         arf_ratio[np.isnan(arf_ratio)] = 0.0
         self.spec_data += self.get_data() * arf_ratio
         # record history
@@ -534,8 +584,11 @@ class SpectrumSet(Spectrum):  # {{{
         while len(neg_channels) > 0:
             i += 1
             if verbose:
-                print("*** Fixing negative channels: iteration %d ..." % i,
-                        file=sys.stderr)
+                if i == 1:
+                    print("*** Fixing negative channels: iter %d..." % i,
+                            end="", file=sys.stderr)
+                else:
+                    print("%d..." % i, end="", file=sys.stderr)
             for ch in neg_channels:
                 neg_val = self.spec_data[ch]
                 if ch < N-2:
@@ -548,22 +601,24 @@ class SpectrumSet(Spectrum):  # {{{
             neg_counts = self.spec_data < 0
             neg_channels = np.arange(N, dtype=np.int)[neg_counts]
         if i > 0:
-            print("*** Fixed negative channels ***", file=sys.stderr)
-# class Spectrum }}}
+            print("FIXED ***", file=sys.stderr)
+            # record history
+            self.header.add_history("  FIXED NEGATIVE CHANNELS")
+# class SpectrumSet }}}
 
 
 class Crosstalk:  # {{{
     """
     Crosstalk correction.
     """
-    # `Spectrum' object for the spectrum to be corrected
-    spectrum = None
-    # XXX: do NOT use list (e.g., []) here, otherwise, all the instances
-    # will share these list properties.
-    # `Spectrum' and `ARF' objects corresponding to the spectra from which
-    # the photons were scattered into this spectrum.
-    cross_in_spec = None
-    cross_in_arf = None
+    # `SpectrumSet' object for the spectrum to be corrected
+    spectrumset = None
+    # NOTE/XXX: do NOT use list (e.g., []) here, otherwise, all the
+    #           instances will share these list properties.
+    # `SpectrumSet' and `ARF' objects corresponding to the spectra from
+    # which the photons were scattered into this spectrum.
+    cross_in_specset = None
+    cross_in_arf     = None
     # `ARF' objects corresponding to the regions to which the photons of
     # this spectrum were scattered into.
     cross_out_arf = None
@@ -575,17 +630,19 @@ class Crosstalk:  # {{{
         Arguments:
           * config: a section of the whole config file (`ConfigObj' object)
         """
-        self.cross_in_spec = []
-        self.cross_in_arf  = []
-        self.cross_out_arf = []
+        self.cross_in_specset = []
+        self.cross_in_arf     = []
+        self.cross_out_arf    = []
         # this spectrum to be corrected
-        self.spectrum = Spectrum(filename=config["spec"],
-                arffile=config["arf"], rmffile=config["rmf"],
-                bkgfile=config["bkg"])
+        self.spectrumset = SpectrumSet(filename=config["spec"],
+                arffile=config["arf"], rmffile=config.get("rmf"),
+                bkgfile=config.get("bkg"))
         # spectra and cross arf from which photons were scattered in
         for reg_in in config["cross_in"].values():
-            spec = Spectrum(reg_in["spec"], reg_in["arf"])
-            self.cross_in_spec.append(spec)
+            specset = SpectrumSet(filename=reg_in["spec"],
+                    arffile=reg_in["arf"], rmffile=reg_in.get("rmf"),
+                    bkgfile=reg_in.get("bkg"))
+            self.cross_in_specset.append(specset)
             self.cross_in_arf.append(ARF(reg_in["cross_arf"]))
         # regions into which the photons of this spectrum were scattered into
         if "cross_out" in config.sections:
@@ -595,45 +652,72 @@ class Crosstalk:  # {{{
         # output filename
         self.outfile = config["outfile"]
 
-    def do_correction(self, fix_negative=False, verbose=False):
+    def do_correction(self, subtract_bkg=True, fix_negative=False,
+            verbose=False):
         """
-        Perform the crosstalk correction.
+        Perform the crosstalk correction.  The background contribution
+        for each spectrum is subtracted first if `subtract_bkg' is True.
+        The basic correction procedures are recorded to the header.
         """
-        self.spectrum.header.add_history("Crosstalk Correction BEGIN")
-        self.spectrum.header.add_history("  TOOL: %s @ %s" % (\
-                os.path.basename(sys.argv[0]), datetime.utcnow().isoformat()))
+        self.spectrumset.header.add_history("Crosstalk Correction BEGIN")
+        self.spectrumset.header.add_history("  TOOL: %s (v%s) @ %s" % (\
+                os.path.basename(sys.argv[0]), __version__,
+                datetime.utcnow().isoformat()))
+        # background subtraction
+        if subtract_bkg:
+            if verbose:
+                print("INFO: subtract background ...", file=sys.stderr)
+            self.spectrumset.subtract_bkg(inplace=True, verbose=verbose)
+            # also apply background subtraction to the surrounding spectra
+            for specset in self.cross_in_specset:
+                specset.subtract_bkg(inplace=True, verbose=verbose)
         # subtractions
         if verbose:
             print("INFO: apply subtractions ...", file=sys.stderr)
-        for spec, cross_arf in zip(self.cross_in_spec, self.cross_in_arf):
-            self.spectrum.subtract(spectrum=spec, cross_arf=cross_arf,
-                    verbose=verbose)
+        for specset, cross_arf in zip(self.cross_in_specset,
+                self.cross_in_arf):
+            self.spectrumset.subtract(spectrumset=specset,
+                    cross_arf=cross_arf, verbose=verbose)
         # compensations
         if verbose:
             print("INFO: apply compensations ...", file=sys.stderr)
         for cross_arf in self.cross_out_arf:
-            self.spectrum.compensate(cross_arf=cross_arf, verbose=verbose)
+            self.spectrumset.compensate(cross_arf=cross_arf,
+                    verbose=verbose)
         # fix negative values in channels
         if fix_negative:
             if verbose:
                 print("INFO: fix negative channel values ...", file=sys.stderr)
-            self.spectrum.fix_negative(verbose=verbose)
-        self.spectrum.header.add_history("END Crosstalk Correction")
+            self.spectrumset.fix_negative(verbose=verbose)
+        self.spectrumset.header.add_history("END Crosstalk Correction")
 
     def write(self, filename=None, clobber=False):
         if filename is None:
             filename = self.outfile
-        self.spectrum.reset_header_keywords(
-                keywords=["ANCRFILE", "RESPFILE", "BACKFILE"])
-        self.spectrum.write(filename, clobber=clobber)
+        self.spectrumset.reset_header_keywords(
+                keywords=["ANCRFILE", "BACKFILE"])
+        self.spectrumset.write(filename, clobber=clobber)
 # class Crosstalk }}}
+
+
+def set_argument(name, default, cmdargs, config):
+    value = default
+    if name in config.keys():
+        value = config.as_bool(name)
+    value_cmd = vars(cmdargs)[name]
+    if value_cmd != default:
+        value = value_cmd  # command arguments overwrite others
+    return value
 
 
 def main():
     parser = argparse.ArgumentParser(
-            description="Correct the crosstalk effects of XMM spectra")
+            description="Correct the crosstalk effects for XMM EPIC spectra",
+            epilog="Version: %s (%s)" % (__version__, __date__))
     parser.add_argument("config", help="config file in which describes " +\
-            "the crosstalk relations. ('ConfigObj' syntax)")
+            "the crosstalk relations ('ConfigObj' syntax)")
+    parser.add_argument("-B", "--no-subtract-bkg", dest="subtract_bkg",
+            action="store_false", help="do NOT subtract background first")
     parser.add_argument("-N", "--fix-negative", dest="fix_negative",
             action="store_true", help="fix negative channel values")
     parser.add_argument("-C", "--clobber", dest="clobber",
@@ -644,29 +728,17 @@ def main():
 
     config = ConfigObj(args.config)
 
-    fix_negative = False
-    if "fix_negative" in config.keys():
-        fix_negative = config.as_bool("fix_negative")
-    if args.fix_negative:
-        fix_negative = args.fix_negative
-
-    verbose = False
-    if "verbose" in config.keys():
-        verbose = config.as_bool("verbose")
-    if args.verbose:
-        verbose = args.verbose
-
-    clobber = False
-    if "clobber" in config.keys():
-        clobber = config.as_bool("clobber")
-    if args.clobber:
-        clobber = args.clobber
+    subtract_bkg = set_argument("subtract_bkg", True,  args, config)
+    fix_negative = set_argument("fix_negative", False, args, config)
+    verbose      = set_argument("verbose",      False, args, config)
+    clobber      = set_argument("clobber",      False, args, config)
 
     for region in config.sections:
         if verbose:
             print("INFO: processing '%s' ..." % region, file=sys.stderr)
         crosstalk = Crosstalk(config.get(region))
-        crosstalk.do_correction(fix_negative=fix_negative, verbose=verbose)
+        crosstalk.do_correction(subtract_bkg=subtract_bkg,
+                fix_negative=fix_negative, verbose=verbose)
         crosstalk.write(clobber=clobber)
 
 
