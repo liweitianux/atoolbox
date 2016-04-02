@@ -361,20 +361,17 @@ class Spectrum:  # {{{
         self.header   = ext_spec.header.copy(strip=True)
         colnames      = ext_spec.columns.names
         if "COUNTS" in colnames:
-            self.spec_type        = "COUNTS"
-            self.spec_unit        = "count"
-            self.spec_dtype       = np.int32
-            self.spec_fits_format = "J"
+            self.spec_type = "COUNTS"
         elif "RATE" in colnames:
-            self.spec_type        = "RATE"
-            self.spec_unit        = "count/s"
-            self.spec_dtype       = np.float32
-            self.spec_fits_format = "E"
+            self.spec_type = "RATE"
         else:
             raise ValueError("Invalid spectrum file")
-        self.channel   = ext_spec.data["CHANNEL"].copy()
-        self.spec_data = ext_spec.data.field(self.spec_type)\
-                .astype(self.spec_dtype)
+        self.channel          = ext_spec.data.columns["CHANNEL"].array
+        col_spec_data         = ext_spec.data.columns[self.spec_type]
+        self.spec_data        = col_spec_data.array.copy()
+        self.spec_unit        = col_spec_data.unit
+        self.spec_dtype       = col_spec_data.dtype
+        self.spec_fits_format = col_spec_data.format
         # keywords
         self.EXPOSURE = self.header.get("EXPOSURE")
         self.BACKSCAL = self.header.get("BACKSCAL")
