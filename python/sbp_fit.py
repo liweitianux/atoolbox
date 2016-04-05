@@ -3,9 +3,11 @@
 #
 # Aaron LI
 # Created: 2016-03-13
-# Updated: 2016-03-31
+# Updated: 2016-04-05
 #
 # Changelogs:
+# 2016-04-05:
+#   * Allow fix parameters
 # 2016-03-31:
 #   * Remove `ci_report()'
 #   * Add `make_results()' to orgnize all results as s Python dictionary
@@ -20,6 +22,9 @@
 #   * Add matplotlib plot support
 #   * Add `ignore_data()' and `notice_data()' support
 #   * Add classes `FitModelSBetaNorm' and `FitModelDBetaNorm'
+#
+# TODO:
+#   * to allow fit the outer beta component, then fix it, and fit the inner one
 #
 
 """
@@ -66,8 +71,9 @@ bkg   = 1.0e-9, 0.0,  1.0e-7
 -------------------------------------------------
 """
 
-__version__ = "0.5.0"
-__date__    = "2016-03-31"
+__version__ = "0.5.1"
+__date__    = "2016-04-05"
+
 
 import numpy as np
 import lmfit
@@ -581,8 +587,11 @@ def make_model(config):
     # set initial values and bounds for the model parameters
     params = config.get(modelname)
     for p, value in params.items():
+        variable = True
+        if len(value) == 4 and value[3].upper() in ["FIXED", "FALSE"]:
+            variable = False
         model.set_param(name=p, value=float(value[0]),
-                min=float(value[1]), max=float(value[2]))
+                min=float(value[1]), max=float(value[2]), vary=variable)
     return model
 
 
