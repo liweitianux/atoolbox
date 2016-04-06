@@ -16,9 +16,11 @@
 #
 # Weitian LI
 # Created: 2016-03-26
-# Updated: 2016-04-02
+# Updated: 2016-04-06
 #
 # ChangeLog:
+# 2016-04-06:
+#   * Fix `RMF: get_rmfimg()' for XMM EPIC RMF
 # 2016-04-02:
 #   * Interpolate ARF in order to match the spectral channel energies
 #   * Add version and date information
@@ -298,7 +300,10 @@ class RMF:  # {{{
         to a 2D image/matrix.
         """
         def _make_rmfimg_row(n_channel, dtype, f_chan, n_chan, mat_row):
+            # make sure that `f_chan' and `n_chan' are 1-D numpy array
+            f_chan = np.array(f_chan).reshape(-1)
             f_chan -= 1  # FITS indices are 1-based
+            n_chan = np.array(n_chan).reshape(-1)
             idx = np.concatenate([ np.arange(f, f+n) \
                     for f, n in zip(f_chan, n_chan) ])
             rmfrow = np.zeros(n_channel, dtype=dtype)
@@ -311,7 +316,7 @@ class RMF:  # {{{
             n_channel = len(self.channel)
             rmf_dtype = self.matrix[0].dtype
             rmfimg = np.zeros(shape=(n_energy, n_channel), dtype=rmf_dtype)
-            for i in range(n_energy):
+            for i in np.arange(n_energy)[self.n_grp > 0]:
                 rmfimg[i, :] = _make_rmfimg_row(n_channel, rmf_dtype,
                         self.f_chan[i], self.n_chan[i], self.matrix[i])
             self.rmfimg = rmfimg
