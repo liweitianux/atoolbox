@@ -27,8 +27,8 @@ from __future__ import print_function
 
 __title__   = "iPod Shuffle Database Builder"
 __author__  = "Aaron LI"
-__version__ = "2.0.1"
-__date__    = "2016-04-14"
+__version__ = "2.0.2"
+__date__    = "2016-04-16"
 
 
 import sys
@@ -351,12 +351,13 @@ class iTunesSD:
             else:
                 # build new entry
                 self.header_entry[29] = props["type"]
+                entry_data = "".join([ c+"\0" for c in fn[:261] ]) + \
+                        "\0"*(558 - len(self.header_entry) - 2*len(fn))
                 entry = self.header_entry.tostring() + \
-                    "".join([ c+"\0" for c in fn[:261] ]).encode("utf-8") + \
-                    ("\0"*(525 - 2*len(fn))).encode("utf-8")
+                        entry_data.encode("utf-8")
             # modify the shuffle and bookmark flags
             entry = entry[:555] + chr(props["shuffle"]).encode("utf-8") + \
-                    chr(props["bookmark"]).encode("utf-8") + entry[557:]
+                    chr(props["bookmark"]).encode("utf-8") + entry[557]
             #
             self.entries[fn] = entry
 
