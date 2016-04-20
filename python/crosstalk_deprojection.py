@@ -4,15 +4,17 @@
 # References:
 # [1] Definition of RMF and ARF file formats
 #     https://heasarc.gsfc.nasa.gov/docs/heasarc/caldb/docs/memos/cal_gen_92_002/cal_gen_92_002.html
-# [2] CIAO: Auxiliary Response File
+# [2] The OGIP Spectral File Format
+#     https://heasarc.gsfc.nasa.gov/docs/heasarc/ofwg/docs/summary/ogip_92_007_summary.html
+# [3] CIAO: Auxiliary Response File
 #     http://cxc.harvard.edu/ciao/dictionary/arf.html
-# [3] CIAO: Redistribution Matrix File
+# [4] CIAO: Redistribution Matrix File
 #     http://cxc.harvard.edu/ciao/dictionary/rmf.html
-# [4] astropy - FITS format code
+# [5] astropy - FITS format code
 #     http://docs.astropy.org/en/stable/io/fits/usage/table.html#column-creation
-# [5] XSPEC - Spectral Fitting
+# [6] XSPEC - Spectral Fitting
 #     https://heasarc.gsfc.nasa.gov/docs/xanadu/xspec/manual/XspecSpectralFitting.html
-# [6] Direct X-ray Spectra Deprojection
+# [7] Direct X-ray Spectra Deprojection
 #     https://www-xray.ast.cam.ac.uk/papers/dsdeproj/
 #     Sanders & Fabian 2007, MNRAS, 381, 1381
 #
@@ -25,6 +27,10 @@
 # 2016-04-20:
 #   * Add argument 'add_history' to some methods (to avoid many duplicated
 #     histories due to Monte Carlo)
+#   * Rename 'reset_header_keywords()' to 'fix_header_keywords()',
+#     and add mandatory spectral keywords if missing
+#   * Add method 'fix_header()' to class 'Crosstalk' and 'Deprojection',
+#     and fix the headers before write spectra
 # 2016-04-19:
 #   * Ignore numpy error due to division by zero
 #   * Update tool description and sample configuration
@@ -59,8 +65,8 @@
 #   * Split classes ARF, RMF, Spectrum, and SpectrumSet to a separate module
 #
 
-__version__ = "0.5.1"
-__date__    = "2016-04-19"
+__version__ = "0.5.2"
+__date__    = "2016-04-20"
 
 
 """
@@ -461,6 +467,7 @@ class Spectrum:  # {{{
     # several important keywords
     EXPOSURE  = None
     BACKSCAL  = None
+    AREASCAL  = None
     RESPFILE  = None
     ANCRFILE  = None
     BACKFILE  = None
@@ -621,14 +628,55 @@ class Spectrum:  # {{{
             self.spec_data = np.random.normal(self.spec_data, self.spec_err)
         return self
 
-    def reset_header_keywords(self,
-            keywords=["ANCRFILE", "RESPFILE", "BACKFILE"]):
+    def fix_header_keywords(self,
+            reset_kw=["ANCRFILE", "RESPFILE", "BACKFILE"]):
         """
-        Reset the keywords to "NONE" to avoid confusion or mistakes.
+        Reset the keywords to "NONE" to avoid confusion or mistakes,
+        and also add mandatory spectral keywords if missing.
+
+        Reference:
+        [1] The OGIP Spectral File Format, Sec. 3.1.1
+            https://heasarc.gsfc.nasa.gov/docs/heasarc/ofwg/docs/summary/ogip_92_007_summary.html
         """
-        for kw in keywords:
-            if kw in self.header:
-                self.header[kw] = "NONE"
+        default_keywords = {
+                ## Mandatory keywords
+                #"EXTNAME"  : "SPECTRUM",
+                "TELESCOP" : "NONE",
+                "INSTRUME" : "NONE",
+                "FILTER"   : "NONE",
+                #"EXPOSURE" : <integration_time (s)>,
+                "BACKFILE" : "NONE",
+                "CORRFILE" : "NONE",
+                "CORRSCAL" : 1.0,
+                "RESPFILE" : "NONE",
+                "ANCRFILE" : "NONE",
+                "HDUCLASS" : "OGIP",
+                "HDUCLAS1" : "SPECTRUM",
+                "HDUVERS"  : "1.2.1",
+                "POISSERR" : True,
+                #"CHANTYPE" : "PI",
+                #"DETCHANS" : <total_number_of_detector_channels>,
+                ## Optional keywords for further information
+                "BACKSCAL" : 1.0,
+                "AREASCAL" : 1.0,
+                # Type of spectral data:
+                #   (1) "TOTAL": gross spectrum (source+bkg);
+                #   (2) "NET": background-subtracted spectrum
+                #   (3) "BKG" background spectrum
+                #"HDUCLAS2" : "NET",
+                # Details of the type of data:
+                #   (1) "COUNT": data stored as counts
+                #   (2) "RATE": data stored as counts/s
+                "HDUCLAS3" : { "COUNTS":"COUNT",
+                               "RATE":"RATE" }.get(self.spec_type),
+        }
+        # add mandatory keywords if missing
+        for kw, value in default_keywords.items():
+            if kw not in self.header:
+                self.header[kw] = value
+        # reset the specified keywords
+        for kw in reset_kw:
+            self.header[kw] = default_keywords.get(kw)
 
     def write(self, filename=None, clobber=False):
         """
@@ -867,6 +915,11 @@ class SpectrumSet(Spectrum):  # {{{
             self.spec_bkg_subtracted = True
             self.BACKSCAL = 1.0
             self.AREASCAL = 1.0
+            # update header
+            self.header["BACKSCAL"] = 1.0
+            self.header["AREASCAL"] = 1.0
+            self.header["BACKFILE"] = "NONE"
+            self.header["HDUCLAS2"] = "NET"  # background-subtracted spectrum
             # also record history
             if add_history:
                 self.header.add_history(operation)
@@ -1140,9 +1193,11 @@ class Crosstalk:  # {{{
                     verbose=verbose)
         if add_history:
             self.spectrumset.header.add_history("END Crosstalk Correction")
-        # reset header keywords
-        self.spectrumset.reset_header_keywords(
-                keywords=["ANCRFILE", "BACKFILE"])
+
+    def fix_header(self):
+        # fix header keywords
+        self.spectrumset.fix_header_keywords(
+                reset_kw=["RESPFILE", "ANCRFILE", "BACKFILE"])
 
     def copy(self):
         new = copy(self)
@@ -1299,6 +1354,14 @@ class Deprojection:  # {{{
         for spec, data in zip(self.spectra, spec_data):
             spec.set_data(data, group_squeeze=group_squeeze)
 
+    def add_stat_err(self, stat_err, group_squeeze=True):
+        """
+        Add the "STAT_ERR" column to each spectrum.
+        """
+        assert len(stat_err) == len(self.spectra)
+        for spec, err in zip(self.spectra, stat_err):
+            spec.add_stat_err(err, group_squeeze=group_squeeze)
+
     def add_history(self):
         """
         Append a brief history about this tool to the header.
@@ -1309,13 +1372,11 @@ class Deprojection:  # {{{
         for spec in self.spectra:
             spec.header.add_history(history)
 
-    def add_stat_err(self, stat_err, group_squeeze=True):
-        """
-        Add the "STAT_ERR" column to each spectrum.
-        """
-        assert len(stat_err) == len(self.spectra)
-        for spec, err in zip(self.spectra, stat_err):
-            spec.add_stat_err(err, group_squeeze=group_squeeze)
+    def fix_header(self):
+        # fix header keywords
+        for spec in self.spectra:
+            spec.fix_header_keywords(
+                    reset_kw=["RESPFILE", "ANCRFILE", "BACKFILE"])
 
     def write(self, filenames=[], clobber=False):
         """
@@ -1452,7 +1513,7 @@ def main(config, subtract_bkg, fix_negative, mc_times,
         print("INFO: doing deprojection ...", file=sys.stderr)
     deprojection.do_deprojection(add_history=True, verbose=verbose)
     deproj_results = [ deprojection.get_spec_data(
-        group_squeeze=group_squeeze, copy=True) ]
+            group_squeeze=group_squeeze, copy=True) ]
 
     # Monte Carlo for spectral group error estimation
     print("INFO: Monte Carlo to estimate spectral errors (%d times) ..." % \
@@ -1475,7 +1536,7 @@ def main(config, subtract_bkg, fix_negative, mc_times,
         deprojection_copy.scale()
         deprojection_copy.do_deprojection(add_history=False, verbose=False)
         deproj_results.append(deprojection_copy.get_spec_data(
-            group_squeeze=group_squeeze, copy=True))
+                group_squeeze=group_squeeze, copy=True))
     print("DONE!", flush=True, file=sys.stderr)
 
     if verbose:
@@ -1486,8 +1547,8 @@ def main(config, subtract_bkg, fix_negative, mc_times,
     deprojection.add_stat_err(errors, group_squeeze=group_squeeze)
     if verbose:
         print("INFO: Writing the crosstalk-corrected and deprojected " + \
-                "spectra with estimated statistical errors ...",
-                file=sys.stderr)
+              "spectra with estimated statistical errors ...", file=sys.stderr)
+    deprojection.fix_header()
     deprojection.write(clobber=clobber)
 # main routine }}}
 
@@ -1551,7 +1612,7 @@ def main_deprojection(config, mc_times, verbose=False, clobber=False):
         print("INFO: doing deprojection ...", file=sys.stderr)
     deprojection.do_deprojection(add_history=True, verbose=verbose)
     deproj_results = [ deprojection.get_spec_data(
-        group_squeeze=group_squeeze, copy=True) ]
+            group_squeeze=group_squeeze, copy=True) ]
 
     # Monte Carlo for spectral group error estimation
     print("INFO: Monte Carlo to estimate spectral errors (%d times) ..." % \
@@ -1568,7 +1629,7 @@ def main_deprojection(config, mc_times, verbose=False, clobber=False):
         deprojection_copy.subtract_bkg(verbose=False)
         deprojection_copy.do_deprojection(add_history=False, verbose=False)
         deproj_results.append(deprojection_copy.get_spec_data(
-            group_squeeze=group_squeeze, copy=True))
+                group_squeeze=group_squeeze, copy=True))
     print("DONE!", flush=True, file=sys.stderr)
 
     if verbose:
@@ -1579,8 +1640,8 @@ def main_deprojection(config, mc_times, verbose=False, clobber=False):
     deprojection.add_stat_err(errors, group_squeeze=group_squeeze)
     if verbose:
         print("INFO: Writing the deprojected spectra " + \
-                "with estimated statistical errors ...",
-                file=sys.stderr)
+              "with estimated statistical errors ...", file=sys.stderr)
+    deprojection.fix_header()
     deprojection.write(clobber=clobber)
 # main_deprojection routine }}}
 
@@ -1645,6 +1706,7 @@ def main_crosstalk(config, subtract_bkg, fix_negative, mc_times,
         crosstalk.do_correction(subtract_bkg=subtract_bkg,
                 fix_negative=fix_negative, group_squeeze=group_squeeze,
                 add_history=True, verbose=verbose)
+        crosstalk.fix_header()
         cc_spectra.append(crosstalk.get_spectrum(copy=True))
 
     # spectral data of the crosstalk-corrected spectra
