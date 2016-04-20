@@ -19,9 +19,12 @@
 #
 # Weitian LI
 # Created: 2016-03-26
-# Updated: 2016-04-19
+# Updated: 2016-04-20
 #
 # ChangeLog:
+# 2016-04-20:
+#   * Add argument 'add_history' to some methods (to avoid many duplicated
+#     histories due to Monte Carlo)
 # 2016-04-19:
 #   * Ignore numpy error due to division by zero
 #   * Update tool description and sample configuration
@@ -56,7 +59,7 @@
 #   * Split classes ARF, RMF, Spectrum, and SpectrumSet to a separate module
 #
 
-__version__ = "0.5.0"
+__version__ = "0.5.1"
 __date__    = "2016-04-19"
 
 
@@ -835,7 +838,7 @@ class SpectrumSet(Spectrum):  # {{{
                 self.bkg.spec_err = np.sqrt(self.bkg.spec_data)
             self.bkg.spec_err[self.bkg.spec_err <= 0.0] = eps
 
-    def subtract_bkg(self, inplace=True, verbose=False):
+    def subtract_bkg(self, inplace=True, add_history=False, verbose=False):
         """
         Subtract the background contribution from the source spectrum.
         The `EXPOSURE' and `BACKSCAL' values are required to calculate
@@ -865,11 +868,12 @@ class SpectrumSet(Spectrum):  # {{{
             self.BACKSCAL = 1.0
             self.AREASCAL = 1.0
             # also record history
-            self.header.add_history(operation)
+            if add_history:
+                self.header.add_history(operation)
         return spec_data_subbkg
 
     def subtract(self, spectrumset, cross_arf, groupped=False,
-            group_squeeze=False, verbose=False):
+            group_squeeze=False, add_history=False, verbose=False):
         """
         Subtract the photons that originate from the surrounding regions
         but were scattered into this spectrum due to the finite PSF.
@@ -911,10 +915,11 @@ class SpectrumSet(Spectrum):  # {{{
                 spectrumset.get_data(group_squeeze=group_squeeze)*arf_ratio
         self.set_data(spec_data, group_squeeze=group_squeeze)
         # record history
-        self.header.add_history(operation)
+        if add_history:
+            self.header.add_history(operation)
 
     def compensate(self, cross_arf, groupped=False, group_squeeze=False,
-            verbose=False):
+            add_history=False, verbose=False):
         """
         Compensate the photons that originate from this regions but were
         scattered into the surrounding regions due to the finite PSF.
@@ -945,9 +950,10 @@ class SpectrumSet(Spectrum):  # {{{
                 self.get_data(group_squeeze=group_squeeze) * arf_ratio
         self.set_data(spec_data, group_squeeze=group_squeeze)
         # record history
-        self.header.add_history(operation)
+        if add_history:
+            self.header.add_history(operation)
 
-    def fix_negative(self, verbose=False):
+    def fix_negative(self, add_history=False, verbose=False):
         """
         The subtractions may lead to negative counts, it may be necessary
         to fix these channels with negative values.
@@ -981,7 +987,8 @@ class SpectrumSet(Spectrum):  # {{{
         if i > 0:
             print("FIXED!", file=sys.stderr)
             # record history
-            self.header.add_history("  FIXED NEGATIVE CHANNELS")
+            if add_history:
+                self.header.add_history("  FIXED NEGATIVE CHANNELS")
 
     def set_radius_inner(self, radius_inner):
         """
@@ -1088,24 +1095,27 @@ class Crosstalk:  # {{{
             specset.estimate_errors(gehrels=gehrels)
 
     def do_correction(self, subtract_bkg=True, fix_negative=False,
-            group_squeeze=True, verbose=False):
+            group_squeeze=True, add_history=False, verbose=False):
         """
         Perform the crosstalk correction.  The background contribution
         for each spectrum is subtracted first if `subtract_bkg' is True.
         The basic correction procedures are recorded to the header.
         """
-        self.spectrumset.header.add_history("Crosstalk Correction BEGIN")
-        self.spectrumset.header.add_history("  TOOL: %s (v%s) @ %s" % (\
-                os.path.basename(sys.argv[0]), __version__,
-                datetime.utcnow().isoformat()))
+        if add_history:
+            self.spectrumset.header.add_history("Crosstalk Correction BEGIN")
+            self.spectrumset.header.add_history("  TOOL: %s (v%s) @ %s" % (\
+                    os.path.basename(sys.argv[0]), __version__,
+                    datetime.utcnow().isoformat()))
         # background subtraction
         if subtract_bkg:
             if verbose:
                 print("INFO: subtract background ...", file=sys.stderr)
-            self.spectrumset.subtract_bkg(inplace=True, verbose=verbose)
+            self.spectrumset.subtract_bkg(inplace=True,
+                    add_history=add_history, verbose=verbose)
             # also apply background subtraction to the surrounding spectra
             for specset in self.cross_in_specset:
-                specset.subtract_bkg(inplace=True, verbose=verbose)
+                specset.subtract_bkg(inplace=True,
+                        add_history=add_history, verbose=verbose)
         # subtractions
         if verbose:
             print("INFO: apply subtractions ...", file=sys.stderr)
@@ -1113,20 +1123,23 @@ class Crosstalk:  # {{{
                 self.cross_in_arf):
             self.spectrumset.subtract(spectrumset=specset,
                     cross_arf=cross_arf, groupped=self.groupped,
-                    group_squeeze=group_squeeze, verbose=verbose)
+                    group_squeeze=group_squeeze, add_history=add_history,
+                    verbose=verbose)
         # compensations
         if verbose:
             print("INFO: apply compensations ...", file=sys.stderr)
         for cross_arf in self.cross_out_arf:
             self.spectrumset.compensate(cross_arf=cross_arf,
                     groupped=self.groupped, group_squeeze=group_squeeze,
-                    verbose=verbose)
+                    add_history=add_history, verbose=verbose)
         # fix negative values in channels
         if fix_negative:
             if verbose:
                 print("INFO: fix negative channel values ...", file=sys.stderr)
-            self.spectrumset.fix_negative(verbose=verbose)
-        self.spectrumset.header.add_history("END Crosstalk Correction")
+            self.spectrumset.fix_negative(add_history=add_history,
+                    verbose=verbose)
+        if add_history:
+            self.spectrumset.header.add_history("END Crosstalk Correction")
         # reset header keywords
         self.spectrumset.reset_header_keywords(
                 keywords=["ANCRFILE", "BACKFILE"])
@@ -1230,7 +1243,8 @@ class Deprojection:  # {{{
         for spec in self.spectra:
             spec.scale()
 
-    def do_deprojection(self, group_squeeze=True, verbose=True):
+    def do_deprojection(self, group_squeeze=True,
+            add_history=False, verbose=False):
         #
         # TODO/XXX: How to apply ARF correction here???
         #
@@ -1266,7 +1280,8 @@ class Deprojection:  # {{{
         # set the spectral data to these deprojected values
         self.set_spec_data(spec_per_vol, group_squeeze=group_squeeze)
         # add history to header
-        self.add_history()
+        if add_history:
+            self.add_history()
 
     def get_spec_data(self, group_squeeze=True, copy=True):
         """
@@ -1421,7 +1436,7 @@ def main(config, subtract_bkg, fix_negative, mc_times,
             print("INFO: doing crosstalk correction ...", file=sys.stderr)
         crosstalk.do_correction(subtract_bkg=subtract_bkg,
                 fix_negative=fix_negative, group_squeeze=group_squeeze,
-                verbose=verbose)
+                add_history=True, verbose=verbose)
         cc_spectra.append(crosstalk.get_spectrum(copy=True))
 
     # load back the crosstalk-corrected spectra for deprojection
@@ -1435,7 +1450,7 @@ def main(config, subtract_bkg, fix_negative, mc_times,
     deprojection.scale()
     if verbose:
         print("INFO: doing deprojection ...", file=sys.stderr)
-    deprojection.do_deprojection(verbose=verbose)
+    deprojection.do_deprojection(add_history=True, verbose=verbose)
     deproj_results = [ deprojection.get_spec_data(
         group_squeeze=group_squeeze, copy=True) ]
 
@@ -1452,13 +1467,13 @@ def main(config, subtract_bkg, fix_negative, mc_times,
             crosstalk_copy = crosstalk.copy().randomize()
             crosstalk_copy.do_correction(subtract_bkg=subtract_bkg,
                     fix_negative=fix_negative, group_squeeze=group_squeeze,
-                    verbose=False)
+                    add_history=False, verbose=False)
             cc_spectra_copy.append(crosstalk_copy.get_spectrum(copy=True))
         # deproject spectra
         deprojection_copy = Deprojection(spectra=cc_spectra_copy,
                 grouping=grouping, quality=quality, verbose=False)
         deprojection_copy.scale()
-        deprojection_copy.do_deprojection(verbose=False)
+        deprojection_copy.do_deprojection(add_history=False, verbose=False)
         deproj_results.append(deprojection_copy.get_spec_data(
             group_squeeze=group_squeeze, copy=True))
     print("DONE!", flush=True, file=sys.stderr)
@@ -1534,7 +1549,7 @@ def main_deprojection(config, mc_times, verbose=False, clobber=False):
     deprojection.subtract_bkg(verbose=verbose)
     if verbose:
         print("INFO: doing deprojection ...", file=sys.stderr)
-    deprojection.do_deprojection(verbose=verbose)
+    deprojection.do_deprojection(add_history=True, verbose=verbose)
     deproj_results = [ deprojection.get_spec_data(
         group_squeeze=group_squeeze, copy=True) ]
 
@@ -1551,7 +1566,7 @@ def main_deprojection(config, mc_times, verbose=False, clobber=False):
         deprojection_copy = Deprojection(spectra=proj_spectra_copy,
                 grouping=grouping, quality=quality, verbose=False)
         deprojection_copy.subtract_bkg(verbose=False)
-        deprojection_copy.do_deprojection(verbose=False)
+        deprojection_copy.do_deprojection(add_history=False, verbose=False)
         deproj_results.append(deprojection_copy.get_spec_data(
             group_squeeze=group_squeeze, copy=True))
     print("DONE!", flush=True, file=sys.stderr)
@@ -1629,7 +1644,7 @@ def main_crosstalk(config, subtract_bkg, fix_negative, mc_times,
             print("INFO: doing crosstalk correction ...", file=sys.stderr)
         crosstalk.do_correction(subtract_bkg=subtract_bkg,
                 fix_negative=fix_negative, group_squeeze=group_squeeze,
-                verbose=verbose)
+                add_history=True, verbose=verbose)
         cc_spectra.append(crosstalk.get_spectrum(copy=True))
 
     # spectral data of the crosstalk-corrected spectra
@@ -1650,7 +1665,7 @@ def main_crosstalk(config, subtract_bkg, fix_negative, mc_times,
             crosstalk_copy = crosstalk.copy().randomize()
             crosstalk_copy.do_correction(subtract_bkg=subtract_bkg,
                     fix_negative=fix_negative, group_squeeze=group_squeeze,
-                    verbose=False)
+                    add_history=False, verbose=False)
             cc_spectra_copy.append(crosstalk_copy.get_spectrum(copy=True))
         cc_results.append([ spec.get_data(group_squeeze=group_squeeze,
                                           copy=True)
