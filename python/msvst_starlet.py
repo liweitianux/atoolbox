@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
 # References:
@@ -10,23 +11,36 @@
 #
 # Aaron LI
 # Created: 2016-03-17
-# Updated: 2016-03-22
+# Updated: 2016-04-20
+#
+# ChangeLog:
+# 2016-04-20:
+#   * Add argparse and main() for scripting
 #
 
 """
 Starlet wavelet transform, i.e., isotropic undecimated wavelet transform
 (IUWT), or à trous wavelet transform.
-And multi-scale variance stabling transform (MS-VST).
+And multi-scale variance stabling transform (MS-VST), which can be used
+to effectively remove the Poisson noises.
 """
 
+__version__ = "0.2.0"
+__date__    = "2016-04-20"
+
+
 import sys
+import os
+import argparse
+from datetime import datetime
 
 import numpy as np
 import scipy as sp
 from scipy import signal
+from astropy.io import fits
 
 
-class B3Spline:
+class B3Spline:  # {{{
     """
     B3-spline wavelet.
     """
@@ -35,9 +49,10 @@ class B3Spline:
     dec_hi = np.array([-1.0, -4.0, 10.0, -4.0, -1.0]) / 16
     rec_lo = np.array([0.0, 0.0, 1.0, 0.0, 0.0])
     rec_hi = np.array([0.0, 0.0, 1.0, 0.0, 0.0])
+# B3Spline }}}
 
 
-class IUWT:
+class IUWT:  # {{{
     """
     Isotropic undecimated wavelet transform.
     """
@@ -239,9 +254,10 @@ class IUWT:
         Get the approximation coefficients of the largest scale.
         """
         return self.decomposition[-1]
+# IUWT }}}
 
 
-class IUWT_VST(IUWT):
+class IUWT_VST(IUWT):  # {{{
     """
     IUWT with Multi-scale variance stabling transform.
 
@@ -367,6 +383,8 @@ class IUWT_VST(IUWT):
         """
         Multiple hypothesis testing with false discovery rate (FDR) control.
 
+        `independent': whether the test statistics of all the null
+        hypotheses are independent.
         If `independent=True': FDR <= (m0/m) * q
         otherwise: FDR <= (m0/m) * q * (1 + 1/2 + 1/3 + ... + 1/m)
 
@@ -482,9 +500,12 @@ class IUWT_VST(IUWT):
         iuwt = IUWT(level=self.level)
         iuwt.calc_filters()
         # iterative reconstruction
+        if verbose:
+            print("Iteratively reconstructing (%d times): " % niter,
+                    end="", flush=True, file=sys.stderr)
         for i in range(niter):
             if verbose:
-                print("iter: %d" % i+1, file=sys.stderr)
+                print("%d..." % i, end="", flush=True, file=sys.stderr)
             tempd = self.data.copy()
             solution_decomp = []
             for scale in range(1, self.level+1):
@@ -507,7 +528,75 @@ class IUWT_VST(IUWT):
             solution[solution < 0] = 0.0
             #
             lbd -= delta
+        if verbose:
+            print("DONE!", flush=True, file=sys.stderr)
         #
         self.reconstruction = solution
         return self.reconstruction
+# IUWT_VST }}}
+
+
+def main():
+    # commandline arguments parser
+    parser = argparse.ArgumentParser(
+            description="Poisson Noise Removal with Multi-scale Variance " + \
+                        "Stabling Transform and Wavelet Transform",
+            epilog="Version: %s (%s)" % (__version__, __date__))
+    parser.add_argument("-l", "--level", dest="level",
+            type=int, default=5,
+            help="level of the IUWT decomposition")
+    parser.add_argument("-r", "--fdr", dest="fdr",
+            type=float, default=0.1,
+            help="false discovery rate")
+    parser.add_argument("-I", "--fdr-independent", dest="fdr_independent",
+            action="store_true", default=False,
+            help="whether the FDR null hypotheses are independent")
+    parser.add_argument("-n", "--niter", dest="niter",
+            type=int, default=20,
+            help="number of iterations for reconstruction")
+    parser.add_argument("-v", "--verbose", dest="verbose",
+            action="store_true", default=False,
+            help="show verbose progress")
+    parser.add_argument("-C", "--clobber", dest="clobber",
+            action="store_true", default=False,
+            help="overwrite output file if exists")
+    parser.add_argument("infile", help="input image with Poisson noises")
+    parser.add_argument("outfile", help="output denoised image")
+    args = parser.parse_args()
+
+    if args.verbose:
+        print("infile: '%s'" % args.infile, file=sys.stderr)
+        print("outfile: '%s'" % args.outfile, file=sys.stderr)
+        print("level: %s" % args.level, file=sys.stderr)
+        print("fdr: %s" % args.fdr, file=sys.stderr)
+        print("fdr_independent: %s" % args.fdr_independent, file=sys.stderr)
+        print("niter: %s\n" % args.niter, file=sys.stderr)
+
+    imgfits = fits.open(args.infile)
+    img = imgfits[0].data
+    # Remove Poisson noises
+    msvst = IUWT_VST(data=img)
+    if args.verbose:
+        print("INFO: MSVST decomposing ...", file=sys.stderr)
+    msvst.decompose(level=args.level)
+    if args.verbose:
+        print("INFO: MSVST denosing ...", file=sys.stderr)
+    msvst.denoise(fdr=args.fdr, fdr_independent=args.fdr_independent)
+    if args.verbose:
+        print("INFO: MSVST reconstructing (this may take a while) ...",
+                file=sys.stderr)
+    msvst.reconstruct(denoised=True, niter=args.niter, verbose=args.verbose)
+    img_denoised = msvst.reconstruction
+    # Output
+    imgfits[0].data = img_denoised
+    imgfits[0].header.add_history("%s: Removed Poisson Noises @ %s" % (
+                os.path.basename(sys.argv[0]), datetime.utcnow().isoformat()))
+    imgfits[0].header.add_history("  TOOL: %s (v%s)" % (
+                os.path.basename(sys.argv[0]), __version__))
+    imgfits[0].header.add_history("  PARAM: %s" % " ".join(sys.argv[1:]))
+    imgfits.writeto(args.outfile, checksum=True, clobber=args.clobber)
+
+
+if __name__ == "__main__":
+    main()
 
