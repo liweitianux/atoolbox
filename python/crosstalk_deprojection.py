@@ -89,6 +89,11 @@ verbose = True
 # overwrite existing files
 clobber = False
 
+# NOTE:
+# ONLY specifiy ONE set of projected spectra (i.e., from the same detector
+# of one observation), since ALL the following specified spectra will be
+# used for the deprojection.
+
 [reg1]
 ...
 
