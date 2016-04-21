@@ -3,9 +3,14 @@
 #
 # Aaron LI
 # Created: 2016-03-13
-# Updated: 2016-04-05
+# Updated: 2016-04-20
 #
 # Changelogs:
+# 2016-04-20:
+#   * Support "pix" and "kpc" units
+#   * Allow ignore data w.r.t R500 value
+#   * Major changes to the config syntax
+#   * Add commandline argument to select the sbp model
 # 2016-04-05:
 #   * Allow fix parameters
 # 2016-03-31:
@@ -25,6 +30,7 @@
 #
 # TODO:
 #   * to allow fit the outer beta component, then fix it, and fit the inner one
+#   * to also plot another X axis with unit (R500) (also mark R500 value)
 #
 
 """
@@ -37,42 +43,63 @@ or the double-beta model:
 
 Sample config file:
 -------------------------------------------------
-name    = <NAME>
-obsid   = <OBSID>
+name     = <NAME>
+obsid    = <OBSID>
+r500_pix = <R500_pixel>
+r500_kpc = <R500_kpc>
 
-sbpfile = sbprofile.txt
+sbpfile  = sbprofile.txt
+# unit of radius: pix (default) or kpc
+unit     = pixel
 
-model   = sbeta
-outfile = sbpfit_sbeta.txt
-imgfile = sbpfit_sbeta.png
-
+# sbp model: "sbeta" or "dbeta"
+model    = sbeta
 #model   = dbeta
-#outfile = sbpfit_dbeta.txt
-#imgfile = sbpfit_dbeta.png
 
-# data range to be ignored during fitting
+# output file to store the fitting results
+outfile  = sbpfit.txt
+# output file to save the fitting plot
+imgfile  = sbpfit.png
+
+# data range to be ignored during fitting (same unit as the above "unit")
 #ignore  = 0.0-20.0,
+# specify the ignore range w.r.t R500 ("r500_pix" or "r500_kpc" required)
+#ignore_r500 = 0.0-0.15,
 
 [sbeta]
-# name = initial, lower, upper
-s0    = 1.0e-8, 0.0, 1.0e-6
-rc    = 30.0,   1.0, 1.0e4
-beta  = 0.7,    0.3, 1.1
-bkg   = 1.0e-9, 0.0, 1.0e-7
+# model-related options (OVERRIDE the upper level options)
+outfile     = sbpfit_sbeta.txt
+imgfile     = sbpfit_sbeta.png
+#ignore      = 0.0-20.0,
+#ignore_r500 = 0.0-0.15,
+  [[params]]
+  # model parameters
+  # name = initial, lower, upper, variable (FIXED/False to fix the parameter)
+  s0    = 1.0e-8, 0.0, 1.0e-6
+  rc    = 30.0,   1.0, 1.0e4
+  #rc    = 30.0,   1.0, 1.0e4, FIXED
+  beta  = 0.7,    0.3, 1.1
+  bkg   = 1.0e-9, 0.0, 1.0e-7
+
 
 [dbeta]
-s01   = 1.0e-8, 0.0,  1.0e-6
-rc1   = 50.0,   10.0, 1.0e4
-beta1 = 0.7,    0.3,  1.1
-s02   = 1.0e-8, 0.0,  1.0e-6
-rc2   = 30.0,   1.0,  5.0e2
-beta2 = 0.7,    0.3,  1.1
-bkg   = 1.0e-9, 0.0,  1.0e-7
+outfile     = sbpfit_dbeta.txt
+imgfile     = sbpfit_dbeta.png
+#ignore      = 0.0-20.0,
+#ignore_r500 = 0.0-0.15,
+  [[params]]
+  s01   = 1.0e-8, 0.0,  1.0e-6
+  rc1   = 50.0,   10.0, 1.0e4
+  beta1 = 0.7,    0.3,  1.1
+  s02   = 1.0e-8, 0.0,  1.0e-6
+  rc2   = 30.0,   1.0,  5.0e2
+  beta2 = 0.7,    0.3,  1.1
+  bkg   = 1.0e-9, 0.0,  1.0e-7
 -------------------------------------------------
 """
 
-__version__ = "0.5.1"
-__date__    = "2016-04-05"
+__version__ = "0.6.0"
+__date__    = "2016-04-20"
 
 
 import numpy as np
@@ -397,10 +424,26 @@ class SbpFit:
     Class to handle the SBP fitting with single-/double-beta model.
     """
     def __init__(self, model, method="lbfgsb",
-            xdata=None, ydata=None, xerr=None, yerr=None,
-            name=None, obsid=None):
+            xdata=None, ydata=None, xerr=None, yerr=None, xunit="pix",
+            name=None, obsid=None, r500_pix=None, r500_kpc=None):
         self.method = method
         self.model = model
+        self.load_data(xdata=xdata, ydata=ydata, xerr=xerr, yerr=yerr,
+                xunit=xunit)
+        self.set_source(name=name, obsid=obsid, r500_pix=r500_pix,
+                r500_kpc=r500_kpc)
+
+    def set_source(self, name, obsid=None, r500_pix=None, r500_kpc=None):
+        self.name = name
+        self.obsid = obsid
+        self.r500_pix = r500_pix
+        self.r500_kpc = r500_kpc
+        try:
+            self.kpc_per_pix = r500_kpc / r500_pix
+        except (TypeError, ZeroDivisionError):
+            self.kpc_per_pix = -1
+
+    def load_data(self, xdata, ydata, xerr, yerr, xunit="pix"):
         self.xdata = xdata
         self.ydata = ydata
         self.xerr  = xerr
@@ -409,49 +452,75 @@ class SbpFit:
             self.mask = np.ones(xdata.shape, dtype=np.bool)
         else:
             self.mask = None
-        self.name = name
-        self.obsid = obsid
+        if xunit.lower() in ["pix", "pixel"]:
+            self.xunit = "pix"
+        elif xunit.lower() == "kpc":
+            self.xunit = "kpc"
+        else:
+            raise ValueError("invalid xunit: %s" % xunit)
 
-    def set_source(self, name, obsid=None):
-        self.name = name
-        self.obsid = obsid
-
-    def load_data(self, xdata, ydata, xerr, yerr):
-        self.xdata = xdata
-        self.ydata = ydata
-        self.xerr  = xerr
-        self.yerr  = yerr
-        self.mask  = np.ones(xdata.shape, dtype=np.bool)
-
-    def ignore_data(self, xmin=None, xmax=None):
+    def ignore_data(self, xmin=None, xmax=None, unit=None):
         """
         Ignore the data points within range [xmin, xmax].
         If xmin is None, then xmin=min(xdata);
         if xmax is None, then xmax=max(xdata).
+
+        if unit is None, then assume the same unit as `self.xunit'.
         """
-        if xmin is None:
-            xmin = min(self.xdata)
-        if xmax is None:
-            xmax = max(self.xdata)
+        if unit is None:
+            unit = self.xunit
+        if xmin is not None:
+            xmin = self.convert_unit(xmin, unit=unit)
+        else:
+            xmin = np.min(self.xdata)
+        if xmax is not None:
+            xmax = self.convert_unit(xmax, unit=unit)
+        else:
+            xmax = np.max(self.xdata)
         ignore_idx = np.logical_and(self.xdata >= xmin, self.xdata <= xmax)
         self.mask[ignore_idx] = False
         # reset `f_residual'
         self.f_residual = None
 
-    def notice_data(self, xmin=None, xmax=None):
+    def notice_data(self, xmin=None, xmax=None, unit=None):
         """
         Notice the data points within range [xmin, xmax].
         If xmin is None, then xmin=min(xdata);
         if xmax is None, then xmax=max(xdata).
+
+        if unit is None, then assume the same unit as `self.xunit'.
         """
-        if xmin is None:
-            xmin = min(self.xdata)
-        if xmax is None:
-            xmax = max(self.xdata)
+        if unit is None:
+            unit = self.xunit
+        if xmin is not None:
+            xmin = self.convert_unit(xmin, unit=unit)
+        else:
+            xmin = np.min(self.xdata)
+        if xmax is not None:
+            xmax = self.convert_unit(xmax, unit=unit)
+        else:
+            xmax = np.max(self.xdata)
         notice_idx = np.logical_and(self.xdata >= xmin, self.xdata <= xmax)
         self.mask[notice_idx] = True
         # reset `f_residual'
         self.f_residual = None
+
+    def convert_unit(self, x, unit):
+        """
+        Convert the value x in given unit to be the unit `self.xunit'
+        """
+        if unit == self.xunit:
+            return x
+        elif (unit == "pix")  and (self.xunit == "kpc"):
+            return (x / self.r500_pix * self.r500_kpc)
+        elif (unit == "kpc")  and (self.xunit == "pix"):
+            return (x / self.r500_kpc * self.r500_pix)
+        elif (unit == "r500") and (self.xunit == "pix"):
+            return (x * self.r500_pix)
+        elif (unit == "r500") and (self.xunit == "kpc"):
+            return (x * self.r500_kpc)
+        else:
+            raise ValueError("invalid units: %s vs. %s" % (unit, self.xunit))
 
     def set_residual(self):
         def f_residual(params):
@@ -571,11 +640,10 @@ class SbpFit:
         return (fig, ax)
 
 
-def make_model(config):
+def make_model(config, modelname):
     """
     Make the model with parameters set according to the config.
     """
-    modelname = config["model"]
     if modelname == "sbeta":
         # single-beta model
         model = FitModelSBeta()
@@ -585,7 +653,7 @@ def make_model(config):
     else:
         raise ValueError("Invalid model")
     # set initial values and bounds for the model parameters
-    params = config.get(modelname)
+    params = config[modelname]["params"]
     for p, value in params.items():
         variable = True
         if len(value) == 4 and value[3].upper() in ["FIXED", "FALSE"]:
@@ -604,38 +672,76 @@ def main():
     parser.add_argument("-V", "--version", action="version",
             version="%(prog)s " + "%s (%s)" % (__version__, __date__))
     parser.add_argument("config", help="Config file for SBP fitting")
+    # exclusive argument group for model selection
+    grp_model = parser.add_mutually_exclusive_group(required=False)
+    grp_model.add_argument("-s", "--sbeta", dest="sbeta",
+            action="store_true", help="single-beta model for SBP")
+    grp_model.add_argument("-d", "--dbeta", dest="dbeta",
+            action="store_true", help="double-beta model for SBP")
+    #
     args = parser.parse_args()
 
     config = ConfigObj(args.config)
 
-    # fit model
-    model = make_model(config)
+    # determine the model name
+    if args.sbeta:
+        modelname = "sbeta"
+    elif args.dbeta:
+        modelname = "dbeta"
+    else:
+        modelname = config["model"]
+
+    config_model = config[modelname]
+    # determine the "outfile" and "imgfile"
+    outfile = config.get("outfile")
+    outfile = config_model.get("outfile", outfile)
+    imgfile = config.get("imgfile")
+    imgfile = config_model.get("imgfile", imgfile)
+
+    # SBP fitting model
+    model = make_model(config, modelname=modelname)
 
     # sbp data and fit object
     sbpdata = np.loadtxt(config["sbpfile"])
     sbpfit = SbpFit(model=model, xdata=sbpdata[:, 0], xerr=sbpdata[:, 1],
-            ydata=sbpdata[:, 2], yerr=sbpdata[:, 3])
-    sbpfit.set_source(config["name"], obsid=config.get("obsid"))
+            ydata=sbpdata[:, 2], yerr=sbpdata[:, 3],
+            xunit=config.get("unit", "pix"))
+    sbpfit.set_source(name=config["name"], obsid=config.get("obsid"),
+            r500_pix=config.get("r500_pix"), r500_kpc=config.get("r500_kpc"))
 
     # apply data range ignorance
     if "ignore" in config.keys():
         for ig in config.as_list("ignore"):
             xmin, xmax = map(float, ig.split("-"))
             sbpfit.ignore_data(xmin=xmin, xmax=xmax)
+    if "ignore_r500" in config.keys():
+        for ig in config.as_list("ignore_r500"):
+            xmin, xmax = map(float, ig.split("-"))
+            sbpfit.ignore_data(xmin=xmin, xmax=xmax, unit="r500")
+
+    # apply additional data range ignorance specified within model section
+    if "ignore" in config_model.keys():
+        for ig in config_model.as_list("ignore"):
+            xmin, xmax = map(float, ig.split("-"))
+            sbpfit.ignore_data(xmin=xmin, xmax=xmax)
+    if "ignore_r500" in config_model.keys():
+        for ig in config_model.as_list("ignore_r500"):
+            xmin, xmax = map(float, ig.split("-"))
+            sbpfit.ignore_data(xmin=xmin, xmax=xmax, unit="r500")
 
     # fit and calculate confidence intervals
     sbpfit.fit()
     sbpfit.calc_ci()
     sbpfit.report()
-    with open(config["outfile"], "w") as outfile:
-        sbpfit.report(outfile=outfile)
+    with open(outfile, "w") as ofile:
+        sbpfit.report(outfile=ofile)
 
     # make and save a plot
     fig = Figure()
     canvas = FigureCanvas(fig)
     ax = fig.add_subplot(111)
     sbpfit.plot(ax=ax, fig=fig)
-    fig.savefig(config["imgfile"])
+    fig.savefig(imgfile)
 
 
 if __name__ == "__main__":
