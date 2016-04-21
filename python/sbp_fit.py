@@ -3,9 +3,12 @@
 #
 # Aaron LI
 # Created: 2016-03-13
-# Updated: 2016-04-20
+# Updated: 2016-04-21
 #
 # Changelogs:
+# 2016-04-21:
+#   * Plot another X axis with unit "r500", with R500 values marked
+#   * Adjust output image size/resolution
 # 2016-04-20:
 #   * Support "pix" and "kpc" units
 #   * Allow ignore data w.r.t R500 value
@@ -30,7 +33,6 @@
 #
 # TODO:
 #   * to allow fit the outer beta component, then fix it, and fit the inner one
-#   * to also plot another X axis with unit (R500) (also mark R500 value)
 #
 
 """
@@ -98,8 +100,8 @@ imgfile     = sbpfit_dbeta.png
 -------------------------------------------------
 """
 
-__version__ = "0.6.0"
-__date__    = "2016-04-20"
+__version__ = "0.6.1"
+__date__    = "2016-04-21"
 
 
 import numpy as np
@@ -435,9 +437,18 @@ class SbpFit:
 
     def set_source(self, name, obsid=None, r500_pix=None, r500_kpc=None):
         self.name = name
-        self.obsid = obsid
-        self.r500_pix = r500_pix
-        self.r500_kpc = r500_kpc
+        try:
+            self.obsid = int(obsid)
+        except TypeError:
+            self.obsid = None
+        try:
+            self.r500_pix = float(r500_pix)
+        except TypeError:
+            self.r500_pix = None
+        try:
+            self.r500_kpc = float(r500_kpc)
+        except TypeError:
+            self.r500_kpc = None
         try:
             self.kpc_per_pix = r500_kpc / r500_pix
         except (TypeError, ZeroDivisionError):
@@ -522,6 +533,21 @@ class SbpFit:
         else:
             raise ValueError("invalid units: %s vs. %s" % (unit, self.xunit))
 
+    def convert_to_r500(self, x, unit=None):
+        """
+        Convert the value x in given unit to be in unit "r500".
+        """
+        if unit is None:
+            unit = self.xunit
+        if unit == "r500":
+            return x
+        elif unit == "pix":
+            return (x / self.r500_pix)
+        elif unit == "kpc":
+            return (x / self.r500_kpc)
+        else:
+            raise ValueError("invalid unit: %s" % unit)
+
     def set_residual(self):
         def f_residual(params):
             if self.yerr is None:
@@ -602,7 +628,11 @@ class SbpFit:
         jd = json.dumps(self.results, indent=2)
         print(jd, file=outfile)
 
-    def plot(self, ax=None, fig=None):
+    def plot(self, ax=None, fig=None, r500_axis=True):
+        """
+        Arguments:
+          * r500_axis: whether to add a second X axis in unit "r500"
+        """
         if ax is None:
             fig, ax = plt.subplots(1, 1)
         # noticed data points
@@ -631,13 +661,36 @@ class SbpFit:
         if self.obsid is not None:
             name += "; %s" % self.obsid
         ax.set_title("Fitted Surface Brightness Profile (%s)" % name)
-        ax.set_xlabel("Radius (pixel)")
+        ax.set_xlabel("Radius (%s)" % self.xunit)
         ax.set_ylabel(r"Surface Brightness (photons/cm$^2$/pixel$^2$/s)")
         ax.text(x=xmax, y=ymax,
                 s="redchi: %.2f / %.2f = %.2f" % (self.fitted.chisqr,
                     self.fitted.nfree, self.fitted.chisqr/self.fitted.nfree),
                 horizontalalignment="right", verticalalignment="top")
-        return (fig, ax)
+        plot_ret = [fig, ax]
+        if r500_axis:
+            # Add a second X-axis with labels in unit "r500"
+            # Credit: https://stackoverflow.com/a/28192477/4856091
+            try:
+                ax.title.set_position([0.5, 1.1])  # raise title position
+                ax2 = ax.twiny()
+                # NOTE: the ORDER of the following lines MATTERS
+                ax2.set_xscale(ax.get_xscale())
+                ax2_ticks = ax.get_xticks()
+                ax2.set_xticks(ax2_ticks)
+                ax2.set_xbound(ax.get_xbound())
+                ax2.set_xticklabels([ "%.2g" % self.convert_to_r500(x)
+                                    for x in ax2_ticks ])
+                ax2.set_xlabel("Radius (r500; r500 = %s pix = %s kpc)" % (\
+                        self.r500_pix, self.r500_kpc))
+                ax2.grid(False)
+                plot_ret.append(ax2)
+            except ValueError:
+                # cannot convert X values to unit "r500"
+                pass
+        # automatically adjust layout
+        fig.tight_layout()
+        return plot_ret
 
 
 def make_model(config, modelname):
@@ -737,11 +790,11 @@ def main():
         sbpfit.report(outfile=ofile)
 
     # make and save a plot
-    fig = Figure()
+    fig = Figure(figsize=(10, 8))
     canvas = FigureCanvas(fig)
     ax = fig.add_subplot(111)
-    sbpfit.plot(ax=ax, fig=fig)
-    fig.savefig(imgfile)
+    sbpfit.plot(ax=ax, fig=fig, r500_axis=True)
+    fig.savefig(imgfile, dpi=150)
 
 
 if __name__ == "__main__":
