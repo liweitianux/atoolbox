@@ -17,6 +17,7 @@
 # 2016-04-22:
 #   * Show more verbose information/details
 #   * Fix a bug about "p_cutoff" when "comp" contains ALL False's
+#   * Add argument "start-scale" to specifiy the start denoising scale
 # 2016-04-20:
 #   * Add argparse and main() for scripting
 #
@@ -28,7 +29,7 @@ And multi-scale variance stabling transform (MS-VST), which can be used
 to effectively remove the Poisson noises.
 """
 
-__version__ = "0.2.2"
+__version__ = "0.2.3"
 __date__    = "2016-04-22"
 
 
@@ -431,7 +432,7 @@ class IUWT_VST(IUWT):  # {{{
         self.sig_supports = [None]  # make index match the scale
         self.p_cutoff = [None]
         if verbose:
-            print("MSVST decomposing ...", flush=True, file=sys.stderr)
+            print("MSVST denosing ...", flush=True, file=sys.stderr)
         for scale in range(1, self.level+1):
             coef = self.get_detail(scale)
             if verbose:
@@ -582,6 +583,9 @@ def main():
     parser.add_argument("-I", "--fdr-independent", dest="fdr_independent",
             action="store_true", default=False,
             help="whether the FDR null hypotheses are independent")
+    parser.add_argument("-s", "--start-scale", dest="start_scale",
+            type=int, default=1,
+            help="which scale to start the denoising")
     parser.add_argument("-n", "--niter", dest="niter",
             type=int, default=10,
             help="number of iterations for reconstruction")
@@ -598,10 +602,11 @@ def main():
     if args.verbose:
         print("infile: '%s'" % args.infile, file=sys.stderr)
         print("outfile: '%s'" % args.outfile, file=sys.stderr)
-        print("level: %s" % args.level, file=sys.stderr)
-        print("fdr: %s" % args.fdr, file=sys.stderr)
+        print("level: %d" % args.level, file=sys.stderr)
+        print("fdr: %.2f" % args.fdr, file=sys.stderr)
         print("fdr_independent: %s" % args.fdr_independent, file=sys.stderr)
-        print("niter: %s\n" % args.niter, flush=True, file=sys.stderr)
+        print("start_scale: %d" % args.start_scale, file=sys.stderr)
+        print("niter: %d\n" % args.niter, flush=True, file=sys.stderr)
 
     imgfits = fits.open(args.infile)
     img = imgfits[0].data
@@ -609,7 +614,7 @@ def main():
     msvst = IUWT_VST(data=img)
     msvst.decompose(level=args.level, verbose=args.verbose)
     msvst.denoise(fdr=args.fdr, fdr_independent=args.fdr_independent,
-            verbose=args.verbose)
+            start_scale=args.start_scale, verbose=args.verbose)
     msvst.reconstruct(denoised=True, niter=args.niter, verbose=args.verbose)
     img_denoised = msvst.reconstruction
     # Output
