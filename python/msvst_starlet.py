@@ -16,6 +16,7 @@
 # ChangeLog:
 # 2016-04-22:
 #   * Show more verbose information/details
+#   * Fix a bug about "p_cutoff" when "comp" contains ALL False's
 # 2016-04-20:
 #   * Add argparse and main() for scripting
 #
@@ -27,7 +28,7 @@ And multi-scale variance stabling transform (MS-VST), which can be used
 to effectively remove the Poisson noises.
 """
 
-__version__ = "0.2.1"
+__version__ = "0.2.2"
 __date__    = "2016-04-22"
 
 
@@ -406,12 +407,17 @@ class IUWT_VST(IUWT):  # {{{
             cn = np.sum(1.0 / np.arange(1, N+1))
         p_comp = fdr * np.arange(N) / (N * cn)
         comp = (p_sorted < p_comp)
-        # cutoff p-value after FDR control/correction
-        p_cutoff = np.max(p_sorted[comp])
+        if np.sum(comp) == 0:
+            # `comp' contains ALL False
+            p_cutoff = 0.0
+        else:
+            # cutoff p-value after FDR control/correction
+            p_cutoff = np.max(p_sorted[comp])
+        sig = (pvalues <= p_cutoff)
         if verbose:
             print("std/sigma: %g, p_cutoff: %g" % (std, p_cutoff),
                     flush=True, file=sys.stderr)
-        return (pvalues <= p_cutoff, p_cutoff)
+        return (sig, p_cutoff)
 
     def denoise(self, fdr=0.1, fdr_independent=False, start_scale=1,
             verbose=False):
@@ -595,7 +601,7 @@ def main():
         print("level: %s" % args.level, file=sys.stderr)
         print("fdr: %s" % args.fdr, file=sys.stderr)
         print("fdr_independent: %s" % args.fdr_independent, file=sys.stderr)
-        print("niter: %s\n" % args.niter, file=sys.stderr)
+        print("niter: %s\n" % args.niter, flush=True, file=sys.stderr)
 
     imgfits = fits.open(args.infile)
     img = imgfits[0].data
