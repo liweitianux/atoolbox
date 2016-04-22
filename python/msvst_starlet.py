@@ -11,9 +11,11 @@
 #
 # Aaron LI
 # Created: 2016-03-17
-# Updated: 2016-04-20
+# Updated: 2016-04-22
 #
 # ChangeLog:
+# 2016-04-22:
+#   * Show more verbose information/details
 # 2016-04-20:
 #   * Add argparse and main() for scripting
 #
@@ -25,8 +27,8 @@ And multi-scale variance stabling transform (MS-VST), which can be used
 to effectively remove the Poisson noises.
 """
 
-__version__ = "0.2.0"
-__date__    = "2016-04-20"
+__version__ = "0.2.1"
+__date__    = "2016-04-22"
 
 
 import sys
@@ -379,7 +381,7 @@ class IUWT_VST(IUWT):  # {{{
         data_ivst = data ** 2 + cb - self.vst_coef[scale]["c"]
         return data_ivst
 
-    def is_significant(self, scale, fdr=0.1, independent=False):
+    def is_significant(self, scale, fdr=0.1, independent=False, verbose=False):
         """
         Multiple hypothesis testing with false discovery rate (FDR) control.
 
@@ -393,8 +395,8 @@ class IUWT_VST(IUWT):  # {{{
             https://en.wikipedia.org/wiki/False_discovery_rate
         """
         coef = self.get_detail(scale)
-        pvalues = 2 * (1 - sp.stats.norm.cdf(np.abs(coef) / \
-                self.vst_coef[scale]["std"]))
+        std = self.vst_coef[scale]["std"]
+        pvalues = 2.0 * (1.0 - sp.stats.norm.cdf(np.abs(coef) / std))
         p_sorted = pvalues.flatten()
         p_sorted.sort()
         N = len(p_sorted)
@@ -406,9 +408,13 @@ class IUWT_VST(IUWT):  # {{{
         comp = (p_sorted < p_comp)
         # cutoff p-value after FDR control/correction
         p_cutoff = np.max(p_sorted[comp])
+        if verbose:
+            print("std/sigma: %g, p_cutoff: %g" % (std, p_cutoff),
+                    flush=True, file=sys.stderr)
         return (pvalues <= p_cutoff, p_cutoff)
 
-    def denoise(self, fdr=0.1, fdr_independent=False):
+    def denoise(self, fdr=0.1, fdr_independent=False, start_scale=1,
+            verbose=False):
         """
         Denoise the wavelet coefficients by controlling FDR.
         """
@@ -418,17 +424,29 @@ class IUWT_VST(IUWT):  # {{{
         # supports of significant coefficients of each scale
         self.sig_supports = [None]  # make index match the scale
         self.p_cutoff = [None]
+        if verbose:
+            print("MSVST decomposing ...", flush=True, file=sys.stderr)
         for scale in range(1, self.level+1):
             coef = self.get_detail(scale)
-            sig, p_cutoff = self.is_significant(scale, fdr, fdr_independent)
-            coef[np.logical_not(sig)] = 0.0
+            if verbose:
+                print("\tScale %d: " % scale, end="",
+                        flush=True, file=sys.stderr)
+            if scale < start_scale:
+                if verbose:
+                    print("skipped", flush=True, file=sys.stderr)
+                sig, p_cutoff = None, None
+            else:
+                sig, p_cutoff = self.is_significant(scale, fdr=fdr,
+                        independent=fdr_independent, verbose=verbose)
+                coef[np.logical_not(sig)] = 0.0
+            #
             self.denoised.append(coef)
             self.sig_supports.append(sig)
             self.p_cutoff.append(p_cutoff)
         # append the last approximation
         self.denoised.append(self.get_approx())
 
-    def decompose(self, level, boundary="symm"):
+    def decompose(self, level=5, boundary="symm", verbose=False):
         """
         2D IUWT decomposition with VST.
         """
@@ -439,7 +457,12 @@ class IUWT_VST(IUWT):  # {{{
             self.calc_vst_coef()
         self.decomposition = []
         approx = self.data
+        if verbose:
+            print("IUWT decomposing (%d levels): " % level,
+                    end="", flush=True, file=sys.stderr)
         for scale in range(1, level+1):
+            if verbose:
+                print("%d..." % scale, end="", flush=True, file=sys.stderr)
             # approximation:
             approx2 = signal.convolve2d(self.data, self.filters[scale],
                     mode="same", boundary=self.boundary)
@@ -449,6 +472,8 @@ class IUWT_VST(IUWT):  # {{{
             if scale == level:
                 self.decomposition.append(approx2)
             approx = approx2
+        if verbose:
+            print("DONE!", flush=True, file=sys.stderr)
         return self.decomposition
 
     def reconstruct_ivst(self, denoised=True, positive_project=True):
@@ -476,7 +501,7 @@ class IUWT_VST(IUWT):  # {{{
         self.reconstruction = reconstruction
         return reconstruction
 
-    def reconstruct(self, denoised=True, niter=20, verbose=False):
+    def reconstruct(self, denoised=True, niter=10, verbose=False):
         """
         Reconstruct the original image using iterative method with
         L1 regularization, because the denoising violates the exact inverse
@@ -552,7 +577,7 @@ def main():
             action="store_true", default=False,
             help="whether the FDR null hypotheses are independent")
     parser.add_argument("-n", "--niter", dest="niter",
-            type=int, default=20,
+            type=int, default=10,
             help="number of iterations for reconstruction")
     parser.add_argument("-v", "--verbose", dest="verbose",
             action="store_true", default=False,
@@ -576,15 +601,9 @@ def main():
     img = imgfits[0].data
     # Remove Poisson noises
     msvst = IUWT_VST(data=img)
-    if args.verbose:
-        print("INFO: MSVST decomposing ...", file=sys.stderr)
-    msvst.decompose(level=args.level)
-    if args.verbose:
-        print("INFO: MSVST denosing ...", file=sys.stderr)
-    msvst.denoise(fdr=args.fdr, fdr_independent=args.fdr_independent)
-    if args.verbose:
-        print("INFO: MSVST reconstructing (this may take a while) ...",
-                file=sys.stderr)
+    msvst.decompose(level=args.level, verbose=args.verbose)
+    msvst.denoise(fdr=args.fdr, fdr_independent=args.fdr_independent,
+            verbose=args.verbose)
     msvst.reconstruct(denoised=True, niter=args.niter, verbose=args.verbose)
     img_denoised = msvst.reconstruction
     # Output
