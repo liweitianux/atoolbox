@@ -47,8 +47,8 @@ Sample config file:
 -------------------------------------------------
 name     = <NAME>
 obsid    = <OBSID>
-r500_pix = <R500_pixel>
-r500_kpc = <R500_kpc>
+r500_pix = <R500_PIX>
+r500_kpc = <R500_KPC>
 
 sbpfile  = sbprofile.txt
 # unit of radius: pix (default) or kpc
@@ -56,7 +56,7 @@ unit     = pixel
 
 # sbp model: "sbeta" or "dbeta"
 model    = sbeta
-#model   = dbeta
+#model    = dbeta
 
 # output file to store the fitting results
 outfile  = sbpfit.txt
@@ -64,7 +64,7 @@ outfile  = sbpfit.txt
 imgfile  = sbpfit.png
 
 # data range to be ignored during fitting (same unit as the above "unit")
-#ignore  = 0.0-20.0,
+#ignore      = 0.0-20.0,
 # specify the ignore range w.r.t R500 ("r500_pix" or "r500_kpc" required)
 #ignore_r500 = 0.0-0.15,
 
@@ -77,11 +77,11 @@ imgfile     = sbpfit_sbeta.png
   [[params]]
   # model parameters
   # name = initial, lower, upper, variable (FIXED/False to fix the parameter)
-  s0    = 1.0e-8, 0.0, 1.0e-6
-  rc    = 30.0,   1.0, 1.0e4
-  #rc    = 30.0,   1.0, 1.0e4, FIXED
-  beta  = 0.7,    0.3, 1.1
-  bkg   = 1.0e-9, 0.0, 1.0e-7
+  s0    = 1.0e-8,  0.0,  1.0e-6
+  rc    = 30.0,    5.0,  1.0e4
+  #rc    = 30.0,    5.0,  1.0e4,  FIXED
+  beta  = 0.7,     0.3,  1.1
+  bkg   = 1.0e-10, 0.0,  1.0e-8
 
 
 [dbeta]
@@ -90,13 +90,13 @@ imgfile     = sbpfit_dbeta.png
 #ignore      = 0.0-20.0,
 #ignore_r500 = 0.0-0.15,
   [[params]]
-  s01   = 1.0e-8, 0.0,  1.0e-6
-  rc1   = 50.0,   10.0, 1.0e4
-  beta1 = 0.7,    0.3,  1.1
-  s02   = 1.0e-8, 0.0,  1.0e-6
-  rc2   = 30.0,   1.0,  5.0e2
-  beta2 = 0.7,    0.3,  1.1
-  bkg   = 1.0e-9, 0.0,  1.0e-7
+  s01   = 1.0e-8,  0.0,  1.0e-6
+  rc1   = 50.0,    10.0, 1.0e4
+  beta1 = 0.7,     0.3,  1.1
+  s02   = 1.0e-8,  0.0,  1.0e-6
+  rc2   = 30.0,    2.0,  5.0e2
+  beta2 = 0.7,     0.3,  1.1
+  bkg   = 1.0e-10, 0.0,  1.0e-8
 -------------------------------------------------
 """
 
@@ -704,7 +704,7 @@ def make_model(config, modelname):
         # double-beta model
         model = FitModelDBeta()
     else:
-        raise ValueError("Invalid model")
+        raise ValueError("Invalid model: %s" % modelname)
     # set initial values and bounds for the model parameters
     params = config[modelname]["params"]
     for p, value in params.items():
