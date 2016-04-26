@@ -15,9 +15,11 @@
 #
 # ChangeLog:
 # 2016-04-22:
-#   * Show more verbose information/details
-#   * Fix a bug about "p_cutoff" when "comp" contains ALL False's
+#   * Add argument "end-scale" to specifiy the end denoising scale
+#   * Check outfile existence first
 #   * Add argument "start-scale" to specifiy the start denoising scale
+#   * Fix a bug about "p_cutoff" when "comp" contains ALL False's
+#   * Show more verbose information/details
 # 2016-04-20:
 #   * Add argparse and main() for scripting
 #
@@ -29,7 +31,7 @@ And multi-scale variance stabling transform (MS-VST), which can be used
 to effectively remove the Poisson noises.
 """
 
-__version__ = "0.2.3"
+__version__ = "0.2.5"
 __date__    = "2016-04-22"
 
 
@@ -421,7 +423,7 @@ class IUWT_VST(IUWT):  # {{{
         return (sig, p_cutoff)
 
     def denoise(self, fdr=0.1, fdr_independent=False, start_scale=1,
-            verbose=False):
+            end_scale=None, verbose=False):
         """
         Denoise the wavelet coefficients by controlling FDR.
         """
@@ -438,7 +440,8 @@ class IUWT_VST(IUWT):  # {{{
             if verbose:
                 print("\tScale %d: " % scale, end="",
                         flush=True, file=sys.stderr)
-            if scale < start_scale:
+            if (scale < start_scale) or \
+                    ((end_scale is not None) and scale > end_scale):
                 if verbose:
                     print("skipped", flush=True, file=sys.stderr)
                 sig, p_cutoff = None, None
@@ -585,7 +588,10 @@ def main():
             help="whether the FDR null hypotheses are independent")
     parser.add_argument("-s", "--start-scale", dest="start_scale",
             type=int, default=1,
-            help="which scale to start the denoising")
+            help="which scale to start the denoising (inclusive)")
+    parser.add_argument("-e", "--end-scale", dest="end_scale",
+            type=int, default=0,
+            help="which scale to end the denoising (inclusive)")
     parser.add_argument("-n", "--niter", dest="niter",
             type=int, default=10,
             help="number of iterations for reconstruction")
@@ -599,6 +605,9 @@ def main():
     parser.add_argument("outfile", help="output denoised image")
     args = parser.parse_args()
 
+    if args.end_scale == 0:
+        args.end_scale = args.level
+
     if args.verbose:
         print("infile: '%s'" % args.infile, file=sys.stderr)
         print("outfile: '%s'" % args.outfile, file=sys.stderr)
@@ -606,7 +615,11 @@ def main():
         print("fdr: %.2f" % args.fdr, file=sys.stderr)
         print("fdr_independent: %s" % args.fdr_independent, file=sys.stderr)
         print("start_scale: %d" % args.start_scale, file=sys.stderr)
+        print("end_scale: %d" % args.end_scale, file=sys.stderr)
         print("niter: %d\n" % args.niter, flush=True, file=sys.stderr)
+
+    if not args.clobber and os.path.exists(args.outfile):
+        raise OSError("outfile '%s' already exists" % args.outfile)
 
     imgfits = fits.open(args.infile)
     img = imgfits[0].data
@@ -614,15 +627,16 @@ def main():
     msvst = IUWT_VST(data=img)
     msvst.decompose(level=args.level, verbose=args.verbose)
     msvst.denoise(fdr=args.fdr, fdr_independent=args.fdr_independent,
-            start_scale=args.start_scale, verbose=args.verbose)
+            start_scale=args.start_scale, end_scale=args.end_scale,
+            verbose=args.verbose)
     msvst.reconstruct(denoised=True, niter=args.niter, verbose=args.verbose)
     img_denoised = msvst.reconstruction
     # Output
     imgfits[0].data = img_denoised
     imgfits[0].header.add_history("%s: Removed Poisson Noises @ %s" % (
                 os.path.basename(sys.argv[0]), datetime.utcnow().isoformat()))
-    imgfits[0].header.add_history("  TOOL: %s (v%s)" % (
-                os.path.basename(sys.argv[0]), __version__))
+    imgfits[0].header.add_history("  TOOL: %s (v%s, %s)" % (
+                os.path.basename(sys.argv[0]), __version__, __date__))
     imgfits[0].header.add_history("  PARAM: %s" % " ".join(sys.argv[1:]))
     imgfits.writeto(args.outfile, checksum=True, clobber=args.clobber)
 
