@@ -3,9 +3,12 @@
 #
 # Aaron LI
 # Created: 2016-03-13
-# Updated: 2016-04-21
+# Updated: 2016-04-26
 #
 # Changelogs:
+# 2016-04-26:
+#   * Reorder some methods of classes 'FitModelSBeta' and 'FitModelDBeta'
+#   * Change the output file extension from ".txt" to ".json"
 # 2016-04-21:
 #   * Plot another X axis with unit "r500", with R500 values marked
 #   * Adjust output image size/resolution
@@ -33,6 +36,8 @@
 #
 # TODO:
 #   * to allow fit the outer beta component, then fix it, and fit the inner one
+#   * to integrate basic information of config file to the output json
+#   * to output the ignored radius range in the same unit as input sbp data
 #
 
 """
@@ -59,7 +64,7 @@ model    = sbeta
 #model    = dbeta
 
 # output file to store the fitting results
-outfile  = sbpfit.txt
+outfile  = sbpfit.json
 # output file to save the fitting plot
 imgfile  = sbpfit.png
 
@@ -70,7 +75,7 @@ imgfile  = sbpfit.png
 
 [sbeta]
 # model-related options (OVERRIDE the upper level options)
-outfile     = sbpfit_sbeta.txt
+outfile     = sbpfit_sbeta.json
 imgfile     = sbpfit_sbeta.png
 #ignore      = 0.0-20.0,
 #ignore_r500 = 0.0-0.15,
@@ -85,7 +90,7 @@ imgfile     = sbpfit_sbeta.png
 
 
 [dbeta]
-outfile     = sbpfit_dbeta.txt
+outfile     = sbpfit_dbeta.json
 imgfile     = sbpfit_dbeta.png
 #ignore      = 0.0-20.0,
 #ignore_r500 = 0.0-0.15,
@@ -100,17 +105,9 @@ imgfile     = sbpfit_dbeta.png
 -------------------------------------------------
 """
 
-__version__ = "0.6.1"
-__date__    = "2016-04-21"
+__version__ = "0.6.2"
+__date__    = "2016-04-26"
 
-
-import numpy as np
-import lmfit
-import matplotlib.pyplot as plt
-
-from configobj import ConfigObj
-from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
-from matplotlib.figure import Figure
 
 import os
 import sys
@@ -118,6 +115,13 @@ import re
 import argparse
 import json
 from collections import OrderedDict
+
+import numpy as np
+import lmfit
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
+from matplotlib.figure import Figure
+from configobj import ConfigObj
 
 
 plt.style.use("ggplot")
@@ -129,8 +133,8 @@ class FitModel:
 
     The supplied `func' should have the following syntax:
         y = f(x, params)
-    where the `params' is the parameters to be fitted,
-    and should be provided as well.
+    where the `params' is `lmfit.Parameters' instance which contains all
+    the model parameters to be fitted, and should be provided as well.
     """
     def __init__(self, name=None, func=None, params=lmfit.Parameters()):
         self.name = name
@@ -177,6 +181,10 @@ class FitModelSBeta(FitModel):
                     ("beta", 0.7,    True, 0.3, 1.1,    None),
                     ("bkg",  1.0e-9, True, 0.0, 1.0e-7, None))
 
+    def __init__(self):
+        super(self.__class__, self).__init__(name="Single-beta",
+                func=self.sbeta, params=self.params)
+
     @staticmethod
     def sbeta(r, params):
         parvals = params.valuesdict()
@@ -185,10 +193,6 @@ class FitModelSBeta(FitModel):
         beta = parvals["beta"]
         bkg  = parvals["bkg"]
         return s0 * np.power((1 + (r/rc)**2), (0.5 - 3*beta)) + bkg
-
-    def __init__(self):
-        super(self.__class__, self).__init__(name="Single-beta",
-                func=self.sbeta, params=self.params)
 
     def plot(self, params, xdata, ax):
         """
@@ -232,6 +236,14 @@ class FitModelDBeta(FitModel):
     params.add("beta2", value=0.7,    min=0.3,  max=1.1)
     params.add("bkg",   value=1.0e-9, min=0.0,  max=1.0e-7)
 
+    def __init__(self):
+        super(self.__class__, self).__init__(name="Double-beta",
+                func=self.dbeta, params=self.params)
+
+    @classmethod
+    def dbeta(self, r, params):
+        return self.beta1(r, params) + self.beta2(r, params)
+
     @staticmethod
     def beta1(r, params):
         """
@@ -254,14 +266,6 @@ class FitModelDBeta(FitModel):
         rc2   = parvals["rc2"]
         beta2 = parvals["beta2"]
         return s02 * np.power((1 + (r/rc2)**2), (0.5 - 3*beta2))
-
-    @classmethod
-    def dbeta(self, r, params):
-        return self.beta1(r, params) + self.beta2(r, params)
-
-    def __init__(self):
-        super(self.__class__, self).__init__(name="Double-beta",
-                func=self.dbeta, params=self.params)
 
     def plot(self, params, xdata, ax):
         """
@@ -450,7 +454,7 @@ class SbpFit:
         except TypeError:
             self.r500_kpc = None
         try:
-            self.kpc_per_pix = r500_kpc / r500_pix
+            self.kpc_per_pix = self.r500_kpc / self.r500_pix
         except (TypeError, ZeroDivisionError):
             self.kpc_per_pix = -1
 
