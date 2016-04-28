@@ -13,6 +13,7 @@
 #
 # Changelog:
 # 2016-04-28:
+#   * Split method "pad_square()" from "calc_radial_psd()"
 #   * Hide numpy warning when dividing by zero
 #   * Add method "AstroImage.fix_shapes()"
 #   * Add support for background subtraction and exposure correction
@@ -34,7 +35,7 @@
 Compute the radially averaged power spectral density (i.e., power spectrum).
 """
 
-__version__ = "0.4.2"
+__version__ = "0.4.3"
 __date__    = "2016-04-28"
 
 
@@ -116,48 +117,16 @@ class PSD:
         if verbose:
             print("Calculating radial (1D) power spectral density ... ",
                     end="", flush=True)
-        psd2d = self.psd2d.copy()
-        rows, cols = psd2d.shape
-        ## Adjust the PSD array size
-        dim_diff = np.abs(rows - cols)
-        dim_max  = max(rows, cols)
         if verbose:
             print("padding ... ", end="", flush=True)
-        # Pad the 2D PSD array to be sqaure
-        if rows > cols:
-            # pad columns
-            if np.mod(dim_diff, 2) == 0:
-                cols_left     = np.zeros((rows, dim_diff/2))
-                cols_left[:]  = np.nan
-                cols_right    = np.zeros((rows, dim_diff/2))
-                cols_right[:] = np.nan
-                psd2d         = np.hstack((cols_left, psd2d, cols_right))
-            else:
-                cols_left     = np.zeros((rows, np.floor(dim_diff/2)))
-                cols_left[:]  = np.nan
-                cols_right    = np.zeros((rows, np.floor(dim_diff/2)+1))
-                cols_right[:] = np.nan
-                psd2d         = np.hstack((cols_left, psd2d, cols_right))
-        elif rows < cols:
-            # pad rows
-            if np.mod(dim_diff, 2) == 0:
-                rows_top       = np.zeros((dim_diff/2, cols))
-                rows_top[:]    = np.nan
-                rows_bottom    = np.zeros((dim_diff/2, cols))
-                rows_bottom[:] = np.nan
-                psd2d          = np.vstack((rows_top, psd2d, rows_bottom))
-            else:
-                rows_top       = np.zeros((np.floor(dim_diff/2), cols))
-                rows_top[:]    = np.nan
-                rows_bottom    = np.zeros((np.floor(dim_diff/2)+1, cols))
-                rows_bottom[:] = np.nan
-                psd2d          = np.vstack((rows_top, psd2d, rows_bottom))
+        psd2d = self.pad_square(self.psd2d, value=np.nan)
         ## Compute radially average power spectrum
-        px       = np.arange(-dim_max/2, dim_max/2)
+        dim      = psd2d.shape[0]
+        px       = np.arange(-dim/2, dim/2)
         x, y     = np.meshgrid(px, px)
         rho, phi = self.cart2pol(x, y)
         rho      = np.around(rho).astype(np.int)
-        dim_half = int(np.floor(dim_max/2) + 1)
+        dim_half = int(np.floor(dim/2) + 1)
         radial_psd     = np.zeros(dim_half)
         radial_psd_err = np.zeros(dim_half)
         if verbose:
@@ -171,7 +140,7 @@ class PSD:
             radial_psd[r]     = np.nanmean(data)
             radial_psd_err[r] = np.nanstd(data)
         # Calculate frequencies
-        f = fftpack.fftfreq(dim_max, d=self.pixel[0])
+        f = fftpack.fftfreq(dim, d=self.pixel[0])
         freqs = np.abs(f[:dim_half])
         #
         self.freqs     = freqs
@@ -198,6 +167,48 @@ class PSD:
         x = rho * np.cos(phi)
         y = rho * np.sin(phi)
         return (x, y)
+
+    @staticmethod
+    def pad_square(data, value=np.nan):
+        """
+        Symmetrically pad the supplied data matrix to make it square.
+        The padding rows are equally added to the top and bottom,
+        as well as the columns to the left and right sides.
+        The padded rows/columns are filled with the specified value.
+        """
+        mat = data.copy()
+        rows, cols = mat.shape
+        dim_diff = abs(rows - cols)
+        dim_max  = max(rows, cols)
+        if rows > cols:
+            # pad columns
+            if dim_diff // 2 == 0:
+                cols_left     = np.zeros((rows, dim_diff/2))
+                cols_left[:]  = value
+                cols_right    = np.zeros((rows, dim_diff/2))
+                cols_right[:] = value
+                mat           = np.hstack((cols_left, mat, cols_right))
+            else:
+                cols_left     = np.zeros((rows, np.floor(dim_diff/2)))
+                cols_left[:]  = value
+                cols_right    = np.zeros((rows, np.floor(dim_diff/2)+1))
+                cols_right[:] = value
+                mat           = np.hstack((cols_left, mat, cols_right))
+        elif rows < cols:
+            # pad rows
+            if dim_diff // 2 == 0:
+                rows_top       = np.zeros((dim_diff/2, cols))
+                rows_top[:]    = value
+                rows_bottom    = np.zeros((dim_diff/2, cols))
+                rows_bottom[:] = value
+                mat            = np.vstack((rows_top, mat, rows_bottom))
+            else:
+                rows_top       = np.zeros((np.floor(dim_diff/2), cols))
+                rows_top[:]    = value
+                rows_bottom    = np.zeros((np.floor(dim_diff/2)+1, cols))
+                rows_bottom[:] = value
+                mat            = np.vstack((rows_top, mat, rows_bottom))
+        return mat
 
     def plot(self, ax=None, fig=None):
         """
