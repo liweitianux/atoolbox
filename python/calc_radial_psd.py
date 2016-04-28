@@ -13,6 +13,8 @@
 #
 # Changelog:
 # 2016-04-28:
+#   * Hide numpy warning when dividing by zero
+#   * Add method "AstroImage.fix_shapes()"
 #   * Add support for background subtraction and exposure correction
 #   * Show verbose information during calculation
 #   * Add class "AstroImage"
@@ -32,7 +34,7 @@
 Compute the radially averaged power spectral density (i.e., power spectrum).
 """
 
-__version__ = "0.4.0"
+__version__ = "0.4.2"
 __date__    = "2016-04-28"
 
 
@@ -243,9 +245,9 @@ class AstroImage:
     exposure_bkg = None
 
     def __init__(self, image, expmap=None, bkgmap=None, verbose=False):
-        self.load_image(image, verbose=verbose)
+        self.load_image(image,   verbose=verbose)
         self.load_expmap(expmap, verbose=verbose)
-        self.load_bkgmap(expmap, verbose=verbose)
+        self.load_bkgmap(bkgmap, verbose=verbose)
 
     def load_image(self, image, verbose=False):
         if verbose:
@@ -275,6 +277,57 @@ class AstroImage:
             if verbose:
                 print("DONE", flush=True)
 
+    def fix_shapes(self, tolerance=2, verbose=False):
+        """
+        Fix the shapes of self.expmap and self.bkgmap to make them have
+        the same shape as the self.image.
+
+        NOTE:
+        * if the image is bigger than the reference image, then its
+          columns on the right and rows on the botton are clipped;
+        * if the image is smaller than the reference image, then padding
+          columns on the right and rows on the botton are added.
+        * Original images are REPLACED!
+
+        Arguments:
+          * tolerance: allow absolute difference between images
+        """
+        def _fix_shape(img, ref, tol=tolerance, verbose=verbose):
+            if img.shape == ref.shape:
+                if verbose:
+                    print("SKIPPED", flush=True)
+                return img
+            elif np.allclose(img.shape, ref.shape, atol=tol):
+                if verbose:
+                    print(img.shape, "->", ref.shape, flush=True)
+                rows, cols = img.shape
+                rows_ref, cols_ref = ref.shape
+                # rows
+                if rows > rows_ref:
+                    img_fixed = img[:rows_ref, :]
+                else:
+                    img_fixed = np.row_stack((img,
+                        np.zeros((rows_ref-rows, cols), dtype=img.dtype)))
+                # columns
+                if cols > cols_ref:
+                    img_fixed = img_fixed[:, :cols_ref]
+                else:
+                    img_fixed = np.column_stack((img_fixed,
+                        np.zeros((rows_ref, cols_ref-cols), dtype=img.dtype)))
+                return img_fixed
+            else:
+                raise ValueError("shape difference exceeds tolerance: " + \
+                        "(%d, %d) vs. (%d, %d)" % (img.shape + ref.shape))
+        #
+        if self.bkgmap is not None:
+            if verbose:
+                print("Fixing shape for bkgmap ... ", end="", flush=True)
+            self.bkgmap = _fix_shape(self.bkgmap, self.image)
+        if self.expmap is not None:
+            if verbose:
+                print("Fixing shape for expmap ... ", end="", flush=True)
+            self.expmap = _fix_shape(self.expmap, self.image)
+
     def subtract_bkg(self, verbose=False):
         if verbose:
             print("Subtracting background ... ", end="", flush=True)
@@ -295,7 +348,8 @@ class AstroImage:
         """
         if verbose:
             print("Correcting image for exposure ... ", end="", flush=True)
-        self.image /= self.expmap
+        with np.errstate(divide="ignore", invalid="ignore"):
+            self.image /= self.expmap
         # set invalid values to ZERO
         self.image[ ~ np.isfinite(self.image) ] = 0.0
         if verbose:
@@ -345,6 +399,7 @@ def main():
     # Load image data
     image = AstroImage(image=args.infile, expmap=args.expmap,
                        bkgmap=args.bkgmap, verbose=args.verbose)
+    image.fix_shapes(verbose=args.verbose)
     if args.bkgmap:
         image.subtract_bkg(verbose=args.verbose)
     if args.expmap:
