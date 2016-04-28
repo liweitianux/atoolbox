@@ -7,12 +7,18 @@
 #      'raPsd2d.m'
 #      https://www.mathworks.com/matlabcentral/fileexchange/23636-radially-averaged-power-spectrum-of-2d-real-valued-matrix
 #
+# XXX:
+# * If the input image is NOT SQUARE; then are the horizontal frequencies
+#   the same as the vertical frequencies ??
+#
 # Aaron LI <aaronly.me@gmail.com>
 # Created: 2015-04-22
 # Updated: 2016-04-28
 #
 # Changelog:
 # 2016-04-28:
+#   * Fix wrong meshgrid with respect to the shift zero-frequency component
+#   * Use "numpy.fft" instead of "scipy.fftpack"
 #   * Split method "pad_square()" from "calc_radial_psd()"
 #   * Hide numpy warning when dividing by zero
 #   * Add method "AstroImage.fix_shapes()"
@@ -35,7 +41,7 @@
 Compute the radially averaged power spectral density (i.e., power spectrum).
 """
 
-__version__ = "0.4.3"
+__version__ = "0.5.0"
 __date__    = "2016-04-28"
 
 
@@ -44,7 +50,6 @@ import os
 import argparse
 
 import numpy as np
-from scipy import fftpack
 from astropy.io import fits
 
 import matplotlib.pyplot as plt
@@ -83,6 +88,11 @@ class PSD:
         Note that the low frequency components are shifted to the center
         of the FFT'ed image.
 
+        NOTE:
+        The zero-frequency component is shifted to position of index (0-based)
+            (ceil((n-1) / 2), ceil((m-1) / 2)),
+        where (n, m) are the number of rows and columns of the image/psd2d.
+
         Return:
             2D power spectral density, which is dimensionless if normalized,
             otherwise has unit ${pixel_unit}^2.
@@ -92,7 +102,7 @@ class PSD:
                     end="", flush=True)
         rows, cols = self.img.shape
         ## Compute the power spectral density (i.e., power spectrum)
-        imgf = fftpack.fftshift(fftpack.fft2(self.img))
+        imgf = np.fft.fftshift(np.fft.fft2(self.img))
         if self.normalize:
             norm = rows * cols * self.pixel[0]**2
         else:
@@ -119,14 +129,16 @@ class PSD:
                     end="", flush=True)
         if verbose:
             print("padding ... ", end="", flush=True)
-        psd2d = self.pad_square(self.psd2d, value=np.nan)
-        ## Compute radially average power spectrum
+        psd2d    = self.pad_square(self.psd2d, value=np.nan)
         dim      = psd2d.shape[0]
-        px       = np.arange(-dim/2, dim/2)
+        dim_half = (dim+1) // 2
+        # NOTE:
+        # The zero-frequency component is shifted to position of index
+        # (0-based): (ceil((n-1) / 2), ceil((m-1) / 2))
+        px       = np.arange(dim_half-dim, dim_half)
         x, y     = np.meshgrid(px, px)
         rho, phi = self.cart2pol(x, y)
         rho      = np.around(rho).astype(np.int)
-        dim_half = int(np.floor(dim/2) + 1)
         radial_psd     = np.zeros(dim_half)
         radial_psd_err = np.zeros(dim_half)
         if verbose:
@@ -140,7 +152,7 @@ class PSD:
             radial_psd[r]     = np.nanmean(data)
             radial_psd_err[r] = np.nanstd(data)
         # Calculate frequencies
-        f = fftpack.fftfreq(dim, d=self.pixel[0])
+        f = np.fft.fftfreq(dim, d=self.pixel[0])
         freqs = np.abs(f[:dim_half])
         #
         self.freqs     = freqs
