@@ -9,9 +9,12 @@
 #
 # Aaron LI <aaronly.me@gmail.com>
 # Created: 2015-04-22
-# Updated: 2016-04-26
+# Updated: 2016-04-28
 #
 # Changelog:
+# 2016-04-28:
+#   * Set default value for 'args.png'
+#   * Rename from 'radialPSD2d.py' to 'calc_radial_psd.py'
 # 2016-04-26:
 #   * Adjust plot function
 #   * Update normalize argument; Add pixel argument
@@ -26,8 +29,8 @@
 Compute the radially averaged power spectral density (i.e., power spectrum).
 """
 
-__version__ = "0.3.1"
-__date__    = "2016-04-25"
+__version__ = "0.3.2"
+__date__    = "2016-04-28"
 
 
 import sys
@@ -226,13 +229,16 @@ def main():
     parser.add_argument("-o", "--outfile", dest="outfile",
             required=True, help="output file to store the PSD data")
     parser.add_argument("-p", "--png", dest="png",
-            help="plot the PSD and save to the given PNG file")
+            help="plot the PSD and save (default: same basename as outfile)")
     parser.add_argument("-v", "--verbose", dest="verbose",
             action="store_true", help="show verbose information")
     parser.add_argument("-C", "--clobber", dest="clobber",
             action="store_true",
             help="overwrite the output files if already exist")
     args = parser.parse_args()
+
+    if args.png == "":
+        args.png = os.path.splitext(args.outfile)[0] + ".png"
 
     # Check output files whether already exists
     if (not args.clobber) and os.path.exists(args.outfile):
