@@ -13,6 +13,9 @@
 #
 # Changelog:
 # 2016-04-28:
+#   * Add support for background subtraction and exposure correction
+#   * Show verbose information during calculation
+#   * Add class "AstroImage"
 #   * Set default value for 'args.png'
 #   * Rename from 'radialPSD2d.py' to 'calc_radial_psd.py'
 # 2016-04-26:
@@ -29,7 +32,7 @@
 Compute the radially averaged power spectral density (i.e., power spectrum).
 """
 
-__version__ = "0.3.2"
+__version__ = "0.4.0"
 __date__    = "2016-04-28"
 
 
@@ -71,7 +74,7 @@ class PSD:
         self.pixel = pixel
         self.normalize = normalize
 
-    def calc_psd2d(self):
+    def calc_psd2d(self, verbose=False):
         """
         Computes the 2D power spectral density of the given image.
         Note that the low frequency components are shifted to the center
@@ -81,6 +84,9 @@ class PSD:
             2D power spectral density, which is dimensionless if normalized,
             otherwise has unit ${pixel_unit}^2.
         """
+        if verbose:
+            print("Calculating 2D power spectral density ... ",
+                    end="", flush=True)
         rows, cols = self.img.shape
         ## Compute the power spectral density (i.e., power spectrum)
         imgf = fftpack.fftshift(fftpack.fft2(self.img))
@@ -89,35 +95,32 @@ class PSD:
         else:
             norm = 1.0  # Do not normalize
         self.psd2d = (np.abs(imgf) / norm) ** 2
+        if verbose:
+            print("DONE", flush=True)
         return self.psd2d
 
-    def calc_radial_psd1d(self, k_geometric=True, k_step=1.2):
+    def calc_radial_psd1d(self, verbose=False):
         """
         Computes the radially averaged power spectral density from the
         provided 2D power spectral density.
 
-        XXX/TODO:
-
-        Arguments:
-          * k_geometric: whether the k (i.e., frequency) varies as
-                         geometric sequences (i.e., k, k*k_step, ...),
-                         otherwise, k varies as (k, k+k_step, ...)
-          * k_step: the step ratio or step length for k
-
         Return:
             (freqs, radial_psd, radial_psd_err)
             freqs: spatial freqencies (unit: ${pixel_unit}^(-1))
-                   if k_geometric=True, frequencies are taken as the
-                   geometric means.
             radial_psd: radially averaged power spectral density for each
                         frequency
             radial_psd_err: standard deviations of each radial_psd
         """
+        if verbose:
+            print("Calculating radial (1D) power spectral density ... ",
+                    end="", flush=True)
         psd2d = self.psd2d.copy()
         rows, cols = psd2d.shape
         ## Adjust the PSD array size
         dim_diff = np.abs(rows - cols)
         dim_max  = max(rows, cols)
+        if verbose:
+            print("padding ... ", end="", flush=True)
         # Pad the 2D PSD array to be sqaure
         if rows > cols:
             # pad columns
@@ -154,7 +157,10 @@ class PSD:
         rho      = np.around(rho).astype(np.int)
         dim_half = int(np.floor(dim_max/2) + 1)
         radial_psd     = np.zeros(dim_half)
-        radial_psd_err = np.zeros(dim_half) # standard error
+        radial_psd_err = np.zeros(dim_half)
+        if verbose:
+            print("radially averaging ... ",
+                    end="", flush=True)
         for r in range(dim_half):
             # Get the indices of the elements satisfying rho[i,j]==r
             ii, jj = (rho == r).nonzero()
@@ -163,12 +169,14 @@ class PSD:
             radial_psd[r]     = np.nanmean(data)
             radial_psd_err[r] = np.nanstd(data)
         # Calculate frequencies
-        f = fftpack.fftfreq(dim_max, d=1)  # sample spacing: set to 1 pixel
+        f = fftpack.fftfreq(dim_max, d=self.pixel[0])
         freqs = np.abs(f[:dim_half])
         #
         self.freqs     = freqs
         self.psd1d     = radial_psd
         self.psd1d_err = radial_psd_err
+        if verbose:
+            print("DONE", end="", flush=True)
         return (freqs, radial_psd, radial_psd_err)
 
     @staticmethod
@@ -218,26 +226,114 @@ class PSD:
         return (fig, ax)
 
 
+class AstroImage:
+    """
+    Manipulate the astronimcal counts image, as well as the corresponding
+    exposure map and background map.
+    """
+    # input counts image
+    image = None
+    # exposure map with respect to the input counts image
+    expmap = None
+    # background map (e.g., stowed background)
+    bkgmap = None
+    # exposure time of the input image
+    exposure     = None
+    # exposure time of the background map
+    exposure_bkg = None
+
+    def __init__(self, image, expmap=None, bkgmap=None, verbose=False):
+        self.load_image(image, verbose=verbose)
+        self.load_expmap(expmap, verbose=verbose)
+        self.load_bkgmap(expmap, verbose=verbose)
+
+    def load_image(self, image, verbose=False):
+        if verbose:
+            print("Loading image ... ", end="", flush=True)
+        with fits.open(image) as imgfits:
+            self.image = imgfits[0].data.astype(np.float)
+            self.exposure = imgfits[0].header["EXPOSURE"]
+        if verbose:
+            print("DONE", flush=True)
+
+    def load_expmap(self, expmap, verbose=False):
+        if expmap:
+            if verbose:
+                print("Loading exposure map ... ", end="", flush=True)
+            with fits.open(expmap) as imgfits:
+                self.expmap = imgfits[0].data.astype(np.float)
+            if verbose:
+                print("DONE", flush=True)
+
+    def load_bkgmap(self, bkgmap, verbose=False):
+        if bkgmap:
+            if verbose:
+                print("Loading background map ... ", end="", flush=True)
+            with fits.open(bkgmap) as imgfits:
+                self.bkgmap = imgfits[0].data.astype(np.float)
+                self.exposure_bkg = imgfits[0].header["EXPOSURE"]
+            if verbose:
+                print("DONE", flush=True)
+
+    def subtract_bkg(self, verbose=False):
+        if verbose:
+            print("Subtracting background ... ", end="", flush=True)
+        self.image -= (self.bkgmap / self.exposure_bkg * self.exposure)
+        if verbose:
+            print("DONE", flush=True)
+
+    def correct_exposure(self, cut=0.015, verbose=False):
+        """
+        Correct the image for exposure by dividing by the expmap to
+        create the exposure-corrected image.
+
+        Arguments:
+          * cut: the threshold percentage with respect to the maximum
+                 exposure map value; and those pixels with lower values
+                 than this threshold will be excluded/clipped (set to ZERO)
+                 if set to None, then skip clipping image
+        """
+        if verbose:
+            print("Correcting image for exposure ... ", end="", flush=True)
+        self.image /= self.expmap
+        # set invalid values to ZERO
+        self.image[ ~ np.isfinite(self.image) ] = 0.0
+        if verbose:
+            print("DONE", flush=True)
+        if cut is not None:
+            # clip image according the exposure threshold
+            if verbose:
+                print("Clipping image (%s) ... " % cut, end="", flush=True)
+            threshold = cut * np.max(self.expmap)
+            self.image[ self.expmap < threshold ] = 0.0
+            if verbose:
+                print("DONE", flush=True)
+
+
 def main():
     parser = argparse.ArgumentParser(
             description="Compute the radially averaged power spectral density",
             epilog="Version: %s (%s)" % (__version__, __date__))
     parser.add_argument("-V", "--version", action="version",
             version="%(prog)s " + "%s (%s)" % (__version__, __date__))
-    parser.add_argument("-i", "--infile", dest="infile",
-            required=True, help="input image")
-    parser.add_argument("-o", "--outfile", dest="outfile",
-            required=True, help="output file to store the PSD data")
-    parser.add_argument("-p", "--png", dest="png",
-            help="plot the PSD and save (default: same basename as outfile)")
     parser.add_argument("-v", "--verbose", dest="verbose",
             action="store_true", help="show verbose information")
     parser.add_argument("-C", "--clobber", dest="clobber",
             action="store_true",
             help="overwrite the output files if already exist")
+    parser.add_argument("-i", "--infile", dest="infile",
+            required=True, help="input image")
+    parser.add_argument("-b", "--bkgmap", dest="bkgmap", default=None,
+            help="background map (for background subtraction)")
+    parser.add_argument("-e", "--expmap", dest="expmap", default=None,
+            help="exposure map (for exposure correction)")
+    parser.add_argument("-o", "--outfile", dest="outfile",
+            required=True, help="output file to store the PSD data")
+    parser.add_argument("-p", "--png", dest="png", default=None,
+            help="plot the PSD and save (default: same basename as outfile)")
     args = parser.parse_args()
 
-    if args.png == "":
+    if args.png is None:
         args.png = os.path.splitext(args.outfile)[0] + ".png"
 
     # Check output files whether already exists
@@ -247,20 +343,17 @@ def main():
         raise ValueError("output png '%s' already exists" % args.png)
 
     # Load image data
-    if args.verbose:
-        print("Loading input image ...", file=sys.stderr)
-    with fits.open(args.infile) as ffile:
-        img = ffile[0].data
-        psd = PSD(img, normalize=True)
+    image = AstroImage(image=args.infile, expmap=args.expmap,
+                       bkgmap=args.bkgmap, verbose=args.verbose)
+    if args.bkgmap:
+        image.subtract_bkg(verbose=args.verbose)
+    if args.expmap:
+        image.correct_exposure(verbose=args.verbose)
 
     # Calculate the power spectral density
-    if args.verbose:
-        print("Calculate 2D power spectral density ...", file=sys.stderr)
-    psd.calc_psd2d()
-    if args.verbose:
-        print("Calculate radially averaged (1D) power spectral density ...",
-                file=sys.stderr)
-    freqs, psd1d, psd1d_err = psd.calc_radial_psd1d()
+    psd = PSD(img=image.image, normalize=True)
+    psd.calc_psd2d(verbose=args.verbose)
+    freqs, psd1d, psd1d_err = psd.calc_radial_psd1d(verbose=args.verbose)
 
     # Write out PSD results
     psd_data = np.column_stack((freqs, psd1d, psd1d_err))
