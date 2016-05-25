@@ -1,16 +1,19 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# NOTE:
-# * NedClass
-#   https://astroquery.readthedocs.org/en/latest/api/astroquery.ned.NedClass.html
+# References:
+# [1] astroquery: NedClass
+#     https://astroquery.readthedocs.org/en/latest/api/astroquery.ned.NedClass.html
 #
-# ChangeLog:
+# Change log:
+# 2016-05-25:
+#   * improve comments a bit
+#   * some PEP8 fixes
 #
 # TODO:
-# * allow to query by coordinates & radius range
-# * filter queryed results according to the type/other...
-# * if not queryed by name, then try query by coordinates
+#   * allow to query by coordinates & radius range
+#   * filter queried results according to the type/other...
+#   * if not queried by name, then try query by coordinates
 #
 
 """
@@ -18,27 +21,27 @@ Query NED with the provided name or coordinate.
 NASA/IPAC Extragalactic Database: http://ned.ipac.caltech.edu/
 """
 
-__version__ = "0.1.0"
-__date__ = "2016-01-14"
-
-
 import sys
 import argparse
 import csv
 
 from astroquery.ned import Ned
 from astroquery.exceptions import RemoteServiceError
-from astropy import coordinates
-import astropy.units as u
+# from astropy import coordinates
+# import astropy.units as u
 
 
-## Ned configurations
+__version__ = "0.1.1"
+__date__ = "2016-05-25"
+
+
+# Ned configurations
 Ned.TIMEOUT = 20
 
 
 def query_name(name, verbose=False):
     """
-    Query NED by name.
+    Query NED by source name.
     """
     try:
         q = Ned.query_object(name)
@@ -78,15 +81,17 @@ def query_name(name, verbose=False):
 
 def main():
     parser = argparse.ArgumentParser(
-            description="Query NED ...")
+            description="Query NED database by source name")
     parser.add_argument("-V", "--version", action="version",
-            version="%(prog)s " + "%s (%s)" % (__version__, __date__))
-    parser.add_argument("infile",
-            help="file contains list of names; one per line")
-    parser.add_argument("outfile",
-            help="output with queryed data, empty if not found; CSV format")
+                        version="%(prog)s " + "%s (%s)" % (__version__,
+                                                           __date__))
     parser.add_argument("-v", "--verbose", dest="verbose",
-            action="store_true", help="show verbose information")
+                        action="store_true",
+                        help="show verbose information")
+    parser.add_argument("infile",
+                        help="file contains list of names; one per line")
+    parser.add_argument("outfile",
+                        help="output with queried data in CSV format")
     args = parser.parse_args()
 
     name_list     = []
