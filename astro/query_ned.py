@@ -7,8 +7,10 @@
 #
 # Change log:
 # 2016-05-25:
-#   * improve comments a bit
-#   * some PEP8 fixes
+#   * Update argument process
+#   * Simplify queried results process
+#   * Improve comments a bit
+#   * Some PEP8 fixes
 #
 # TODO:
 #   * allow to query by coordinates & radius range
@@ -24,6 +26,7 @@ NASA/IPAC Extragalactic Database: http://ned.ipac.caltech.edu/
 import sys
 import argparse
 import csv
+from collections import OrderedDict
 
 from astroquery.ned import Ned
 from astroquery.exceptions import RemoteServiceError
@@ -31,7 +34,7 @@ from astroquery.exceptions import RemoteServiceError
 # import astropy.units as u
 
 
-__version__ = "0.1.1"
+__version__ = "0.2.1"
 __date__ = "2016-05-25"
 
 
@@ -55,27 +58,29 @@ def query_name(name, verbose=False):
         if verbose:
             print('%s: %s,%s,%s,%s,%s,%s,%s' % (name, objname, objtype,
                                                 velocity, z, z_flag,
-                                                refs, notes))
+                                                refs, notes),
+                  file=sys.stderr)
     except RemoteServiceError as e:
-        objname  = ''
-        objtype  = ''
-        velocity = ''
-        z        = ''
-        z_flag   = ''
-        refs     = ''
-        notes    = ''
+        objname  = None
+        objtype  = None
+        velocity = None
+        z        = None
+        z_flag   = None
+        refs     = None
+        notes    = None
         if verbose:
             print('*** %s: not found ***' % name, file=sys.stderr)
     #
-    results = {
-        'objname':  objname,
-        'objtype':  objtype,
-        'velocity': velocity,
-        'z':        z,
-        'z_flag':   z_flag,
-        'refs':     refs,
-        'notes':    notes,
-    }
+    results = OrderedDict([
+        ('Name',       name),
+        ('NED_Name',   objname),
+        ('Type',       objtype),
+        ('Velocity',   velocity),
+        ('z',          z),
+        ('z_Flag',     z_flag),
+        ('References', refs),
+        ('Notes',      notes),
+    ])
     return results
 
 
@@ -88,47 +93,34 @@ def main():
     parser.add_argument("-v", "--verbose", dest="verbose",
                         action="store_true",
                         help="show verbose information")
-    parser.add_argument("infile",
-                        help="file contains list of names; one per line")
-    parser.add_argument("outfile",
-                        help="output with queried data in CSV format")
+    parser.add_argument("-i", "--input", dest="input", required=True,
+                        help="source names to be queried (sep by comma); " +
+                             "or a file contains the names (one per line)")
+    parser.add_argument("-o", "--output", dest="output", default=sys.stdout,
+                        help="output CSV file with queried data")
     args = parser.parse_args()
 
-    name_list     = []
-    objname_list  = []
-    objtype_list  = []
-    velocity_list = []
-    z_list        = []
-    z_flag_list   = []
-    refs_list     = []
-    notes_list    = []
+    try:
+        names = map(str.strip, open(args.input).readlines())
+    except FileNotFoundError:
+        names = map(str.strip, args.input.split(","))
 
-    with open(args.infile) as f:
-        for name in f:
-            name = str.strip(name)
-            name_list.append(name)
-            qr = query_name(name, verbose=args.verbose)
-            objname_list.append(qr['objname'])
-            objtype_list.append(qr['objtype'])
-            velocity_list.append(qr['velocity'])
-            z_list.append(qr['z'])
-            z_flag_list.append(qr['z_flag'])
-            refs_list.append(qr['refs'])
-            notes_list.append(qr['notes'])
+    results_list = []
 
-    with open(args.outfile, 'w') as of:
-        writer = csv.writer(of)
-        writer.writerow([ "Name", "NED_Name", "Type", "Velocity",
-                          "z", "z_Flag", "References", "Notes" ])
-        for i in range(len(name_list)):
-            writer.writerow([ name_list[i],
-                              objname_list[i],
-                              objtype_list[i],
-                              velocity_list[i],
-                              z_list[i],
-                              z_flag_list[i],
-                              refs_list[i],
-                              notes_list[i] ])
+    for name in names:
+        qr = query_name(name, verbose=args.verbose)
+        results_list.append(qr)
+
+    try:
+        of = open(args.output, "w")
+    except TypeError:
+        of = args.output
+    writer = csv.writer(of)
+    writer.writerow(results_list[0].keys())
+    for res in results_list:
+        writer.writerow(res.values())
+    if of is not sys.stdout:
+        of.close()
 
 
 if __name__ == "__main__":
