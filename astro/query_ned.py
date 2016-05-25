@@ -7,6 +7,7 @@
 #
 # Change log:
 # 2016-05-25:
+#   * Also output RA, DEC results
 #   * Update argument process
 #   * Simplify queried results process
 #   * Improve comments a bit
@@ -34,7 +35,7 @@ from astroquery.exceptions import RemoteServiceError
 # import astropy.units as u
 
 
-__version__ = "0.2.1"
+__version__ = "0.2.2"
 __date__ = "2016-05-25"
 
 
@@ -48,38 +49,44 @@ def query_name(name, verbose=False):
     """
     try:
         q = Ned.query_object(name)
-        objname  = str(q['Object Name'][0], encoding='utf-8')
-        objtype  = str(q['Type'][0], encoding='utf-8')
-        velocity = q['Velocity'][0]
-        z        = q['Redshift'][0]
-        z_flag   = str(q['Redshift Flag'][0], encoding='utf-8')
-        refs     = q['References'][0]
-        notes    = q['Notes'][0]
+        objname  = q["Object Name"][0].decode("utf-8")
+        objtype  = q["Type"][0].decode("utf-8")
+        ra       = q["RA(deg)"][0]
+        dec      = q["DEC(deg)"][0]
+        velocity = q["Velocity"][0]
+        z        = q["Redshift"][0]
+        z_flag   = q["Redshift Flag"][0].decode("utf-8")
+        refs     = q["References"][0]
+        notes    = q["Notes"][0]
         if verbose:
-            print('%s: %s,%s,%s,%s,%s,%s,%s' % (name, objname, objtype,
-                                                velocity, z, z_flag,
-                                                refs, notes),
+            print("%s: %s,%s,%s,%s,%s,%s,%s,%s,%s" %
+                  (name, objname, objtype, ra, dec, velocity, z, z_flag,
+                   refs, notes),
                   file=sys.stderr)
     except RemoteServiceError as e:
         objname  = None
         objtype  = None
+        ra       = None
+        dec      = None
         velocity = None
         z        = None
         z_flag   = None
         refs     = None
         notes    = None
         if verbose:
-            print('*** %s: not found ***' % name, file=sys.stderr)
+            print("*** %s: not found ***" % name, file=sys.stderr)
     #
     results = OrderedDict([
-        ('Name',       name),
-        ('NED_Name',   objname),
-        ('Type',       objtype),
-        ('Velocity',   velocity),
-        ('z',          z),
-        ('z_Flag',     z_flag),
-        ('References', refs),
-        ('Notes',      notes),
+        ("Name",       name),
+        ("NED_Name",   objname),
+        ("Type",       objtype),
+        ("RA",         ra),
+        ("DEC",        dec),
+        ("Velocity",   velocity),
+        ("z",          z),
+        ("z_Flag",     z_flag),
+        ("References", refs),
+        ("Notes",      notes),
     ])
     return results
 
