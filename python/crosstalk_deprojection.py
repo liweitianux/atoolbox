@@ -21,9 +21,11 @@
 #
 # Weitian LI
 # Created: 2016-03-26
-# Updated: 2016-04-20
+# Updated: 2016-06-07
 #
-# ChangeLog:
+# Change log:
+# 2016-06-07:
+#   * Explain the errors/uncertainties calculation approach
 # 2016-04-20:
 #   * Add argument 'add_history' to some methods (to avoid many duplicated
 #     histories due to Monte Carlo)
@@ -65,8 +67,8 @@
 #   * Split classes ARF, RMF, Spectrum, and SpectrumSet to a separate module
 #
 
-__version__ = "0.5.2"
-__date__    = "2016-04-20"
+__version__ = "0.5.3"
+__date__    = "2016-06-07"
 
 
 """
@@ -1421,7 +1423,9 @@ def calc_median_errors(results):
     Calculate the median and errors for the spectral data gathered
     through Monte Carlo simulations.
 
-    TODO: investigate the errors calculation approach used here!
+    NOTE:
+    Errors calculation just use the quantiles,
+    i.e., 1sigma ~= 68.3% = Q(84.15%) - Q(15.85%)
     """
     results = np.array(results)
     # `results' now has shape: (mc_times, num_spec, num_channel)
