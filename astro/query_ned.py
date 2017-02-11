@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+#
+# Copyright (c) 2016-2017 Weitian LI <liweitianux@live.com>
+# MIT license
 #
 # References:
 # [1] astroquery: NedClass
 #     https://astroquery.readthedocs.org/en/latest/api/astroquery.ned.NedClass.html
 #
 # Change log:
+# 2017-02-11:
+#   * Add argument "--brief" to not print header
 # 2016-05-25:
 #   * Also output RA, DEC results
 #   * Update argument process
@@ -33,10 +37,6 @@ from astroquery.ned import Ned
 from astroquery.exceptions import RemoteServiceError
 # from astropy import coordinates
 # import astropy.units as u
-
-
-__version__ = "0.2.2"
-__date__ = "2016-05-25"
 
 
 # Ned configurations
@@ -94,12 +94,12 @@ def query_name(name, verbose=False):
 def main():
     parser = argparse.ArgumentParser(
             description="Query NED database by source name")
-    parser.add_argument("-V", "--version", action="version",
-                        version="%(prog)s " + "%s (%s)" % (__version__,
-                                                           __date__))
     parser.add_argument("-v", "--verbose", dest="verbose",
                         action="store_true",
                         help="show verbose information")
+    parser.add_argument("-b", "--brief", dest="brief",
+                        action="store_true",
+                        help="be brief and do not print header")
     parser.add_argument("-i", "--input", dest="input", required=True,
                         help="source names to be queried (sep by comma); " +
                              "or a file contains the names (one per line)")
@@ -123,7 +123,8 @@ def main():
     except TypeError:
         of = args.output
     writer = csv.writer(of)
-    writer.writerow(results_list[0].keys())
+    if not args.brief:
+        writer.writerow(results_list[0].keys())
     for res in results_list:
         writer.writerow(res.values())
     if of is not sys.stdout:
