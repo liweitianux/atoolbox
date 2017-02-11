@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+#
+# Copyright (c) 2016-2017 Weitian LI <liweitianux@live.com>
+# MIT license
 #
 # NOTE:
 # * SimbadClass
@@ -7,7 +9,10 @@
 # * All available VOTable fields:
 #   http://simbad.u-strasbg.fr/simbad/sim-help?Page=sim-fscript#VotableFields
 #
-# ChangeLog:
+# Change logs:
+# 2017-02-11:
+#   * Add argument "--brief" to not print header
+#   * Sync with 'query_ned.py'
 # 2016-01-14:
 #   * Add 'z_value'
 #
@@ -22,31 +27,30 @@ Query SIMBAD with the provided name or coordinate.
 http://simbad.u-strasbg.fr/simbad/
 """
 
-__version__ = "0.1.1"
-__date__ = "2016-01-14"
-
-
 import sys
 import argparse
 import csv
 
+from collections import OrderedDict
+
 from astroquery.simbad import Simbad
-from astropy import coordinates
-import astropy.units as u
+# from astropy import coordinates
+# import astropy.units as u
 
 
-## Simbad configurations
+# Simbad configurations
 Simbad.ROW_LIMIT = 30
 Simbad.TIMEOUT = 20
 
-## Add query items/fields
+# Add query items/fields:
 # otype:    standard name of the object type
 # rv_value: Radial velocity value. Eventually translated from a redshift
 # z_value:  Redshift value. Eventually translated from a radial velocity
 # rvz_qual: Quality code (A: best, .., E: worst)
 # rvz_type: stored type of velocity: 'v'=radial velocity, 'z'=redshift
 Simbad.reset_votable_fields()
-Simbad.add_votable_fields('otype', 'rv_value', 'z_value', 'rvz_qual', 'rvz_type')
+Simbad.add_votable_fields('otype', 'rv_value', 'z_value',
+                          'rvz_qual', 'rvz_type')
 
 
 def query_name(name, verbose=False):
@@ -74,62 +78,56 @@ def query_name(name, verbose=False):
         if verbose:
             print('*** %s: not found ***' % name, file=sys.stderr)
     #
-    results = {
-        'main_id':  main_id,
-        'otype':    otype,
-        'rv':       rv,
-        'z':        z,
-        'rvz_qual': rvz_qual,
-        'rvz_type': rvz_type,
-    }
+    results = OrderedDict([
+        ("Name",         name),
+        ("SIMBAD_ID",    main_id),
+        ("Type",         otype),
+        ("RV",           rv),
+        ("z",            z),
+        ("RV/z_Quality", rvz_qual),
+        ("RV/z_Type",    rvz_type),
+    ])
     return results
 
 
 def main():
     parser = argparse.ArgumentParser(
-            description="Query SIMBAD ...")
-    parser.add_argument("-V", "--version", action="version",
-            version="%(prog)s " + "%s (%s)" % (__version__, __date__))
-    parser.add_argument("infile",
-            help="file contains list of names; one per line")
-    parser.add_argument("outfile",
-            help="output with queryed data, empty if not found; CSV format")
+            description="Query SIMBAD database by source name")
     parser.add_argument("-v", "--verbose", dest="verbose",
-            action="store_true", help="show verbose information")
+                        action="store_true",
+                        help="show verbose information")
+    parser.add_argument("-b", "--brief", dest="brief",
+                        action="store_true",
+                        help="be brief and do not print header")
+    parser.add_argument("-i", "--input", dest="input", required=True,
+                        help="source names to be queried (sep by comma); " +
+                             "or a file contains the names (one per line)")
+    parser.add_argument("-o", "--output", dest="output", default=sys.stdout,
+                        help="output CSV file with queried data")
     args = parser.parse_args()
 
-    name_list     = []
-    main_id_list  = []
-    otype_list    = []
-    rv_list       = []
-    z_list        = []
-    rvz_qual_list = []
-    rvz_type_list = []
+    try:
+        names = map(str.strip, open(args.input).readlines())
+    except FileNotFoundError:
+        names = map(str.strip, args.input.split(","))
 
-    with open(args.infile) as f:
-        for name in f:
-            name = str.strip(name)
-            name_list.append(name)
-            qr = query_name(name, verbose=args.verbose)
-            main_id_list.append(qr['main_id'])
-            otype_list.append(qr['otype'])
-            rv_list.append(qr['rv'])
-            z_list.append(qr['z'])
-            rvz_qual_list.append(qr['rvz_qual'])
-            rvz_type_list.append(qr['rvz_type'])
+    results_list = []
 
-    with open(args.outfile, 'w') as of:
-        writer = csv.writer(of)
-        writer.writerow([ "Name", "SIMBAD_ID", "Type",
-                          "RV", "z", "RV/z_Quality", "RV/z_Type" ])
-        for i in range(len(name_list)):
-            writer.writerow([ name_list[i],
-                              main_id_list[i],
-                              otype_list[i],
-                              rv_list[i],
-                              z_list[i],
-                              rvz_qual_list[i],
-                              rvz_type_list[i] ])
+    for name in names:
+        qr = query_name(name, verbose=args.verbose)
+        results_list.append(qr)
+
+    try:
+        of = open(args.output, "w")
+    except TypeError:
+        of = args.output
+    writer = csv.writer(of)
+    if not args.brief:
+        writer.writerow(results_list[0].keys())
+    for res in results_list:
+        writer.writerow(res.values())
+    if of is not sys.stdout:
+        of.close()
 
 
 if __name__ == "__main__":
