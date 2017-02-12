@@ -108,9 +108,9 @@ def main():
     args = parser.parse_args()
 
     try:
-        names = map(str.strip, open(args.input).readlines())
+        names = list(map(str.strip, open(args.input).readlines()))
     except FileNotFoundError:
-        names = map(str.strip, args.input.split(","))
+        names = list(map(str.strip, args.input.split(",")))
 
     results_list = []
 
@@ -133,6 +133,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-#  vim: set ts=4 sw=4 tw=0 fenc=utf-8 ft=python: #
