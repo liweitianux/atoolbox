@@ -72,6 +72,10 @@ class DarSettings:
     date_fmt = "%Y%m%dT%H%M"
 
     # Default settings
+    args_common = [
+        "--min-digits", "3",
+        "--noconf",  # do not try to read /etc/darrc or ~/.darrc
+    ]
     args_default = [
         "--alter=atime",  # do not preserve atime
         "--alter=no-case",  # case insensitive mode
@@ -80,8 +84,6 @@ class DarSettings:
         "--compression=bzip2",
         "--empty-dir",  # create empty directories for the excluded
         "--hash", "sha512",  # calculate the hash of slices on the fly
-        "--min-digits", "3",
-        "--noconf",  # do not try to read /etc/darrc or ~/.darrc
         "--no-overwrite",
         "--no-mount-points",  # stay in the same filesystem
     ]
@@ -94,7 +96,7 @@ class DarSettings:
         "*.rar", "*.rpm", "*.tar.bz2", "*.tar.gz", "*.tar.xz",
         "*.tbz", "*.tgz", "*.txz", "*.wmv", "*.xz", "*.zip",
     ])
-    prune = set(["media", "mnt"])
+    prune = set()
     verbose = set()
 
     # Parchive
@@ -115,7 +117,7 @@ class DarSettings:
         else:
             self.verbose = set()
         if dry_run:
-            self.args_default += ["--dry-run"]
+            self.args_common += ["--dry-run"]
 
         self.path = os.path.dirname(os.path.abspath(configfile))
         settings = yaml.load(open(configfile))
@@ -216,6 +218,7 @@ class DarBackup:
         self.catalog_path = settings.catalog_path
         self.archive_name = settings.archive_name()
         self.last_archive_name = settings.last_archive_name()
+        self.args_common = settings.args_common
         self.args_create = settings.args_create
         self.args_test = settings.args_test
 
@@ -237,7 +240,7 @@ class DarBackup:
         cmd = [
             "dar",
             "--create", self.archive_name,
-        ] + self.args_create
+        ] + self.args_common + self.args_create
         logger.info("Command: {0}".format(cmd))
         subprocess.run(cmd, check=True)
         logger.info("Full backup: DONE!")
@@ -248,7 +251,7 @@ class DarBackup:
             "dar",
             "--create", self.archive_name,
             "--ref", self.last_archive_name,
-        ] + self.args_create
+        ] + self.args_common + self.args_create
         logger.info("Command: {0}".format(cmd))
         subprocess.run(cmd, check=True)
         logger.info("Differential backup: DONE!")
@@ -258,7 +261,7 @@ class DarBackup:
         cmd = [
             "dar",
             "--test", self.archive_name,
-        ] + self.args_test
+        ] + self.args_common + self.args_test
         logger.info("Command: {0}".format(cmd))
         subprocess.run(cmd, check=True)
         logger.info("Test backup: DONE!")
@@ -275,7 +278,7 @@ class DarBackup:
             "dar",
             "--isolate", catalog,
             "--ref", self.archive_name,
-        ]
+        ] + self.args_common
         logger.info("Command: {0}".format(cmd))
         subprocess.run(cmd, check=True)
         logger.info("Isolate backup catalog: DONE!")
