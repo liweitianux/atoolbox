@@ -73,7 +73,7 @@ class DarSettings:
 
     # Default settings
     args_common = [
-        "--min-digits", "3",
+        "--min-digits", "3,3,3",
         "--noconf",  # do not try to read /etc/darrc or ~/.darrc
     ]
     args_default = [
@@ -171,7 +171,7 @@ class DarSettings:
         catalog_glob = os.path.join(self.path, self.catalog_path, basename)
         try:
             catalog = sorted(glob(catalog_glob))[-1]
-            name = os.path.splitext(catalog)[0]
+            name = os.path.splitext(os.path.splitext(catalog)[0])[0]
             logger.info("Found last catalog: {0}".format(name))
             return name
         except IndexError:
