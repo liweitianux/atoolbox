@@ -222,7 +222,7 @@ class DarBackup:
         self.args_create = settings.args_create
         self.args_test = settings.args_test
 
-    def run(self):
+    def run(self, dry_run=False):
         if self.is_system and (not self.is_running_as_root()):
             raise RuntimeError("Running as root to backup the system root")
 
@@ -232,8 +232,9 @@ class DarBackup:
         else:
             self.backup_full()
 
-        self.test_backup()
-        self.isolate_catalog()
+        if not dry_run:
+            self.test_backup()
+            self.isolate_catalog()
 
     def backup_full(self):
         logger.info("Start full backup ...")
@@ -307,7 +308,7 @@ def main():
     settings = DarSettings(args.config, verbose=args.verbose,
                            dry_run=args.dry_run)
     dar = DarBackup(settings)
-    dar.run()
+    dar.run(dry_run=args.dry_run)
 
 
 if __name__ == "__main__":
