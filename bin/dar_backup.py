@@ -39,11 +39,11 @@ exclude_compression: []
 
 Credit/references
 -----------------
-[?] http://www.halfgaar.net/backing-up-unix
-[?] http://dar.linux.free.fr/doc/man/dar.html
-[?] https://github.com/Parchive/par2cmdline
-[?] http://dar.linux.free.fr/doc/samples/dar_par_create.duc
-[?] http://dar.linux.free.fr/doc/samples/dar_par_test.duc
+[1] http://www.halfgaar.net/backing-up-unix
+[2] http://dar.linux.free.fr/doc/man/dar.html
+[3] https://github.com/Parchive/par2cmdline
+[4] http://dar.linux.free.fr/doc/samples/dar_par_create.duc
+[5] http://dar.linux.free.fr/doc/samples/dar_par_test.duc
 """
 
 import os
