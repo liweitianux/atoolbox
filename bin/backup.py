@@ -130,13 +130,17 @@ class Backup:
         """
         Copy file/directory using `rsync` with metadata preserved, and to
         keep directory contents in sync.
+
+        Use `rsync --version` to check the available capabilities.
         """
         if os.path.isdir(src):
             src = src.rstrip("/") + "/"
             dest = dest.rstrip("/") + "/"
-        logger.info("Copy: %s -> %s" % (src, dest))
-        args = ["--archive", "--acls", "--xattrs", "--hard-links",
+        logger.info("Copy & sync: %s -> %s" % (src, dest))
+        args = ["--archive", "--hard-links", "--numeric-ids",
                 "--delete", "--delete-after"]
+        if os.uname().sysname == "Linux":
+            args += ["--acls", "--xattrs"]
         if debug:
             args += ["--verbose"]
         cmd = ["rsync"] + args + [src, dest]
