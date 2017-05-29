@@ -69,6 +69,19 @@ notify() {
 
 usage() {
     error "usage: ${PROG} <account>"
+    error ""
+    error "available accounts:"
+    error "  * aly"
+    error "  * weitian"
+    error "  * webmaster"
+    error "  * autistici"
+    error "  * lavabit"
+    error "  * outlook-aly"
+    error "  * outlook-li"
+    error "  * gmail-aly"
+    error "  * gmail-li"
+    error "  * sjtu"
+    error "  * foxmail"
 }
 
 
@@ -84,42 +97,27 @@ check_cached_passphrase() {
 }
 
 
-# Check the network availability and remote server online status.
-# FIXME: need test IMAP connection instead of ping the server...
-check_server() {
-    local server="$1"
-    ping -c 3 ${server} >/dev/null 2>&1
-}
-
-
 case "$1" in
     aly|weitian|webmaster)
         ACCOUNT="$1"
-        SERVER="mail.aaronly.me"
         ;;
     autistici)
         ACCOUNT="$1"
-        SERVER="mail.autistici.org"
         ;;
     lavabit)
         ACCOUNT="$1"
-        SERVER="imap.lavabit.com"
         ;;
     outlook-aly|outlook-li)
         ACCOUNT="$1"
-        SERVER="imap-mail.outlook.com"
         ;;
     gmail-aly|gmail-li)
         ACCOUNT="$1"
-        SERVER="imap.gmail.com"
         ;;
     sjtu)
         ACCOUNT="$1"
-        SERVER="imap.sjtu.edu.cn"
         ;;
     foxmail)
         ACCOUNT="$1"
-        SERVER="imap.qq.com"
         ;;
     -h|--help)
         usage
@@ -147,20 +145,11 @@ if ! check_cached_passphrase ${GPG_KEY}; then
     exit 2
 fi
 
-#if ! check_server ${SERVER}; then
-#    log "Network not available or remote server ${SERVER} is offline!"
-#    notify "Network not available or remote server ${SERVER} is offline!"
-#    exit 3
-#fi
-
 if [ -f "${PIDFILE}" ]; then
     PID=$(cat ${PIDFILE})
     if is_running ${PID} && ! kill ${PID} >/dev/null 2>&1; then
         log "Cannot kill process: ${PID}"
         notify "Cannot kill process: ${PID}"
-    else
-        log "Killed previous instance: ${PID}"
-        notify "Killed previous instance: ${PID}"
     fi
 fi
 
