@@ -55,7 +55,9 @@ class FITSCube:
     def make_wcs(self, header, zbegin, zstep):
         w = WCS(naxis=3)
         w.wcs.ctype = ["pixel", "pixel", "pixel"]
-        w.wcs.crpix = np.array([1.0, 1.0, 1.0])
+        w.wcs.crpix = np.array([header.get("CRPIX1", 1.0),
+                                header.get("CRPIX2", 1.0),
+                                1.0])
         w.wcs.crval = np.array([header.get("CRVAL1", 0.0),
                                 header.get("CRVAL2", 0.0),
                                 zbegin])
@@ -102,11 +104,12 @@ class FITSCube:
         """
         Calculate the Z-axis positions for all slices
         """
-        begin = self.zbegin
-        step = self.zstep
         nslice = self.nslice
-        values = [begin+step*i for i in range(nslice)]
-        return values
+        wcs = WCS(self.header)
+        pix = np.zeros(shape=(nslice, 3), dtype=np.int)
+        pix[:, 2] = np.arange(nslice)
+        world = wcs.wcs_pix2world(pix, 0)
+        return world[:, 2]
 
 
 def cmd_info(args):
