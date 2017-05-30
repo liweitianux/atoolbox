@@ -25,6 +25,7 @@
 #
 
 set -e
+umask 027
 
 # Workaround to make `notify-send` work with cron
 # Credit: https://stackoverflow.com/a/16520076
