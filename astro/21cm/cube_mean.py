@@ -8,8 +8,6 @@
 Calculate the mean values of the cube.
 """
 
-import os
-import sys
 import argparse
 
 import numpy as np
