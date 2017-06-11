@@ -68,7 +68,10 @@ class FITSCube:
 
     def write(self, outfile, clobber):
         hdu = fits.PrimaryHDU(data=self.data, header=self.header)
-        hdu.writeto(outfile, clobber=clobber)
+        try:
+            hdu.writeto(outfile, overwrite=clobber)
+        except TypeError:
+            hdu.writeto(outfile, clobber=clobber)
 
     @property
     def width(self):
