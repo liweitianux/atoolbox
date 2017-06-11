@@ -5,6 +5,15 @@
 #
 # 2017-04-07
 #
+# Change logs:
+# 2017-06-08:
+#   * Add more command line arguments
+#   * Set "dryrun" to True
+#   * Do not output OSKAR binary visibility file (output MS only)
+# 2017-05-05:
+#   * Fix ConfigParser getfloat error
+#   * Workaround old astropy which uses "clobber" instead of "overwrite"
+#
 
 """
 Run OSKAR to simulate the visibilities from the sky model specified
@@ -28,7 +37,6 @@ import logging
 
 import numpy as np
 import astropy.io.fits as fits
-import astropy.units as au
 import astropy.constants as ac
 from astropy.wcs import WCS
 
@@ -55,7 +63,7 @@ class Settings:
 
     @property
     def dryrun(self):
-        return self.my_settings.getboolean("dryrun", fallback=False)
+        return self.my_settings.getboolean("dryrun", fallback=True)
 
     @property
     def clobber(self):
@@ -190,7 +198,7 @@ class Settings:
         # This default time keeps 'EoR0' region above horizon for 12 hours.
         # SKA EoR0 region: (ra, dec) = (0, -27) [deg]
         default = "2000-01-01T03:30:00.000"
-        return self.my_settings.getfloat("start_time", fallback=default)
+        return self.my_settings.get("start_time", fallback=default)
 
     @property
     def obs_length(self):
@@ -462,12 +470,12 @@ class SkyModel:
         if os.path.exists(outfile) and (not clobber):
             raise OSError("oskar sky model file already exists: " % outfile)
         sky = self.sky
-        header=("Frequency = %.3f [MHz]\n" % self.freq +
-                "Pixel size = %.2f arcsec\n" % self.pixsize +
-                "RA0 = %.4f [deg]\n" % self.ra0 +
-                "Dec0 = %.4f [deg]\n" % self.dec0 +
-                "Number of sources = %d\n\n" % len(sky) +
-                "R.A.[deg]    Dec.[deg]    flux[Jy]")
+        header = ("Frequency = %.3f [MHz]\n" % self.freq +
+                  "Pixel size = %.2f arcsec\n" % self.pixsize +
+                  "RA0 = %.4f [deg]\n" % self.ra0 +
+                  "Dec0 = %.4f [deg]\n" % self.dec0 +
+                  "Number of sources = %d\n\n" % len(sky) +
+                  "R.A.[deg]    Dec.[deg]    flux[Jy]")
         np.savetxt(outfile, sky, fmt='%.10e, %.10e, %.10e', header=header)
         logger.info("Wrote oskar sky model file: %s" % outfile)
 
@@ -481,7 +489,10 @@ class SkyModel:
             header = self.fits_header
         image = self.image * self.factor_K2JyPixel
         hdu = fits.PrimaryHDU(data=image, header=header)
-        hdu.writeto(outfile, overwrite=True)
+        try:
+            hdu.writeto(outfile, overwrite=True)
+        except TypeError:
+            hdu.writeto(outfile, clobber=True)  # old astropy versions
         logger.info("Wrote sky FITS to file: %s" % outfile)
 
 
@@ -492,12 +503,18 @@ class Oskar:
     def __init__(self, settings):
         self.settings = settings
 
-    def run(self, settingsfile, dryrun=False):
+    def run(self, settingsfile, dryrun=True, shfile=None):
         cmd = [self.settings.oskar_bin]
         if self.settings.quiet:
             cmd += ["--quiet"]
         cmd += [settingsfile]
-        logger.info("Running OSKAR simulator: CMD: %s" % " ".join(cmd))
+        shellcmd = cmd[0]
+        for arg in cmd[1:]:
+            shellcmd += ' "%s"' % arg
+        logger.info("Running OSKAR simulator:")
+        logger.info("$ %s" % shellcmd)
+        if shfile:
+            open(shfile, "a").write("%s\n" % shellcmd)
         if dryrun:
             logger.info("Dry run!")
         else:
@@ -507,11 +524,28 @@ class Oskar:
 def main():
     parser = argparse.ArgumentParser(
         description="Run OSKAR to simulate visibilities")
+    parser.add_argument("-C", "--clobber", dest="clobber",
+                        action="store_true",
+                        help="overwrite existing files")
+    parser.add_argument("-R", "--run-oskar", dest="run",
+                        action="store_true",
+                        help="run OSKAR instead of just print commands")
+    parser.add_argument("-S", "--sh-file", dest="shfile",
+                        help="also write OSKAR commands to this file")
     parser.add_argument("config", help="Configuration file")
     args = parser.parse_args()
 
     settings = Settings(args.config)
-    clobber = settings.clobber
+    clobber = args.clobber if args.clobber else settings.clobber
+    dryrun = settings.dryrun
+    if args.run:
+        dryrun = False
+    if args.shfile and os.path.exists(args.shfile):
+        if clobber:
+            os.remove(args.shfile)
+        else:
+            raise OSError("Output file already exists: %s" % args.shfile)
+
     image_cube = SpectralCube(settings.input_cube)
     frequencies = image_cube.frequencies  # [MHz]
     if frequencies is None:
@@ -541,7 +575,7 @@ def main():
                 "start_frequency_hz": freq * 1e6,
             },
             "interferometer": {
-                "oskar_vis_filename": visfile,
+                "oskar_vis_filename": "",
                 "ms_filename": msfile,
             },
         })
@@ -557,7 +591,7 @@ def main():
                             clobber=clobber)
 
         oskar = Oskar(settings)
-        oskar.run(settingsfile, dryrun=settings.dryrun)
+        oskar.run(settingsfile, dryrun=dryrun, shfile=args.shfile)
 
 
 if __name__ == '__main__':
