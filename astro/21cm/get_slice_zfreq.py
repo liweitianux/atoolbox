@@ -97,7 +97,16 @@ def main():
         print("z=%05.2f, freq=%06.2f MHz : %s" % (z, f, outfile))
         zslice = cube.get_slice(z)
         header = fits.Header()
-        header["BUNIT"] = cube.header.get("BUNIT")
+        try:
+            header["BUNIT"] = (cube.header["BUNIT"],
+                               cube.header.comments["BUNIT"])
+        except KeyError:
+            pass
+        try:
+            header["LSIDE"] = (cube.header["LSIDE"],
+                               cube.header.comments["LSIDE"])
+        except KeyError:
+            pass
         header["REDSHIFT"] = (z, "Slice where interpolated")
         header["FREQ"] = (f, "21cm signal frequency [MHz]")
         header.add_history(" ".join(sys.argv))
