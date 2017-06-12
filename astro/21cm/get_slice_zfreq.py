@@ -62,7 +62,7 @@ class FITSCube:
 
 
 def main():
-    outfile_default = "{prefix}_z{z:05.2f}_f{freq:06.2f}.fits"
+    outfile_default = "{prefix}_f{freq:06.2f}_z{z:06.3f}.fits"
 
     parser = argparse.ArgumentParser(
         description="Get slices at requested redshifts/frequencies")
@@ -94,7 +94,7 @@ def main():
     cube = FITSCube(args.infile)
     for z, f in zip(redshifts, freqs):
         outfile = args.outfile.format(prefix=args.prefix, z=z, freq=f)
-        print("z=%05.2f, freq=%06.2f MHz : %s" % (z, f, outfile))
+        print("z=%06.3f, freq=%06.2f MHz : %s" % (z, f, outfile))
         zslice = cube.get_slice(z)
         header = fits.Header()
         try:

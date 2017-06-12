@@ -38,7 +38,7 @@ def main():
                         "(default: 5.0 deg)")
     parser.add_argument("-N", "--n-side", dest="Nside", default=600, type=int,
                         help="required image size of output slice " +
-                        "(default: 500)")
+                        "(default: 600)")
     parser.add_argument("-i", "--infile", dest="infile", required=True,
                         help="input slice")
     parser.add_argument("-o", "--outfile", dest="outfile",
