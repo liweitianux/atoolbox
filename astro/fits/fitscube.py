@@ -9,7 +9,9 @@ Create FITS image cube from a series of image slices.
 """
 
 import os
+import sys
 import argparse
+from datetime import datetime
 
 import numpy as np
 from astropy.io import fits
@@ -67,6 +69,8 @@ class FITSCube:
         return w
 
     def write(self, outfile, clobber):
+        self.header.add_history(datetime.now().isoformat())
+        self.header.add_history(" ".join(sys.argv))
         hdu = fits.PrimaryHDU(data=self.data, header=self.header)
         try:
             hdu.writeto(outfile, overwrite=clobber)
