@@ -78,6 +78,11 @@ def main():
     img2 = img_tiled[:Nside2, :Nside2]
     # Rescale to the output size
     img_out = scipy.ndimage.zoom(img2, zoom=args.Nside/Nside2, order=1)
+    # Record information to header
+    header["Z_C"] = (zc, "Central redshift")
+    header["FREQ_C"] = (fc, "Frequency [MHz] w.r.t. to the redshift")
+    header["FOV"] = (args.fov, "FoV [deg] of this slice")
+    header["PixSize"] = (60.0*args.fov/args.Nside, "Pixel size [arcmin]")
     header.add_history(" ".join(sys.argv))
     hdu = fits.PrimaryHDU(data=img_out, header=header)
     outfile = args.outfile.format(prefix=args.prefix, freq=freq,
