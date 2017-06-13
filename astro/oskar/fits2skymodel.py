@@ -211,6 +211,8 @@ def main():
     parser.add_argument("-F", "--osm-fits", dest="osmfits",
                         action="store_true",
                         help="save a FITS version of the converted sky model")
+    parser.add_argument("-o", "--outdir", dest="outdir",
+                        help="output directory for sky model files")
     parser.add_argument("infile", help="input FITS image")
     parser.add_argument("outfile", nargs="?",
                         help="output OSKAR sky model (default: " +
@@ -220,7 +222,11 @@ def main():
     if args.outfile:
         outfile = args.outfile
     else:
-        outfile = os.path.splitext(args.infile)[0] + ".osm"
+        outfile = os.path.splitext(os.path.basename(args.infile))[0] + ".osm"
+        if args.outdir:
+            outfile = os.path.join(args.outdir, outfile)
+            if not os.path.exists(args.outdir):
+                os.mkdir(args.outdir)
 
     with fits.open(args.infile) as f:
         image = f[0].data
@@ -238,6 +244,7 @@ def main():
     logger.info("Minimum threshold: %g [K]" % minvalue)
     skymodel = SkyModel(image=image, freq=freq, ra0=args.ra0, dec0=args.dec0,
                         pixsize=pixsize, minvalue=minvalue)
+    logger.info("Conversion [K] -> [Jy/pixel]: %g" % skymodel.factor_K2JyPixel)
     skymodel.write_sky_model(outfile, clobber=args.clobber)
     if args.osmfits:
         outfits = outfile + ".fits"
