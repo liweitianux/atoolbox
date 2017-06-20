@@ -22,6 +22,7 @@
 #
 # Aaron LI
 # 2017-05-28
+# Updated: 2017-06-20
 #
 
 set -e
@@ -155,7 +156,6 @@ if [ -f "${PIDFILE}" ]; then
 fi
 
 log "Sync mail for account: ${ACCOUNT} ..."
-notify "Sync mail for account: ${ACCOUNT} ..."
 mbsync -V "${ACCOUNT}" >>${LOGFILE} 2>&1 &
 #sleep 10 &
 PID=$!
