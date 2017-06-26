@@ -59,6 +59,7 @@ class PS2D:
         logger.info("Initializing PS2D instance ...")
         self.cube = cube
         self.pixelsize = pixelsize  # [arcmin]
+        logger.info("Image pixel size: %.2 [arcmin]" % pixelsize)
         self.frequencies = np.array(frequencies)  # [MHz]
         self.nfreq = len(self.frequencies)
         # Central frequency and redshift
@@ -135,11 +136,11 @@ class PS2D:
         mx, my = np.meshgrid(p_x, p_x)
         rho, phi = self.cart2pol(mx, my)
         rho = np.around(rho).astype(np.int)
-        n_k_prep = (nx+1) // 2
+        n_k_perp = (nx+1) // 2
         n_k_los = (nz+1) // 2
-        ps2d = np.zeros(shape=(n_k_los, n_k_prep))  # (k_los, k_prep)
+        ps2d = np.zeros(shape=(n_k_los, n_k_perp))  # (k_los, k_perp)
         logger.info("Calculating 2D PS by binning 3D PS ...")
-        for r in range(n_k_prep):
+        for r in range(n_k_perp):
             ix, iy = (rho == r).nonzero()
             for s in range(n_k_los):
                 iz = (p_z == s).nonzero()[0]
@@ -154,7 +155,10 @@ class PS2D:
         Save the calculated 2D power spectrum as a FITS image.
         """
         hdu = fits.PrimaryHDU(data=self.ps2d, header=self.header)
-        hdu.writeto(outfile, clobber=clobber)
+        try:
+            hdu.writeto(outfile, overwrite=clobber)
+        except TypeError:
+            hdu.writeto(outfile, clobber=clobber)
         logger.info("PS2D results saved to file: %s" % outfile)
 
     @property
@@ -177,7 +181,7 @@ class PS2D:
         return kz  # [Mpc^-1]
 
     @property
-    def k_prep(self):
+    def k_perp(self):
         """
         Comoving wavenumbers perpendicular to the LoS
 
@@ -224,7 +228,7 @@ class PS2D:
         hdr["LTM2_2"] = 1.0 / dkz
         # WCS physical coordinates
         hdr["WCSTY1P"] = "PHYSICAL"
-        hdr["CTYPE1P"] = ("k_prep", "wavenumbers perpendicular to LoS")
+        hdr["CTYPE1P"] = ("k_perp", "wavenumbers perpendicular to LoS")
         hdr["CRPIX1P"] = (0.5, "reference pixel")
         hdr["CRVAL1P"] = (0.0, "coordinate of the reference pixel")
         hdr["CDELT1P"] = (dkx, "coordinate delta/step")
@@ -246,7 +250,8 @@ def main():
     parser.add_argument("-C", "--clobber", dest="clobber",
                         action="store_true",
                         help="overwrite existing file")
-    parser.add_argument("-p", "--pixelsize", dest="pixelsize", required=True,
+    parser.add_argument("-p", "--pixelsize", dest="pixelsize",
+                        type=float, required=True,
                         help="image cube pixel size; unit: [arcmin]")
     parser.add_argument("-i", "--infile", dest="infile", required=True,
                         help="input FITS image cube")
