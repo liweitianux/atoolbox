@@ -33,23 +33,28 @@ class FITSCube:
         print("Loaded FITS cube from file: %s" % infile)
         print("Cube dimensions: %dx%dx%d" %
               (self.width, self.height, self.nslice))
+        # The Z-axis position of the first slice.
+        self.zbegin = self.header["CRVAL3"]
+        # The Z-axis step/spacing between slices.
+        self.zstep = self.header["CDELT3"]
 
     def add_slices(self, slices, zbegin=0.0, zstep=1.0):
         """
         Create a FITS cube from input image slices.
         """
+        self.slices = slices
+        self.zbegin = zbegin
+        self.zstep = zstep
         nslice = len(slices)
         header, image = self.open_image(slices[0])
         shape = (nslice, ) + image.shape
         data = np.zeros(shape, dtype=image.dtype)
         for i, s in enumerate(slices):
-            print("[%d/%d] Adding image slice: %s ..." % (i, nslice, s))
+            print("[%d/%d] Adding image slice: %s ..." % (i+1, nslice, s))
             hdr, img = self.open_image(s)
             data[i, :, :] = img
         self.data = data
-        wcs = self.make_wcs(header, zbegin=zbegin, zstep=zstep)
         self.header = header.copy(strip=True)
-        self.header.extend(wcs.to_header(), update=True)
         print("Created FITS cube of dimensions: %dx%dx%d" %
               (self.width, self.height, self.nslice))
 
@@ -63,7 +68,7 @@ class FITSCube:
         The input slice image may have following dimensions:
         * NAXIS=2: [Y, X]
         * NAXIS=3: [FREQ=1, Y, X]
-        * NAXIS=4: [FREQ=1, STOKES=1, Y, X]
+        * NAXIS=4: [STOKES=1, FREQ=1, Y, X]
 
         NOTE
         ----
@@ -86,31 +91,50 @@ class FITSCube:
             # NAXIS=3: [FREQ=1, Y, X]
             image = data[0, :, :]
         elif data.ndim == 4 and data.shape[0] == 1 and data.shape[1] == 1:
-            # NAXIS=4: [FREQ=1, STOKES=1, Y, X]
+            # NAXIS=4: [STOKES=1, FREQ=1, Y, X]
             image = data[0, 0, :, :]
         else:
             raise ValueError("Slice '{0}' has invalid dimensions: {1}".format(
                 infile, data.shape))
         return (header, image)
 
-    def make_wcs(self, header, zbegin, zstep):
+    @property
+    def header(self):
+        try:
+            return self.header_
+        except AttributeError:
+            return fits.Header()
+
+    @header.setter
+    def header(self, value):
+        self.header_ = value
+        for key in ["CTYPE4", "CRPIX4", "CRVAL4", "CDELT4", "CUNIT4"]:
+            try:
+                del self.header_[key]
+            except KeyError:
+                pass
+
+    @property
+    def wcs(self):
         w = WCS(naxis=3)
         w.wcs.ctype = ["pixel", "pixel", "pixel"]
-        w.wcs.crpix = np.array([header.get("CRPIX1", 1.0),
-                                header.get("CRPIX2", 1.0),
+        w.wcs.crpix = np.array([self.header.get("CRPIX1", 1.0),
+                                self.header.get("CRPIX2", 1.0),
                                 1.0])
-        w.wcs.crval = np.array([header.get("CRVAL1", 0.0),
-                                header.get("CRVAL2", 0.0),
-                                zbegin])
-        w.wcs.cdelt = np.array([header.get("CDELT1", 1.0),
-                                header.get("CDELT2", 1.0),
-                                zstep])
+        w.wcs.crval = np.array([self.header.get("CRVAL1", 0.0),
+                                self.header.get("CRVAL2", 0.0),
+                                self.zbegin])
+        w.wcs.cdelt = np.array([self.header.get("CDELT1", 1.0),
+                                self.header.get("CDELT2", 1.0),
+                                self.zstep])
         return w
 
-    def write(self, outfile, clobber):
-        self.header.add_history(datetime.now().isoformat())
-        self.header.add_history(" ".join(sys.argv))
-        hdu = fits.PrimaryHDU(data=self.data, header=self.header)
+    def write(self, outfile, clobber=False):
+        header = self.header
+        header.extend(self.wcs.to_header(), update=True)
+        header.add_history(datetime.now().isoformat())
+        header.add_history(" ".join(sys.argv))
+        hdu = fits.PrimaryHDU(data=self.data, header=header)
         try:
             hdu.writeto(outfile, overwrite=clobber)
         except TypeError:
@@ -132,26 +156,12 @@ class FITSCube:
         return ns
 
     @property
-    def zbegin(self):
-        """
-        The Z-axis position of the first slice.
-        """
-        return self.header["CRVAL3"]
-
-    @property
-    def zstep(self):
-        """
-        The Z-axis step/spacing between slices.
-        """
-        return self.header["CDELT3"]
-
-    @property
     def zvalues(self):
         """
         Calculate the Z-axis positions for all slices
         """
         nslice = self.nslice
-        wcs = WCS(self.header)
+        wcs = self.wcs
         pix = np.zeros(shape=(nslice, 3), dtype=np.int)
         pix[:, 2] = np.arange(nslice)
         world = wcs.wcs_pix2world(pix, 0)
@@ -166,7 +176,7 @@ def cmd_info(args):
     print("Image/slice size: %dx%d" % (cube.width, cube.height))
     print("Number of slices: %d" % cube.nslice)
     print("Slice step/spacing: %.3f" % cube.zstep)
-    print("Slice positions: {0}".format(cube.zvalues))
+    print("Slice positions:\n{0}".format(cube.zvalues))
 
 
 def cmd_create(args):
