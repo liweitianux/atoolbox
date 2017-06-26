@@ -39,20 +39,59 @@ class FITSCube:
         Create a FITS cube from input image slices.
         """
         nslice = len(slices)
-        with fits.open(slices[0]) as f:
-            image = f[0].data
-            header = f[0].header
+        header, image = self.open_image(slices[0])
         shape = (nslice, ) + image.shape
         data = np.zeros(shape, dtype=image.dtype)
         for i, s in enumerate(slices):
-            print("Adding image slice: %s ..." % s)
-            data[i, :, :] = fits.open(s)[0].data
+            print("[%d/%d] Adding image slice: %s ..." % (i, nslice, s))
+            hdr, img = self.open_image(s)
+            data[i, :, :] = img
         self.data = data
         wcs = self.make_wcs(header, zbegin=zbegin, zstep=zstep)
         self.header = header.copy(strip=True)
         self.header.extend(wcs.to_header(), update=True)
         print("Created FITS cube of dimensions: %dx%dx%d" %
               (self.width, self.height, self.nslice))
+
+    @staticmethod
+    def open_image(infile):
+        """
+        Open the slice image and return its header and 2D image data.
+
+        NOTE
+        ----
+        The input slice image may have following dimensions:
+        * NAXIS=2: [Y, X]
+        * NAXIS=3: [FREQ=1, Y, X]
+        * NAXIS=4: [FREQ=1, STOKES=1, Y, X]
+
+        NOTE
+        ----
+        Only open slice image that has only ONE frequency and ONE Stokes
+        parameter.
+
+        Returns
+        -------
+        header : `~astropy.io.fits.Header`
+        image : 2D `~numpy.ndarray`
+            The 2D [Y, X] image part of the slice image.
+        """
+        with fits.open(infile) as f:
+            header = f[0].header
+            data = f[0].data
+        if data.ndim == 2:
+            # NAXIS=2: [Y, X]
+            image = data
+        elif data.ndim == 3 and data.shape[0] == 1:
+            # NAXIS=3: [FREQ=1, Y, X]
+            image = data[0, :, :]
+        elif data.ndim == 4 and data.shape[0] == 1 and data.shape[1] == 1:
+            # NAXIS=4: [FREQ=1, STOKES=1, Y, X]
+            image = data[0, 0, :, :]
+        else:
+            raise ValueError("Slice '{0}' has invalid dimensions: {1}".format(
+                infile, data.shape))
+        return (header, image)
 
     def make_wcs(self, header, zbegin, zstep):
         w = WCS(naxis=3)
