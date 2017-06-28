@@ -59,7 +59,7 @@ class PS2D:
         logger.info("Initializing PS2D instance ...")
         self.cube = cube
         self.pixelsize = pixelsize  # [arcmin]
-        logger.info("Image pixel size: %.2 [arcmin]" % pixelsize)
+        logger.info("Image pixel size: %.2f [arcmin]" % pixelsize)
         self.frequencies = np.array(frequencies)  # [MHz]
         self.nfreq = len(self.frequencies)
         # Central frequency and redshift
