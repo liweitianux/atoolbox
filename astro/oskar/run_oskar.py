@@ -60,6 +60,12 @@ def main():
                         default="visibility",
                         help="simulated visibilities output directory " +
                         "(default: 'visibility/')")
+    parser.add_argument("--no-vis-oskar", dest="no_vis_oskar",
+                        action="store_true",
+                        help="not save visibility in OSKAR native format")
+    parser.add_argument("--no-vis-ms", dest="no_vis_ms",
+                        action="store_true",
+                        help="not save visibility in MeasurementSet format")
     args = parser.parse_args()
 
     if not os.path.exists(args.outdir):
@@ -76,8 +82,14 @@ def main():
 
     for freq, skyfile in skymodels:
         basename = os.path.splitext(os.path.basename(skyfile))[0]
-        vis_oskar = os.path.join(args.outdir, basename+".oskar")
-        vis_ms = os.path.join(args.outdir, basename+".ms")
+        if args.no_vis_oskar:
+            vis_oskar = ""
+        else:
+            vis_oskar = os.path.join(args.outdir, basename+".oskar")
+        if args.no_vis_ms:
+            vis_ms = ""
+        else:
+            vis_ms = os.path.join(args.outdir, basename+".ms")
         configfile = args.fconfig.format(freq=freq)
         shutil.copy(args.config, configfile)
         print("Copied OSKAR configuration file as: %s" % configfile)
