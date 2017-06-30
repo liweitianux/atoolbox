@@ -56,18 +56,23 @@ class SkyModel:
         The coordinate of the image center; unit [deg]
     minvalue : float, optional
         The minimum threshold for the image values
+    mask : 2D bool `~numpy.ndarray`, optional
+        Use this mask to select the sources of the output sky model,
+        instead of the above ``minvalue``.
+        NOTE: this overwrite the above ``minvalue`` if provided.
     projection : str, optional
         The WCS projection for the image; default "TAN"
         TODO: support "SIN" etc.
     """
     def __init__(self, image, freq, pixsize, ra0, dec0,
-                 minvalue=1e-4, projection="TAN"):
+                 minvalue=1e-4, mask=None, projection="TAN"):
         self.image = image  # K (brightness temperature)
         self.freq = freq  # MHz
         self.pixsize = pixsize  # arcmin
         self.ra0 = ra0  # deg
         self.dec0 = dec0  # deg
         self.minvalue = minvalue
+        self.mask = mask
         self.projection = projection
         logger.info("SkyModel: Loaded image @ %.2f [MHz]" % freq)
 
@@ -136,7 +141,12 @@ class SkyModel:
         dec : (J2000) declination (deg)
         flux : source (Stokes I) flux density (Jy)
         """
-        idx = self.image.flatten() >= self.minvalue
+        if self.mask is None:
+            self.mask = self.image >= self.minvalue
+            logger.info("Use minimum threshold to determine output sky")
+        else:
+            logger.info("Use provided mask to determine output sky")
+        idx = self.mask.flatten()
         ra, dec = self.ra_dec
         ra = ra.flatten()[idx]
         dec = dec.flatten()[idx]
@@ -182,6 +192,20 @@ class SkyModel:
             hdu.writeto(outfile, clobber=True)  # old astropy versions
         logger.info("Wrote FITS image of sky model to file: %s" % outfile)
 
+    def write_mask(self, outfile, clobber=False):
+        if os.path.exists(outfile) and (not clobber):
+            raise OSError("Sky mask already exists: " % outfile)
+        header = self.fits_header
+        header.add_history(datetime.now().isoformat())
+        header.add_history(" ".join(sys.argv))
+        hdu = fits.PrimaryHDU(data=self.mask.astype(np.int16),
+                              header=header)
+        try:
+            hdu.writeto(outfile, overwrite=True)
+        except TypeError:
+            hdu.writeto(outfile, clobber=True)  # old astropy versions
+        logger.info("Wrote mask of sky model to file: %s" % outfile)
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -189,9 +213,11 @@ def main():
     parser.add_argument("-C", "--clobber", dest="clobber",
                         action="store_true",
                         help="overwrite existing file")
-    parser.add_argument("-r", "--ra0", dest="ra0", type=float, required=True,
+    parser.add_argument("-r", "--ra0", dest="ra0", type=float,
+                        default=0.0,
                         help="R.A. of the image center")
-    parser.add_argument("-d", "--dec0", dest="dec0", type=float, required=True,
+    parser.add_argument("-d", "--dec0", dest="dec0", type=float,
+                        default=-27.0,
                         help="Dec. of the image center")
     parser.add_argument("-p", "--pix-size", dest="pixsize", type=float,
                         help="image pixel size [arcmin]; " +
@@ -207,12 +233,16 @@ def main():
                        type=float,
                        help="minimum threshold determined as the fraction " +
                        "the peak value to the output sky model")
+    exgrp.add_argument("--mask", dest="mask",
+                       help="use a mask to determine the output sky model")
     #
     parser.add_argument("-F", "--osm-fits", dest="osmfits",
                         action="store_true",
                         help="save a FITS version of the converted sky model")
     parser.add_argument("-o", "--outdir", dest="outdir",
                         help="output directory for sky model files")
+    exgrp.add_argument("--create-mask", dest="create_mask",
+                       help="create a FITS mask for the output sky model")
     parser.add_argument("infile", help="input FITS image")
     parser.add_argument("outfile", nargs="?",
                         help="output OSKAR sky model (default: " +
@@ -237,18 +267,23 @@ def main():
     logger.info("Frequency: %.2f [MHz]" % freq)
     logger.info("Pixel size: %.2f [arcmin]" % pixsize)
     minvalue = 1e-4  # i.e., 0.1 [mK]
+    mask = None
     if args.minvalue:
         minvalue = args.minvalue
     if args.minpfrac:
         minvalue = args.minpfrac * image.max()
+    if args.mask:
+        mask = fits.open(args.mask)[0].data.astype(np.bool)
     logger.info("Minimum threshold: %g [K]" % minvalue)
     skymodel = SkyModel(image=image, freq=freq, ra0=args.ra0, dec0=args.dec0,
-                        pixsize=pixsize, minvalue=minvalue)
+                        pixsize=pixsize, minvalue=minvalue, mask=mask)
     logger.info("Conversion [K] -> [Jy/pixel]: %g" % skymodel.factor_K2JyPixel)
     skymodel.write_sky_model(outfile, clobber=args.clobber)
     if args.osmfits:
         outfits = outfile + ".fits"
         skymodel.write_fits(outfits, oldheader=header, clobber=args.clobber)
+    if args.create_mask:
+        skymodel.write_mask(args.create_mask, clobber=args.clobber)
 
 
 if __name__ == "__main__":
