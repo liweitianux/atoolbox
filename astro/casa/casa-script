@@ -1,0 +1,32 @@
+#!/bin/sh
+#
+# Copyright (c) 2017 Aaron LI <aly@aaronly.me>
+# MIT License
+#
+# A wrapper to invoke CASA to execute the supplied script.
+#
+# Shebang & header
+# ----------------
+# #!casa-script
+# # -*- mode: python -*-
+#
+# Command line arguments
+# ----------------------
+# if __name__ == "__main__":
+#     argi = sys.argv.index("--") + 1
+#     argv = sys.argv[argi:]
+#     main(argv)
+#
+#
+# Another more sophisticated wrapper:
+# https://github.com/pkgw/pwpy - intfbin/casa-script
+#
+
+if [ $# -eq 0 ] || [ "x$1" == "x-h" ]; then
+    echo "usage: $(basename $0) <script.py> [ script args ... ]"
+    exit 1
+fi
+
+script="$1"
+shift
+casa --log2term --nologfile --nogui -c ${script} -- "$@"
