@@ -22,11 +22,33 @@
 # https://github.com/pkgw/pwpy - intfbin/casa-script
 #
 
-if [ $# -eq 0 ] || [ "x$1" == "x-h" ]; then
-    echo "usage: $(basename $0) <script.py> [ script args ... ]"
+PROG="${0##*/}"
+
+if [ $# -eq 0 ] || [ "x$1" = "x-h" ]; then
+    echo "usage: ${PROG} <script.py> [ script.py args ... ]"
     exit 1
 fi
 
 script="$1"
+script2="$2"
 shift
+
+# HACK: make this wrapper work as the *shebang* of CASA scripts
+if [ ! -f "${script}" ] && [ -f "${script2}" ]; then
+    # This wrapper is called from the *shebang* of the CASA script
+    # NOTE:
+    # By self-testing, when this wrapper called from the *shebang*,
+    # `$0` is the absolute path to this wrapper, but `$1` is the
+    # first 3 lines (excluding the shebang line) of the calling CASA
+    # script, whose path is stored as `$2`.
+    echo "DEBUG: ${PROG} is called from shebang" >&2
+    script="${script2}"
+    shift
+fi
+
+echo "================= casa-script wrapper ================"
+echo "script: ${script}"
+echo "arguments: $@"
+echo "======================================================"
+
 casa --log2term --nologfile --nogui -c ${script} -- "$@"
