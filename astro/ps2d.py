@@ -132,7 +132,7 @@ class PS2D:
         ic_x = (np.abs(k_x) < eps).nonzero()[0][0]
         ic_z = (np.abs(k_z) < eps).nonzero()[0][0]
         p_x = np.arange(nx) - ic_x
-        p_z = np.abs(np.arange(ny) - ic_z)
+        p_z = np.abs(np.arange(nz) - ic_z)
         mx, my = np.meshgrid(p_x, p_x)
         rho, phi = self.cart2pol(mx, my)
         rho = np.around(rho).astype(np.int)
