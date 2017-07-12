@@ -16,7 +16,7 @@ import logging
 
 import numpy as np
 from scipy import fftpack
-from scipy.signal import windows
+from scipy import signal
 from astropy.io import fits
 from astropy.wcs import WCS
 from astropy.cosmology import FlatLambdaCDM
@@ -57,7 +57,7 @@ class PS2D:
     cube dimensions: [nfreq, height, width] / [Z, Y, X]
     """
     def __init__(self, cube, pixelsize, frequencies,
-                 window="nuttall", width="extended"):
+                 window_name=None, window_width="extended"):
         logger.info("Initializing PS2D instance ...")
         self.cube = cube
         self.pixelsize = pixelsize  # [arcmin]
@@ -72,14 +72,15 @@ class PS2D:
         self.cosmo = FlatLambdaCDM(H0=H0, Om0=OmegaM0)
         # Transverse comoving distance at zc; unit: [Mpc]
         self.DMz = self.cosmo.comoving_transverse_distance(self.zc).value
-        self.window = self.gen_window(name=window, width=width)
+        self.window_name = window_name
+        self.window_width = window_width
+        self.window = self.gen_window(name=window_name, width=window_width)
 
     def gen_window(self, name=None, width="extended"):
         if name is None:
-            window = np.ones(self.nfreq)
-            return window
+            return None
 
-        window_func = getattr(windows, name)
+        window_func = getattr(signal.windows, name)
         if width == "extended":
             w = window_func(self.nfreq, sym=False)
             ex = 1.0 / (w.sum() / self.nfreq)
@@ -109,8 +110,11 @@ class PS2D:
         """
         Calculate the 3D power spectrum of the image cube.
         """
-        logger.info("Applying window to frequency axis ...")
-        cube2 = self.cube * self.window[:, np.newaxis, np.newaxis]
+        if self.window is not None:
+            logger.info("Applying window along frequency axis ...")
+            cube2 = self.cube * self.window[:, np.newaxis, np.newaxis]
+        else:
+            cube2 = self.cube.astype(np.float)
         logger.info("Calculating 3D FFT and PS ...")
         cubefft = fftpack.fftshift(fftpack.fftn(cube2))
         self.ps3d = np.abs(cubefft) ** 2
@@ -252,9 +256,10 @@ def main():
     parser.add_argument("-p", "--pixelsize", dest="pixelsize",
                         type=float, required=True,
                         help="image cube pixel size; unit: [arcmin]")
-    parser.add_argument("--no-window", dest="no_window",
-                        action="store_true",
-                        help="do not apply window along frequency axis")
+    parser.add_argument("--window", dest="window",
+                        choices=["nuttall"],
+                        help="apply window along frequency axis " +
+                        "(default: None)")
     parser.add_argument("-i", "--infile", dest="infile", required=True,
                         help="input FITS image cube")
     parser.add_argument("-o", "--outfile", dest="outfile", required=True,
@@ -269,9 +274,8 @@ def main():
     logger.info("%d frequencies [MHz]:" % nfreq)
     for f in frequencies:
         logger.info("* %.2f" % f)
-    window = None if args.no_window else "nuttall"
     ps2d = PS2D(cube=cube, pixelsize=args.pixelsize, frequencies=frequencies,
-                window=window)
+                window_name=args.window)
     ps2d.calc_ps3d()
     ps2d.calc_ps2d()
     ps2d.save(outfile=args.outfile, clobber=args.clobber)
