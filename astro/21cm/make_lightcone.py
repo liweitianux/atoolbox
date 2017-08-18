@@ -73,6 +73,7 @@ import numpy as np
 from scipy import interpolate
 import astropy.io.fits as fits
 from astropy.cosmology import FlatLambdaCDM
+from astropy.wcs import WCS
 
 
 logging.basicConfig(level=logging.INFO)
@@ -141,6 +142,13 @@ class Configs:
             [self.zmin, self.zmax]).value  # [Mpc]
         return (Dc_min, Dc_max)
 
+    @property
+    def Dc_cell(self):
+        """
+        Comoving size of a cell.
+        """
+        return self.Lside / self.Nside
+
     def Dc_to_redshift(self, Dc):
         """
         Calculate the redshift corresponding to the given comoving distance
@@ -148,7 +156,7 @@ class Configs:
         """
         if not hasattr(self, "_Dc_interp"):
             Dc_min, Dc_max = self.Dc_limit
-            dDc = self.Lside / self.Nside
+            dDc = self.Dc_cell
             N = int((Dc_max - Dc_min) / dDc)
             z_ = np.linspace(self.zmin, self.zmax, num=N)
             Dc_ = self.cosmo.comoving_distance(z_).value  # [Mpc]
@@ -228,7 +236,7 @@ class LightCone:
         The slices evenly distributed along the LoS representing with
         comoving distances. [Mpc]
         """
-        dDc = self.configs.Lside / self.configs.Nside
+        dDc = self.configs.Dc_cell
         Dc_min, Dc_max = self.configs.Dc_limit
         Dc = np.arange(Dc_min, Dc_max, step=dDc)
         return Dc
@@ -236,6 +244,19 @@ class LightCone:
     @property
     def Nslice(self):
         return len(self.slices_Dc)
+
+    @property
+    def wcs(self):
+        Dc_min, __ = self.configs.Dc_limit
+        w = WCS(naxis=3)
+        w.wcs.ctype = ["pixel", "pixel", "pixel"]
+        w.wcs.cunit = ["cMpc", "cMpc", "cMpc"]
+        w.wcs.crpix = np.array([1.0, 1.0, 1.0])
+        w.wcs.crval = np.array([0.0, 0.0, Dc_min])
+        w.wcs.cdelt = np.array([self.configs.Dc_cell,
+                                self.configs.Dc_cell,
+                                self.configs.Dc_cell])
+        return w
 
     @property
     def header(self):
@@ -254,6 +275,7 @@ class LightCone:
         header["DATE"] = (datetime.now(timezone.utc).astimezone().isoformat(),
                           "File creation date")
         header.add_history(" ".join(sys.argv))
+        header.extend(self.wcs.to_header(), update=True)
         return header
 
     def write(self, outfile=None, clobber=None):
