@@ -250,7 +250,7 @@ class LightCone:
         Dc_min, __ = self.configs.Dc_limit
         w = WCS(naxis=3)
         w.wcs.ctype = ["pixel", "pixel", "pixel"]
-        w.wcs.cunit = ["cMpc", "cMpc", "cMpc"]
+        w.wcs.cunit = ["Mpc", "Mpc", "Mpc"]  # comoving
         w.wcs.crpix = np.array([1.0, 1.0, 1.0])
         w.wcs.crval = np.array([0.0, 0.0, Dc_min])
         w.wcs.cdelt = np.array([self.configs.Dc_cell,
@@ -298,6 +298,10 @@ def main():
     parser.add_argument("config", help="configuration file")
     args = parser.parse_args()
     configs = Configs(args.config)
+
+    if os.path.exists(configs.outfile) and (not configs.clobber):
+        raise OSError("output file already exists: %s" % configs.outfile)
+
     cubepair = CubePair(Nside=configs.Nside, dtype=configs.dtype)
     lightcone = LightCone(configs)
     for idx, Dc in enumerate(lightcone.slices_Dc):
