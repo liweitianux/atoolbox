@@ -11,7 +11,7 @@ Create FITS image cube from a series of image slices.
 import os
 import sys
 import argparse
-from datetime import datetime
+from datetime import datetime, timezone
 
 import numpy as np
 from astropy.io import fits
@@ -132,7 +132,8 @@ class FITSCube:
     def write(self, outfile, clobber=False):
         header = self.header
         header.extend(self.wcs.to_header(), update=True)
-        header.add_history(datetime.now().isoformat())
+        header["DATE"] = (datetime.now(timezone.utc).astimezone().isoformat(),
+                          "File creation date")
         header.add_history(" ".join(sys.argv))
         hdu = fits.PrimaryHDU(data=self.data, header=header)
         try:
