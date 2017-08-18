@@ -260,7 +260,7 @@ class LightCone:
 
     @property
     def header(self):
-        dDc = self.configs.Lside / self.configs.Nside
+        dDc = self.configs.Dc_cell
         Dc_min, Dc_max = self.configs.Dc_limit
         header = fits.Header()
         header["BUNIT"] = (self.configs.unit, "Data unit")
