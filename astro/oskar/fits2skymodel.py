@@ -176,7 +176,7 @@ class SkyModel:
 
     def write_fits(self, outfile, oldheader=None, clobber=False):
         if os.path.exists(outfile) and (not clobber):
-            raise OSError("Sky FITS already exists: " % outfile)
+            raise OSError("Sky FITS already exists: %s" % outfile)
         if oldheader is not None:
             header = oldheader
             header.extend(self.fits_header, update=True)
@@ -196,7 +196,7 @@ class SkyModel:
 
     def write_mask(self, outfile, clobber=False):
         if os.path.exists(outfile) and (not clobber):
-            raise OSError("Sky mask already exists: " % outfile)
+            raise OSError("Sky mask already exists: %s" % outfile)
         header = self.fits_header
         header.add_history(datetime.now().isoformat())
         header.add_history(" ".join(sys.argv))
@@ -243,8 +243,8 @@ def main():
                         help="save a FITS version of the converted sky model")
     parser.add_argument("-o", "--outdir", dest="outdir",
                         help="output directory for sky model files")
-    exgrp.add_argument("--create-mask", dest="create_mask",
-                       help="create a FITS mask for the output sky model")
+    parser.add_argument("--create-mask", dest="create_mask",
+                        help="create a FITS mask for the output sky model")
     parser.add_argument("infile", help="input FITS image")
     parser.add_argument("outfile", nargs="?",
                         help="output OSKAR sky model (default: " +
