@@ -50,8 +50,9 @@ class SkyModel:
         Input image array; unit [K] (brightness temperature)
     freq : float
         Frequency of the input image slice; unit [MHz]
-    pixsize : float
-        Pixel size of the input image; unit [arcmin]
+    pixelsize : float
+        Pixel size of the input image;
+        Unit: [arcsec]
     ra0, dec0 : float
         The coordinate of the image center; unit [deg]
     minvalue : float, optional
@@ -64,13 +65,13 @@ class SkyModel:
         The WCS projection for the image; default "TAN"
         TODO: support "SIN" etc.
     """
-    def __init__(self, image, freq, pixsize, ra0, dec0,
+    def __init__(self, image, freq, pixelsize, ra0, dec0,
                  minvalue=1e-4, mask=None, projection="TAN"):
-        self.image = image  # K (brightness temperature)
-        self.freq = freq  # MHz
-        self.pixsize = pixsize  # arcmin
-        self.ra0 = ra0  # deg
-        self.dec0 = dec0  # deg
+        self.image = image  # [K] (brightness temperature)
+        self.freq = freq  # [MHz]
+        self.pixelsize = pixelsize  # [arcsec]
+        self.ra0 = ra0  # [deg]
+        self.dec0 = dec0  # [deg]
         self.minvalue = minvalue
         self.mask = mask
         self.projection = projection
@@ -82,7 +83,7 @@ class SkyModel:
         WCS for the given image slice.
         """
         shape = self.image.shape
-        delta = self.pixsize / 60.0  # deg
+        delta = self.pixelsize / 3600.0  # [arcsec] -> [deg]
         wcs_ = WCS(naxis=2)
         wcs_.wcs.ctype = ["RA---"+self.projection, "DEC--"+self.projection]
         wcs_.wcs.crval = np.array([self.ra0, self.dec0])
@@ -97,7 +98,7 @@ class SkyModel:
         header["FREQ"] = (self.freq, "Frequency [MHz]")
         header["RA0"] = (self.ra0, "Center R.A. [deg]")
         header["DEC0"] = (self.dec0, "Center Dec. [deg]")
-        header["PIXSIZE"] = (self.pixsize, "Pixel size [arcmin]")
+        header["PixSize"] = (self.pixelsize, "Pixel size [arcsec]")
         return header
 
     @property
@@ -107,7 +108,7 @@ class SkyModel:
 
         http://www.iram.fr/IRAMFR/IS/IS2002/html_1/node187.html
         """
-        pixarea = np.deg2rad(self.pixsize/60.0) ** 2  # [sr]
+        pixarea = np.deg2rad(self.pixelsize/3600.0) ** 2  # [sr]
         kB = ac.k_B.si.value  # Boltzmann constant [J/K]
         c0 = ac.c.si.value  # speed of light in vacuum [m/s]
         freqHz = self.freq * 1e6  # [Hz]
@@ -164,7 +165,7 @@ class SkyModel:
         nsources = sky.shape[0]
         logger.info("Number of sources: %d" % nsources)
         header = ("Frequency = %.3f [MHz]\n" % self.freq +
-                  "Pixel size = %.2f [arcmin]\n" % self.pixsize +
+                  "Pixel size = %.2f [arcsec]\n" % self.pixelsize +
                   "RA0 = %.4f [deg]\n" % self.ra0 +
                   "Dec0 = %.4f [deg]\n" % self.dec0 +
                   "Number of sources = %d\n\n" % len(sky) +
@@ -219,9 +220,9 @@ def main():
     parser.add_argument("-d", "--dec0", dest="dec0", type=float,
                         default=-27.0,
                         help="Dec. of the image center")
-    parser.add_argument("-p", "--pix-size", dest="pixsize", type=float,
-                        help="image pixel size [arcmin]; " +
-                        "(default: obtain from the FITS header 'PIXSIZE')")
+    parser.add_argument("-p", "--pixel-size", dest="pixelsize", type=float,
+                        help="image pixel size [arcsec]; " +
+                        "(default: obtain from the FITS header 'PixSize')")
     parser.add_argument("-f", "--freq", dest="freq", type=float,
                         help="frequency [MHz] the image measured; " +
                         "(default: obtain from the FITS header 'FREQ')")
@@ -263,9 +264,12 @@ def main():
         header = f[0].header
     logger.info("Read image slice: %s" % args.infile)
     freq = args.freq if args.freq else header["FREQ"]  # [MHz]
-    pixsize = args.pixsize if args.pixsize else header["PIXSIZE"]  # [arcmin]
+    if args.pixelsize:
+        pixelsize = args.pixelsize  # [arcsec]
+    else:
+        pixelsize = header["PixSize"]  # [arcsec]
     logger.info("Frequency: %.2f [MHz]" % freq)
-    logger.info("Pixel size: %.2f [arcmin]" % pixsize)
+    logger.info("Pixel size: %.2f [arcsec]" % pixelsize)
     minvalue = 1e-4  # i.e., 0.1 [mK]
     mask = None
     if args.minvalue:
@@ -276,7 +280,7 @@ def main():
         mask = fits.open(args.mask)[0].data.astype(np.bool)
     logger.info("Minimum threshold: %g [K]" % minvalue)
     skymodel = SkyModel(image=image, freq=freq, ra0=args.ra0, dec0=args.dec0,
-                        pixsize=pixsize, minvalue=minvalue, mask=mask)
+                        pixelsize=pixelsize, minvalue=minvalue, mask=mask)
     logger.info("Conversion [K] -> [Jy/pixel]: %g" % skymodel.factor_K2JyPixel)
     skymodel.write_sky_model(outfile, clobber=args.clobber)
     if args.osmfits:
