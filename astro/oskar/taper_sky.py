@@ -138,7 +138,7 @@ def main():
             os.remove(args.outfile)
         else:
             raise OSError("Output file already exists: %s" % args.outfile)
-    if os.path.exists(args.outfile_taper):
+    if args.outfile_taper and os.path.exists(args.outfile_taper):
         if args.clobber:
             logger.warning("Removed existing file: %s" % args.outfile_taper)
             os.remove(args.outfile_taper)
