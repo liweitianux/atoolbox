@@ -62,11 +62,12 @@ class SkyModel:
         instead of the above ``minvalue``.
         NOTE: this overwrite the above ``minvalue`` if provided.
     projection : str, optional
-        The WCS projection for the image; default "TAN"
+        The WCS projection for the image;
+        Default: "CAR" (Cartesian)
         TODO: support "SIN" etc.
     """
     def __init__(self, image, freq, pixelsize, ra0, dec0,
-                 minvalue=1e-4, mask=None, projection="TAN"):
+                 minvalue=1e-4, mask=None, projection="CAR"):
         self.image = image  # [K] (brightness temperature)
         self.freq = freq  # [MHz]
         self.pixelsize = pixelsize  # [arcsec]
