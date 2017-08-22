@@ -69,6 +69,7 @@ def main():
     parser.add_argument("-l", "--list", dest="listfile", required=True,
                         help="List of frequencies [MHz] and input sky models")
     args = parser.parse_args()
+    t1 = time()
 
     if not os.path.exists(args.outdir):
         os.mkdir(args.outdir)
@@ -83,6 +84,10 @@ def main():
         print("Got sky model: %s @ %s [MHz]" % (skyfile, freq))
 
     for freq, skyfile in skymodels:
+        print(">>>")
+        print(">>> Frequency: %.2f [MHz]" % freq)
+        print(">>> Sky model: %s" % skyfile)
+        print(">>>")
         basename = os.path.splitext(os.path.basename(skyfile))[0]
         if args.no_vis_oskar:
             vis_oskar = ""
@@ -99,6 +104,9 @@ def main():
                   model=skyfile, telescope=args.telescope,
                   vis_oskar=vis_oskar, vis_ms=vis_ms,
                   dryrun=args.dryrun)
+
+    t2 = time()
+    print("Total elapsed time: %.1f [s]" % (t2-t1))
 
 
 if __name__ == "__main__":
