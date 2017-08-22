@@ -33,20 +33,21 @@ def main():
     parser.add_argument("-C", "--clobber", dest="clobber",
                         action="store_true",
                         help="overwrite existing files")
-    parser.add_argument("-F", "--fov", dest="fov", default=5.0, type=float,
+    parser.add_argument("-F", "--fov", dest="fov", default=10.0, type=float,
                         help="required FoV [deg] of the output slice " +
-                        "(default: 5.0 deg)")
-    parser.add_argument("-N", "--n-side", dest="Nside", default=600, type=int,
+                        "(default: 10.0 [deg])")
+    parser.add_argument("-N", "--n-side", dest="Nside", default=1800, type=int,
                         help="required image size of output slice " +
-                        "(default: 600)")
+                        "(default: 1800)")
     parser.add_argument("-i", "--infile", dest="infile", required=True,
                         help="input slice")
     parser.add_argument("-o", "--outfile", dest="outfile",
                         default=outfile_default,
                         help="output tiled slice (default: %s)" %
                         outfile_default)
-    parser.add_argument("-p", "--prefix", dest="prefix", required=True,
-                        help="prefix for the output tiled slice")
+    parser.add_argument("-p", "--prefix", dest="prefix", default="deltaTb",
+                        help="prefix for the output tiled slice " +
+                        "(default: 'deltaTb')")
     exgrp = parser.add_mutually_exclusive_group(required=True)
     exgrp.add_argument("-z", "--redshift-c", dest="zc", type=float,
                        help="central redshift of the selected cube")
@@ -80,9 +81,9 @@ def main():
     img_out = scipy.ndimage.zoom(img2, zoom=args.Nside/Nside2, order=1)
     # Record information to header
     header["Z_C"] = (zc, "Central redshift")
-    header["FREQ_C"] = (fc, "Frequency [MHz] w.r.t. to the redshift")
-    header["FOV"] = (args.fov, "FoV [deg] of this slice")
-    header["PixSize"] = (60.0*args.fov/args.Nside, "Pixel size [arcmin]")
+    header["FREQ_C"] = (fc, "[MHz] Frequency w.r.t. to central redshift")
+    header["FoV"] = (args.fov, "[deg] FoV of this slice")
+    header["PixSize"] = (3600.0*args.fov/args.Nside, "[arcsec] Pixel size")
     header.add_history(" ".join(sys.argv))
     hdu = fits.PrimaryHDU(data=img_out, header=header)
     outfile = args.outfile.format(prefix=args.prefix, freq=freq,
