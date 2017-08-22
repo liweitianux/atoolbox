@@ -6,8 +6,6 @@
 # Run OSKAR interferometer simulator, with corresponding settings
 # applied to the common configurations.
 #
-# 2017-06-12
-#
 
 import os
 import re
@@ -17,13 +15,15 @@ import shutil
 from time import time
 
 
-def run_oskar(configfile, model, freq, vis_oskar, vis_ms, dryrun=False):
+def run_oskar(configfile, model, freq, vis_oskar, vis_ms,
+              telescope=None, dryrun=False):
     if vis_oskar is None and vis_ms is None:
         raise ValueError("both 'vis_oskar' & 'vis_ms' are missing")
     prog = "oskar_sim_interferometer"
     print("Update settings ...")
     for item, value in [
             ("sky/oskar_sky_model/file", model),
+            ("telescope/input_directory", telescope),
             ("observation/start_frequency_hz", str(freq*1e6)),
             ("interferometer/oskar_vis_filename", vis_oskar),
             ("interferometer/ms_filename", vis_ms)]:
@@ -54,18 +54,20 @@ def main():
                         help="filename pattern of the configuration files " +
                         "updated for OSKAR usage " +
                         "(default: %s)" % default_fconfig)
-    parser.add_argument("-l", "--list", dest="listfile", required=True,
-                        help="List of frequencies [MHz] and input sky models")
-    parser.add_argument("-o", "--outdir", dest="outdir",
-                        default="visibility",
-                        help="simulated visibilities output directory " +
-                        "(default: 'visibility/')")
     parser.add_argument("--no-vis-oskar", dest="no_vis_oskar",
                         action="store_true",
                         help="not save visibility in OSKAR native format")
     parser.add_argument("--no-vis-ms", dest="no_vis_ms",
                         action="store_true",
                         help="not save visibility in MeasurementSet format")
+    parser.add_argument("-t", "--telescope", dest="telescope",
+                        help="overwrite the telescope model in config file")
+    parser.add_argument("-o", "--outdir", dest="outdir",
+                        default="visibility",
+                        help="simulated visibility output directory " +
+                        "(default: 'visibility/')")
+    parser.add_argument("-l", "--list", dest="listfile", required=True,
+                        help="List of frequencies [MHz] and input sky models")
     args = parser.parse_args()
 
     if not os.path.exists(args.outdir):
@@ -93,8 +95,10 @@ def main():
         configfile = args.fconfig.format(freq=freq)
         shutil.copy(args.config, configfile)
         print("Copied OSKAR configuration file as: %s" % configfile)
-        run_oskar(configfile=configfile, freq=freq, model=skyfile,
-                  vis_oskar=vis_oskar, vis_ms=vis_ms, dryrun=args.dryrun)
+        run_oskar(configfile=configfile, freq=freq,
+                  model=skyfile, telescope=args.telescope,
+                  vis_oskar=vis_oskar, vis_ms=vis_ms,
+                  dryrun=args.dryrun)
 
 
 if __name__ == "__main__":
