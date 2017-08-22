@@ -217,10 +217,10 @@ def main():
                         help="overwrite existing file")
     parser.add_argument("-r", "--ra0", dest="ra0", type=float,
                         default=0.0,
-                        help="R.A. of the image center")
+                        help="[deg] R.A. of the image center (default: 0)")
     parser.add_argument("-d", "--dec0", dest="dec0", type=float,
                         default=-27.0,
-                        help="Dec. of the image center")
+                        help="[deg] Dec. of the image center (default: -27)")
     parser.add_argument("-p", "--pixel-size", dest="pixelsize", type=float,
                         help="image pixel size [arcsec]; " +
                         "(default: obtain from the FITS header 'PixSize')")
