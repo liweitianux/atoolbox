@@ -264,6 +264,14 @@ def main():
         image = f[0].data
         header = f[0].header
     logger.info("Read image slice: %s" % args.infile)
+
+    # Check data unit
+    unit = header.get("BUNIT")
+    if unit is None:
+        logger.warning("input FITS file of unknown data unit!")
+    elif unit.upper() not in ["K", "KELVIN"]:
+        logger.error("input FITS file of wrong data unit: %s" % unit)
+
     freq = args.freq if args.freq else header["FREQ"]  # [MHz]
     if args.pixelsize:
         pixelsize = args.pixelsize  # [arcsec]
