@@ -7,6 +7,26 @@
 """
 Calculate the 2D cylindrical-averaged power spectrum from the
 3D image spectral cube.
+
+References
+----------
+.. [liu2014]
+   Liu, Parsons & Trott 2014, PhRvD, 90, 023018
+   http://adsabs.harvard.edu/abs/2014PhRvD..90b3018L
+   Appendix.A
+
+.. [morales2004]
+   Morales & Hewitt 2004, ApJ, 615, 7
+   http://adsabs.harvard.edu/abs/2004ApJ...615....7M
+   Sec.3
+
+.. [matlab-psd-fft]
+   MATLAB - Power Spectral Density Estimates Using FFT
+   https://cn.mathworks.com/help/signal/ug/power-spectral-density-estimates-using-fft.html
+
+.. [matlab-answer-psd]
+   MATLAB Answers - How to create power spectral density from FFT
+   https://cn.mathworks.com/matlabcentral/answers/43548-how-to-create-power-spectral-density-from-fft-fourier-transform
 """
 
 import os
@@ -52,9 +72,12 @@ def get_frequencies(wcs, nfreq):
 
 class PS2D:
     """
-    2D cylindrical-averaged power spectrum
+    2D cylindrically averaged power spectrum
 
-    cube dimensions: [nfreq, height, width] / [Z, Y, X]
+    NOTE
+    ----
+    * Cube dimensions: [nfreq, height, width] <-> [Z, Y, X]
+    * Cube data unit: [K] (brightness temperature)
     """
     def __init__(self, cube, pixelsize, frequencies,
                  window_name=None, window_width="extended"):
@@ -62,8 +85,13 @@ class PS2D:
         self.cube = cube
         self.pixelsize = pixelsize  # [arcsec]
         logger.info("Image pixel size: %.2f [arcsec]" % pixelsize)
-        self.frequencies = np.array(frequencies)  # [MHz]
+        self.frequencies = np.asarray(frequencies)  # [MHz]
         self.nfreq = len(self.frequencies)
+        self.dfreq = self.frequencies[1] - self.frequencies[0]  # [MHz]
+        logger.info("Frequency band: %.2f-%.2f [MHz]" %
+                    (self.frequencies.min(), self.frequencies.max()))
+        logger.info("Frequency channel width: %.2f [MHz], %d channels" %
+                    (self.dfreq, self.nfreq))
         # Central frequency and redshift
         self.freqc = self.frequencies.mean()
         self.zc = freq2z(self.freqc)
@@ -99,25 +127,37 @@ class PS2D:
         return window
 
     def pad_cube(self):
-        # Pad the image cube to be square in spatial dimensions.
-        # TODO
-        __, ny, nz = self.cube.shape
-        if ny != nz:
+        """
+        Pad the image cube to be square in spatial dimensions.
+        """
+        __, ny, nx = self.cube.shape
+        if nx != ny:
             logger.info("Padding image to be square ...")
             raise NotImplementedError
 
     def calc_ps3d(self):
         """
         Calculate the 3D power spectrum of the image cube.
+
+        The power spectrum is properly normalized to have dimension
+        of [K^2 Mpc^3].
         """
         if self.window is not None:
             logger.info("Applying window along frequency axis ...")
             cube2 = self.cube * self.window[:, np.newaxis, np.newaxis]
         else:
             cube2 = self.cube.astype(np.float)
-        logger.info("Calculating 3D FFT and PS ...")
+
+        logger.info("Calculating 3D FFT ...")
         cubefft = fftpack.fftshift(fftpack.fftn(cube2))
-        self.ps3d = np.abs(cubefft) ** 2
+
+        logger.info("Calculating 3D PS ...")
+        ps3d = np.abs(cubefft) ** 2  # [K^2]
+        # Normalization
+        norm1 = 1 / (self.Nx * self.Ny * self.Nz)
+        norm2 = 1 / (self.fs_xy**2 * self.fs_z)  # [Mpc^3]
+        norm3 = 1 / (2*np.pi)**3
+        self.ps3d = ps3d * norm1 * norm2 * norm3  # [K^2 Mpc^3]
         return self.ps3d
 
     def calc_ps2d(self):
@@ -162,7 +202,7 @@ class PS2D:
             hdu.writeto(outfile, overwrite=clobber)
         except TypeError:
             hdu.writeto(outfile, clobber=clobber)
-        logger.info("PS2D results saved to file: %s" % outfile)
+        logger.info("Wrote 2D power spectrum to file: %s" % outfile)
 
     @property
     def k_xy(self):
@@ -249,7 +289,7 @@ class PS2D:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Calculate 2D PS from 3D image cube")
+        description="Calculate 2D power spectrum from 3D image cube")
     parser.add_argument("-C", "--clobber", dest="clobber",
                         action="store_true",
                         help="overwrite existing file")
