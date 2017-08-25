@@ -170,31 +170,28 @@ class PS2D:
         Calculate the 2D power spectrum by cylindrically binning
         the above 3D power spectrum.
         """
-        nz, ny, nx = self.cube.shape
-        k_x, k_y = self.k_xy
-        k_z = self.k_z
-        dkx = np.abs(k_x[0] - k_x[1])
-        dkz = np.abs(k_z[0] - k_z[1])
-        vcell = dkx**2 * dkz  # volume of each cell [Mpc^-3]
+        logger.info("Calculating 2D power spectrum ...")
+        n_k_perp = len(self.k_perp)
+        n_k_los = len(self.k_los)
+        ps2d = np.zeros(shape=(n_k_los, n_k_perp))  # (k_los, k_perp)
+
         eps = 1e-8
-        ic_x = (np.abs(k_x) < eps).nonzero()[0][0]
-        ic_z = (np.abs(k_z) < eps).nonzero()[0][0]
-        p_x = np.arange(nx) - ic_x
-        p_z = np.abs(np.arange(nz) - ic_z)
-        mx, my = np.meshgrid(p_x, p_x)
+        ic_xy = (np.abs(self.k_xy) < eps).nonzero()[0][0]
+        ic_z = (np.abs(self.k_z) < eps).nonzero()[0][0]
+        p_xy = np.arange(self.Nx) - ic_xy
+        p_z = np.abs(np.arange(self.Nz) - ic_z)
+        mx, my = np.meshgrid(p_xy, p_xy)
         rho, phi = self.cart2pol(mx, my)
         rho = np.around(rho).astype(np.int)
-        n_k_perp = (nx+1) // 2
-        n_k_los = (nz+1) // 2
-        ps2d = np.zeros(shape=(n_k_los, n_k_perp))  # (k_los, k_perp)
-        logger.info("Calculating 2D PS by binning 3D PS ...")
+
+        logger.info("Cylindrically averaging 3D power spectrum ...")
         for r in range(n_k_perp):
             ix, iy = (rho == r).nonzero()
             for s in range(n_k_los):
                 iz = (p_z == s).nonzero()[0]
                 cells = np.concatenate([self.ps3d[z, iy, ix] for z in iz])
-                volume = cells.size * vcell
-                ps2d[s, r] = cells.sum() / volume
+                ps2d[s, r] = cells.mean()
+
         self.ps2d = ps2d
         return ps2d
 
@@ -330,7 +327,7 @@ class PS2D:
         NOTE: The Nyquist frequency just located at the first element
               after fftshift when the length is even, and it is negative.
         """
-        k_x, k_y = self.k_xy
+        k_x = self.k_xy
         return k_x[k_x >= 0]
 
     @property
@@ -379,6 +376,14 @@ class PS2D:
         hdr["CRVAL2P"] = (0.0, "coordinate of the reference pixel")
         hdr["CDELT2P"] = (dk_z, "coordinate delta/step")
         hdr["CUNIT2P"] = ("Mpc^-1", "coordinate unit")
+        # Data information
+        hdr["PixSize"] = (self.pixelsize, "[arcsec] data cube pixel size")
+        hdr["Z_C"] = (self.zc, "data cube central redshift")
+        hdr["Freq_C"] = (self.freqc, "[MHz] data cube central frequency")
+        hdr["Freq_Min"] = (self.frequencies.min(),
+                           "[MHz] data cube minimum frequency")
+        hdr["Freq_Max"] = (self.frequencies.max(),
+                           "[MHz] data cube maximum frequency")
         # Command history
         hdr.add_history(" ".join(sys.argv))
         return hdr
@@ -408,9 +413,6 @@ def main():
         wcs = WCS(f[0].header)
     nfreq = cube.shape[0]
     frequencies = get_frequencies(wcs, nfreq)
-    logger.info("%d frequencies [MHz]:" % nfreq)
-    for f in frequencies:
-        logger.info("* %.2f" % f)
     ps2d = PS2D(cube=cube, pixelsize=args.pixelsize, frequencies=frequencies,
                 window_name=args.window)
     ps2d.calc_ps3d()
