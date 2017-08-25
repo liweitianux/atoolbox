@@ -84,19 +84,26 @@ class PS2D:
         logger.info("Initializing PS2D instance ...")
         self.cube = cube
         self.pixelsize = pixelsize  # [arcsec]
+        logger.info("Loaded data cube: %dx%d (cells) * %d (channels)" %
+                    (self.Nx, self.Ny, self.Nz))
         logger.info("Image pixel size: %.2f [arcsec]" % pixelsize)
+
         self.frequencies = np.asarray(frequencies)  # [MHz]
         self.nfreq = len(self.frequencies)
         self.dfreq = self.frequencies[1] - self.frequencies[0]  # [MHz]
+        if self.nfreq != self.Nz:
+            raise RuntimeError("data cube and frequencies do not match!")
         logger.info("Frequency band: %.2f-%.2f [MHz]" %
                     (self.frequencies.min(), self.frequencies.max()))
         logger.info("Frequency channel width: %.2f [MHz], %d channels" %
                     (self.dfreq, self.nfreq))
+
         # Central frequency and redshift
         self.freqc = self.frequencies.mean()
         self.zc = freq2z(self.freqc)
         logger.info("Central frequency %.2f [MHz] <-> redshift %.4f" %
                     (self.freqc, self.zc))
+
         # Transverse comoving distance at zc; unit: [Mpc]
         self.DMz = cosmo.comoving_transverse_distance(self.zc).value
         self.window_name = window_name
@@ -129,8 +136,7 @@ class PS2D:
         """
         Pad the image cube to be square in spatial dimensions.
         """
-        __, ny, nx = self.cube.shape
-        if nx != ny:
+        if self.Nx != self.Ny:
             logger.info("Padding image to be square ...")
             raise NotImplementedError
 
@@ -266,23 +272,55 @@ class PS2D:
         return 1/self.d_z
 
     @property
+    def df_xy(self):
+        """
+        The spatial frequency bin size (i.e., resolution) along the
+        (X, Y) dimensions.
+        Unit: [Mpc^-1]
+        """
+        return self.fs_xy / self.Nx
+
+    @property
+    def df_z(self):
+        """
+        The spatial frequency bin size (i.e., resolution) along the
+        line-of-sight (Z) direction.
+        Unit: [Mpc^-1]
+        """
+        return self.fs_z / self.Nz
+
+    @property
+    def dk_xy(self):
+        """
+        The k-space (spatial) frequency bin size (i.e., resolution).
+        """
+        return 2*np.pi * self.df_xy
+
+    @property
+    def dk_z(self):
+        return 2*np.pi * self.df_z
+
+    @property
     def k_xy(self):
-        __, ny, nx = self.cube.shape
-        dxy = self.DMz * np.deg2rad(self.pixelsize / 3600.0)  # [Mpc]
-        kx = 2*np.pi * fftpack.fftshift(fftpack.fftfreq(nx, dxy))
-        ky = 2*np.pi * fftpack.fftshift(fftpack.fftfreq(ny, dxy))
-        return (kx, ky)  # [Mpc^-1]
+        """
+        The k-space coordinates along the (X, Y) spatial dimensions,
+        which describe the spatial frequencies.
+
+        NOTE:
+        k = 2*pi * f, where "f" is the spatial frequencies, and the
+        Fourier dual to spatial transverse distances x/y.
+
+        Unit: [Mpc^-1]
+        """
+        f_xy = fftpack.fftshift(fftpack.fftfreq(self.Nx, d=self.d_xy))
+        k_xy = 2*np.pi * f_xy
+        return k_xy
 
     @property
     def k_z(self):
-        freq_step = 1e6 * (self.frequencies[1] - self.frequencies[0])  # [Hz]
-        eta = fftpack.fftshift(fftpack.fftfreq(self.nfreq, freq_step))  # [s]
-        c = ac.c.si.value  # [m/s]
-        h = H0 * 1000.0  # [m/s/Mpc]
-        f21cm = freq21cm * 1e6  # [Hz]
-        denom = c * (1+self.zc)**2 / h / f21cm / cosmo.efunc(self.zc)
-        kz = 2*np.pi * eta / denom
-        return kz  # [Mpc^-1]
+        f_z = fftpack.fftshift(fftpack.fftfreq(self.Nz, d=self.d_z))
+        k_z = 2*np.pi * f_z
+        return k_z
 
     @property
     def k_perp(self):
@@ -314,34 +352,32 @@ class PS2D:
 
     @property
     def header(self):
-        kx, __ = self.k_xy
-        kz = self.k_z
-        dkx = np.abs(kx[0] - kx[1])
-        dkz = np.abs(kz[0] - kz[1])
+        dk_xy = self.dk_xy
+        dk_z = self.dk_z
         hdr = fits.Header()
         hdr["HDUNAME"] = ("PS2D", "block name")
-        hdr["CONTENT"] = ("2D cylindrical-averaged power spectrum",
+        hdr["CONTENT"] = ("2D cylindrically averaged power spectrum",
                           "data product")
         hdr["BUNIT"] = ("K^2 Mpc^3", "data unit")
         # Physical coordinates: IRAF LTM/LTV
         # Li{Image} = LTMi_i * Pi{Physical} + LTVi
         # Reference: ftp://iraf.noao.edu/iraf/web/projects/fitswcs/specwcs.html
         hdr["LTV1"] = 0.0
-        hdr["LTM1_1"] = 1.0 / dkx
+        hdr["LTM1_1"] = 1.0 / dk_xy
         hdr["LTV2"] = 0.0
-        hdr["LTM2_2"] = 1.0 / dkz
+        hdr["LTM2_2"] = 1.0 / dk_z
         # WCS physical coordinates
         hdr["WCSTY1P"] = "PHYSICAL"
         hdr["CTYPE1P"] = ("k_perp", "wavenumbers perpendicular to LoS")
         hdr["CRPIX1P"] = (0.5, "reference pixel")
         hdr["CRVAL1P"] = (0.0, "coordinate of the reference pixel")
-        hdr["CDELT1P"] = (dkx, "coordinate delta/step")
+        hdr["CDELT1P"] = (dk_xy, "coordinate delta/step")
         hdr["CUNIT1P"] = ("Mpc^-1", "coordinate unit")
         hdr["WCSTY2P"] = "PHYSICAL"
         hdr["CTYPE2P"] = ("k_los", "wavenumbers along LoS")
         hdr["CRPIX2P"] = (0.5, "reference pixel")
         hdr["CRVAL2P"] = (0.0, "coordinate of the reference pixel")
-        hdr["CDELT2P"] = (dkz, "coordinate delta/step")
+        hdr["CDELT2P"] = (dk_z, "coordinate delta/step")
         hdr["CUNIT2P"] = ("Mpc^-1", "coordinate unit")
         # Command history
         hdr.add_history(" ".join(sys.argv))
