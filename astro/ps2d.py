@@ -49,12 +49,12 @@ logging.basicConfig(level=logging.INFO,
 logger = logging.getLogger(os.path.basename(sys.argv[0]))
 
 
-# present Hubble parameter
-H0 = 71.0  # [km/s/Mpc]
-# present density parameter of matter
-OmegaM0 = 0.27
 # HI line frequency
 freq21cm = 1420.405751  # [MHz]
+# Adopted cosmology
+H0 = 71.0  # [km/s/Mpc]
+OmegaM0 = 0.27
+cosmo = FlatLambdaCDM(H0=H0, Om0=OmegaM0)
 
 
 def freq2z(freq):
@@ -97,9 +97,8 @@ class PS2D:
         self.zc = freq2z(self.freqc)
         logger.info("Central frequency %.2f [MHz] <-> redshift %.4f" %
                     (self.freqc, self.zc))
-        self.cosmo = FlatLambdaCDM(H0=H0, Om0=OmegaM0)
         # Transverse comoving distance at zc; unit: [Mpc]
-        self.DMz = self.cosmo.comoving_transverse_distance(self.zc).value
+        self.DMz = cosmo.comoving_transverse_distance(self.zc).value
         self.window_name = window_name
         self.window_width = window_width
         self.window = self.gen_window(name=window_name, width=window_width)
@@ -219,7 +218,7 @@ class PS2D:
         c = ac.c.si.value  # [m/s]
         h = H0 * 1000.0  # [m/s/Mpc]
         f21cm = freq21cm * 1e6  # [Hz]
-        denom = c * (1+self.zc)**2 / h / f21cm / self.cosmo.efunc(self.zc)
+        denom = c * (1+self.zc)**2 / h / f21cm / cosmo.efunc(self.zc)
         kz = 2*np.pi * eta / denom
         return kz  # [Mpc^-1]
 
