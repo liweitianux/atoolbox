@@ -204,6 +204,68 @@ class PS2D:
         logger.info("Wrote 2D power spectrum to file: %s" % outfile)
 
     @property
+    def Nx(self):
+        """
+        Number of cells/pixels along the X axis.
+        Cube shape/dimensions: [Z, Y, X]
+        """
+        return self.cube.shape[2]
+
+    @property
+    def Ny(self):
+        return self.cube.shape[1]
+
+    @property
+    def Nz(self):
+        return self.cube.shape[0]
+
+    @property
+    def d_xy(self):
+        """
+        The sampling interval along the (X, Y) spatial dimensions,
+        translated from the pixel size.
+        Unit: [Mpc]
+
+        Reference: Ref.[liu2014].Eq.(A7)
+        """
+        pixelsize = self.pixelsize / 3600  # [arcsec] -> [deg]
+        d_xy = self.DMz * np.deg2rad(pixelsize)
+        return d_xy
+
+    @property
+    def d_z(self):
+        """
+        The sampling interval along the Z line-of-sight dimension,
+        translated from the frequency channel width.
+        Unit: [Mpc]
+
+        Reference: Ref.[liu2014].Eq.(A9)
+        """
+        dfreq = self.dfreq  # [MHz]
+        c = ac.c.si.value  # [m/s]
+        Ez = cosmo.efunc(self.zc)
+        Hz = Ez * H0 * 1000.0  # [m/s/Mpc]
+        d_z = c * (1+self.zc)**2 * dfreq / Hz / freq21cm
+        return d_z
+
+    @property
+    def fs_xy(self):
+        """
+        The sampling frequency along the (X, Y) spatial dimensions:
+            Fs = 1/T (inverse of interval)
+        Unit: [Mpc^-1]
+        """
+        return 1/self.d_xy
+
+    @property
+    def fs_z(self):
+        """
+        The sampling frequency along the Z line-of-sight dimension.
+        Unit: [Mpc^-1]
+        """
+        return 1/self.d_z
+
+    @property
     def k_xy(self):
         __, ny, nx = self.cube.shape
         dxy = self.DMz * np.deg2rad(self.pixelsize / 3600.0)  # [Mpc]
