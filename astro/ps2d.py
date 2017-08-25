@@ -60,8 +60,8 @@ class PS2D:
                  window_name=None, window_width="extended"):
         logger.info("Initializing PS2D instance ...")
         self.cube = cube
-        self.pixelsize = pixelsize  # [arcmin]
-        logger.info("Image pixel size: %.2f [arcmin]" % pixelsize)
+        self.pixelsize = pixelsize  # [arcsec]
+        logger.info("Image pixel size: %.2f [arcsec]" % pixelsize)
         self.frequencies = np.array(frequencies)  # [MHz]
         self.nfreq = len(self.frequencies)
         # Central frequency and redshift
@@ -167,7 +167,7 @@ class PS2D:
     @property
     def k_xy(self):
         __, ny, nx = self.cube.shape
-        dxy = self.DMz * np.deg2rad(self.pixelsize / 60.0)  # [Mpc]
+        dxy = self.DMz * np.deg2rad(self.pixelsize / 3600.0)  # [Mpc]
         kx = 2*np.pi * fftpack.fftshift(fftpack.fftfreq(nx, dxy))
         ky = 2*np.pi * fftpack.fftshift(fftpack.fftfreq(ny, dxy))
         return (kx, ky)  # [Mpc^-1]
@@ -255,7 +255,7 @@ def main():
                         help="overwrite existing file")
     parser.add_argument("-p", "--pixelsize", dest="pixelsize",
                         type=float, required=True,
-                        help="image cube pixel size; unit: [arcmin]")
+                        help="image cube pixel size; unit: [arcsec]")
     parser.add_argument("--window", dest="window",
                         choices=["nuttall"],
                         help="apply window along frequency axis " +
