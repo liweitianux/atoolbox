@@ -16,10 +16,14 @@ import subprocess
 import time
 
 
-def wsclean(args):
-    t1 = time.perf_counter()
+def wsclean(args, dryrun=False):
     cmd = ["wsclean"] + args
     print("CMD: %s" % " ".join(cmd))
+    if dryrun:
+        print(">>> DRY RUN MODE <<<")
+        return
+
+    t1 = time.perf_counter()
     subprocess.check_call(cmd)
     t2 = time.perf_counter()
     print("-----------------------------------------------------------")
@@ -29,6 +33,8 @@ def wsclean(args):
 
 def main():
     parser = argparse.ArgumentParser(description="Run WSClean")
+    parser.add_argument("-n", "--dry-run", dest="dryrun", action="store_true",
+                        help="do not actually run WSClean")
     parser.add_argument("--args", dest="args", nargs="*",
                         help="additional arguments for WSClean")
     parser.add_argument("--dirty", dest="dirty", action="store_true",
@@ -116,9 +122,9 @@ def main():
     cmdargs += ["-name", nameprefix]
     cmdargs += args.ms
 
-    wsclean(cmdargs)
+    wsclean(cmdargs, dryrun=args.dryrun)
 
-    if args.dirty:
+    if args.dirty and not args.dryrun:
         # Remove the output "-image" since it is identical to "-dirty"
         os.remove(nameprefix+"-image.fits")
 
