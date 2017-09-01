@@ -10,6 +10,7 @@
 #
 
 
+import os
 import argparse
 import subprocess
 import time
@@ -21,7 +22,9 @@ def wsclean(args):
     print("CMD: %s" % " ".join(cmd))
     subprocess.check_call(cmd)
     t2 = time.perf_counter()
-    print("Elapsed time: %.1f [min]" % ((t2-t1)/60))
+    print("-----------------------------------------------------------")
+    print("WSClean Elapsed time: %.1f [min]" % ((t2-t1)/60))
+    print("-----------------------------------------------------------")
 
 
 def main():
@@ -48,8 +51,7 @@ def main():
     parser.add_argument("--pixelsize", dest="pixelsize", type=float,
                         required=True,
                         help="output image pixel size [arcsec]")
-    parser.add_argument("--taper-gaussian", dest="taper_gaussian",
-                        type=float,
+    parser.add_argument("--taper-gaus", dest="taper_gaus", type=float,
                         help="taper the weights with a Gaussian function " +
                         "to reduce the contribution of long baselines. " +
                         "Gaussian beam size in [arcsec].")
@@ -103,17 +105,22 @@ def main():
     else:
         cmdargs += ["-auto-threshold", str(args.threshold_auto)]
 
-    if args.taper_gaussian:
-        cmdargs += ["-taper-gaussian", str(args.taper_gaussian)]
+    if args.taper_gaus:
+        cmdargs += ["-taper-gaussian", str(args.taper_gaus)]
 
     # additional WSClean arguments
     if args.args:
         cmdargs += args.args
 
-    cmdargs += ["-name", args.name.rstrip("-_")]
+    nameprefix = args.name.rstrip("-_")
+    cmdargs += ["-name", nameprefix]
     cmdargs += args.ms
 
     wsclean(cmdargs)
+
+    if args.dirty:
+        # Remove the output "-image" since it is identical to "-dirty"
+        os.remove(nameprefix+"-image.fits")
 
 
 if __name__ == "__main__":
