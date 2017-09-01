@@ -163,13 +163,14 @@ class SkyModel:
         if os.path.exists(outfile) and (not clobber):
             raise OSError("OSKAR sky model file already exists: " % outfile)
         sky = self.sky
-        nsources = sky.shape[0]
-        logger.info("Number of sources: %d" % nsources)
+        counts = sky.shape[0]
+        percent = 100 * counts / self.image.size
+        logger.info("Source counts: %d (%.1f%%)" % (counts, percent))
         header = ("Frequency = %.3f [MHz]\n" % self.freq +
                   "Pixel size = %.2f [arcsec]\n" % self.pixelsize +
                   "RA0 = %.4f [deg]\n" % self.ra0 +
                   "Dec0 = %.4f [deg]\n" % self.dec0 +
-                  "Number of sources = %d\n\n" % len(sky) +
+                  "Source counts = %d (%.1f%%)\n\n" % (counts, percent) +
                   "R.A.[deg]    Dec.[deg]    flux[Jy]")
         np.savetxt(outfile, sky, fmt='%.10e, %.10e, %.10e', header=header)
         logger.info("Wrote OSKAR sky model to file: %s" % outfile)
