@@ -410,7 +410,14 @@ def main():
 
     with fits.open(args.infile) as f:
         cube = f[0].data
-        wcs = WCS(f[0].header)
+        header = f[0].header
+    bunit = header.get("BUNIT", "UNKNOWN")
+    if bunit.upper() not in ["K", "KELVIN", "MK"]:
+        logger.warning("Wrong data unit: %s" % bunit)
+    else:
+        logger.info("Data unit: %s" % bunit)
+
+    wcs = WCS(header)
     nfreq = cube.shape[0]
     frequencies = get_frequencies(wcs, nfreq)
     if args.pixelsize:
