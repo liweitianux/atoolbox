@@ -45,7 +45,7 @@ import astropy.constants as ac
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s [%(levelname)s] %(message)s",
-                    datefmt="%Y-%m-%dT%H:%M:%S")
+                    datefmt="%H:%M:%S")
 logger = logging.getLogger(os.path.basename(sys.argv[0]))
 
 
@@ -416,7 +416,7 @@ def main():
     if args.pixelsize:
         pixelsize = args.pixelsize  # [arcsec]
     else:
-        pixelsize = wcs.wcs.cdelt[0] * 3600  # [deg] -> [arcsec]
+        pixelsize = abs(wcs.wcs.cdelt[0]) * 3600  # [deg] -> [arcsec]
 
     ps2d = PS2D(cube=cube, pixelsize=pixelsize, frequencies=frequencies,
                 window_name=args.window)

@@ -89,7 +89,7 @@ class FITSImage:
         if hasattr(self, "_pixelsize"):
             return self._pixelsize
         else:
-            return self.header["CDELT1"] * 3600  # [deg] -> [arcsec]
+            return abs(self.header["CDELT1"]) * 3600  # [deg] -> [arcsec]
 
     @pixelsize.setter
     def pixelsize(self, value):
@@ -114,7 +114,7 @@ class FITSImage:
         w.wcs.crval = np.array([hdr.get("CRVAL1", 0.0),
                                 hdr.get("CRVAL2", 0.0)])
         w.wcs.crpix = np.array([self.Ny/2+1, self.Nx/2+1])
-        w.wcs.cdelt = np.array([self.pixelsize/3600, self.pixelsize/3600])
+        w.wcs.cdelt = np.array([-self.pixelsize/3600, self.pixelsize/3600])
         w.wcs.cunit = [hdr.get("CUNIT1", "deg"), hdr.get("CUNIT2", "deg")]
         return w
 
