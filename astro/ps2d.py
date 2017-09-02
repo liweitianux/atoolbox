@@ -402,13 +402,14 @@ def main():
                         choices=["nuttall"],
                         help="apply window along frequency axis " +
                         "(default: None)")
-    parser.add_argument("-i", "--infile", dest="infile", required=True,
-                        help="input FITS image cube")
+    parser.add_argument("-i", "--infile", dest="infile", nargs="+",
+                        help="input FITS image cube(s); if multiple cubes " +
+                        "are provided, they are added first.")
     parser.add_argument("-o", "--outfile", dest="outfile", required=True,
                         help="output 2D power spectrum FITS file")
     args = parser.parse_args()
 
-    with fits.open(args.infile) as f:
+    with fits.open(args.infile[0]) as f:
         cube = f[0].data
         header = f[0].header
     bunit = header.get("BUNIT", "UNKNOWN")
@@ -416,6 +417,10 @@ def main():
         logger.warning("Wrong data unit: %s" % bunit)
     else:
         logger.info("Data unit: %s" % bunit)
+
+    for fn in args.infile[1:]:
+        logger.info("Adding additional FITS cube: %s" % fn)
+        cube += fits.open(fn)[0].data
 
     wcs = WCS(header)
     nfreq = cube.shape[0]
