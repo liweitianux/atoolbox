@@ -395,9 +395,9 @@ def main():
     parser.add_argument("-C", "--clobber", dest="clobber",
                         action="store_true",
                         help="overwrite existing file")
-    parser.add_argument("-p", "--pixelsize", dest="pixelsize",
-                        type=float, required=True,
-                        help="image cube pixel size; unit: [arcsec]")
+    parser.add_argument("-p", "--pixelsize", dest="pixelsize", type=float,
+                        help="image cube pixel size [arcsec] (default: " +
+                        "obtain from FITS header WCS info)")
     parser.add_argument("--window", dest="window",
                         choices=["nuttall"],
                         help="apply window along frequency axis " +
@@ -413,7 +413,12 @@ def main():
         wcs = WCS(f[0].header)
     nfreq = cube.shape[0]
     frequencies = get_frequencies(wcs, nfreq)
-    ps2d = PS2D(cube=cube, pixelsize=args.pixelsize, frequencies=frequencies,
+    if args.pixelsize:
+        pixelsize = args.pixelsize  # [arcsec]
+    else:
+        pixelsize = wcs.wcs.cdelt[0] * 3600  # [deg] -> [arcsec]
+
+    ps2d = PS2D(cube=cube, pixelsize=pixelsize, frequencies=frequencies,
                 window_name=args.window)
     ps2d.calc_ps3d()
     ps2d.calc_ps2d()
