@@ -34,9 +34,10 @@ class FITSImage:
         print("Loaded FITS image from file: %s" % filename)
         print("FITS image size: %dx%d" % (self.Nx, self.Ny))
         print("Pixel size: %.1f [arcsec]" % self.pixelsize)
-        print("FoV: %.1f [deg]" % self.fov[0])
+        print("FoV: %.2fx%.2f [deg^2]" % self.fov)
 
     def rescale(self, shape, order=1):
+        print("Rescaling FITS image ...")
         try:
             Ny2, Nx2 = shape
         except TypeError:
@@ -50,6 +51,7 @@ class FITSImage:
         print("Scaled pixel size: %.1f [arcsec]" % self.pixelsize)
 
     def crop(self, size):
+        print("Cropping FITS image ...")
         try:
             xsize, ysize = size  # [deg]
         except TypeError:
@@ -59,7 +61,7 @@ class FITSImage:
         if Nx2 > self.Nx or Ny2 > self.Ny:
             raise ValueError("Crop region too large!")
 
-        print("Central crop box size: %dx%d [deg]" % (xsize, ysize))
+        print("Central crop box size: %.2fx%.2f [deg^2]" % (xsize, ysize))
         print("Cropped image size: %dx%d" % (Nx2, Ny2))
         xi0 = int((self.Nx-Nx2) / 2)
         yi0 = int((self.Ny-Ny2) / 2)
@@ -76,7 +78,7 @@ class FITSImage:
             hdu.writeto(outfile, overwrite=clobber)
         except TypeError:
             hdu.writeto(outfile, clobber=clobber)
-        print("Wrote scaled FITS image to file: %s" % outfile)
+        print("Wrote FITS image to file: %s" % outfile)
 
     @property
     def fov(self):
