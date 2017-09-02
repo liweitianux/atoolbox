@@ -54,8 +54,8 @@ class FITSImage:
             xsize, ysize = size  # [deg]
         except TypeError:
             xsize = ysize = size
-        Nx2 = xsize * 3600 / self.pixelsize
-        Ny2 = ysize * 3600 / self.pixelsize
+        Nx2 = round(xsize * 3600 / self.pixelsize)
+        Ny2 = round(ysize * 3600 / self.pixelsize)
         if Nx2 > self.Nx or Ny2 > self.Ny:
             raise ValueError("Crop region too large!")
 
@@ -71,7 +71,7 @@ class FITSImage:
         header["DATE"] = (datetime.now(timezone.utc).astimezone().isoformat(),
                           "File creation date")
         header.add_history(" ".join(sys.argv))
-        hdu = fits.PrimaryHDU(data=self.data, header=header)
+        hdu = fits.PrimaryHDU(data=self.image, header=header)
         try:
             hdu.writeto(outfile, overwrite=clobber)
         except TypeError:
