@@ -28,9 +28,11 @@ from scipy import ndimage
 
 
 class FITSImage:
-    def __init__(self, filename):
+    def __init__(self, filename, pixelsize=None):
         self.filename = filename
         self.header, self.image = self.open_image(filename)
+        if pixelsize is not None:
+            self.pixelsize = pixelsize
         print("Loaded FITS image from file: %s" % filename)
         print("FITS image size: %dx%d" % (self.Nx, self.Ny))
         print("Pixel size: %.1f [arcsec]" % self.pixelsize)
@@ -90,8 +92,15 @@ class FITSImage:
         # Unit: [arcsec]
         if hasattr(self, "_pixelsize"):
             return self._pixelsize
-        else:
-            return abs(self.header["CDELT1"]) * 3600  # [deg] -> [arcsec]
+
+        try:
+            return self.header["PixSize"]  # [arcsec]
+        except KeyError:
+            try:
+                return abs(self.header["CDELT1"]) * 3600  # [deg] -> [arcsec]
+            except KeyError:
+                raise ValueError("Cannot obtain pixel size from header; " +
+                                 "please manually provide --pixelsize")
 
     @pixelsize.setter
     def pixelsize(self, value):
@@ -170,13 +179,16 @@ def main():
                         help="scale interpolation order (default: 1)")
     parser.add_argument("-s", "--size", type=int, required=True,
                         help="output image size (number of pixels)")
+    parser.add_argument("-p", "--pixelsize", type=float,
+                        help="input FITS image pixel size [arcsec] " +
+                        "(default: try to obtain from FITS header)")
     parser.add_argument("-i", "--infile", required=True,
                         help="input FITS image")
     parser.add_argument("-o", "--outfile", required=True,
                         help="output FITS image")
     args = parser.parse_args()
 
-    fitsimage = FITSImage(args.infile)
+    fitsimage = FITSImage(args.infile, pixelsize=args.pixelsize)
     fitsimage.rescale(shape=args.size, order=args.order)
     fitsimage.write(args.outfile, clobber=args.clobber)
 
