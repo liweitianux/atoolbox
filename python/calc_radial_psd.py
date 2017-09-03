@@ -277,7 +277,7 @@ class AstroImage:
             print("Loading image ... ", end="", flush=True)
         with fits.open(image) as imgfits:
             self.image = imgfits[0].data.astype(np.float)
-            self.exposure = imgfits[0].header["EXPOSURE"]
+            self.exposure = imgfits[0].header.get("EXPOSURE")
         if verbose:
             print("DONE", flush=True)
 
@@ -296,7 +296,7 @@ class AstroImage:
                 print("Loading background map ... ", end="", flush=True)
             with fits.open(bkgmap) as imgfits:
                 self.bkgmap = imgfits[0].data.astype(np.float)
-                self.exposure_bkg = imgfits[0].header["EXPOSURE"]
+                self.exposure_bkg = imgfits[0].header.get("EXPOSURE")
             if verbose:
                 print("DONE", flush=True)
 
