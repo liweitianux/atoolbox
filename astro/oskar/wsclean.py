@@ -44,6 +44,9 @@ def main():
     parser.add_argument("--update-model", dest="update_model",
                         action="store_true",
                         help="update the MODEL_DATA column in MS")
+    parser.add_argument("--save-weights", dest="save_weights",
+                        action="store_true",
+                        help="save the gridded weights in <name>-weights.fits")
     parser.add_argument("--weight-briggs", dest="briggs",
                         type=float, default=0.0,
                         help="Briggs weight parameter")
@@ -86,6 +89,7 @@ def main():
         "-log-time",
         "-pol", "XX",  # OSKAR "Scalar" simulation only give "XX" component
         "-make-psf",  # always make the PSF, even no cleaning performed
+        "-tempdir", "/tmp",
     ]
 
     if args.dirty:
@@ -107,6 +111,9 @@ def main():
         cmdargs += ["-update-model-required"]
     else:
         cmdargs += ["-no-update-model-required"]
+
+    if args.save_weights:
+        cmdargs += ["-saveweights"]
 
     if args.threshold:
         cmdargs += ["-threshold", str(args.threshold)]
