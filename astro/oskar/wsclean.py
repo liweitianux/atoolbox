@@ -11,6 +11,7 @@
 
 
 import os
+import re
 import argparse
 import subprocess
 import time
@@ -35,8 +36,9 @@ def main():
     parser = argparse.ArgumentParser(description="Run WSClean")
     parser.add_argument("-n", "--dry-run", dest="dryrun", action="store_true",
                         help="do not actually run WSClean")
-    parser.add_argument("--args", dest="args", nargs="*",
-                        help="additional arguments for WSClean")
+    parser.add_argument("--args", dest="args",
+                        help="additional arguments for WSClean " +
+                        "(in a quoted string separated by space)")
     parser.add_argument("--dirty", dest="dirty", action="store_true",
                         help="only create dirty images (by setting niter=0)")
     parser.add_argument("--update-model", dest="update_model",
@@ -116,7 +118,9 @@ def main():
 
     # additional WSClean arguments
     if args.args:
-        cmdargs += args.args
+        extra_args = re.split(r"\s+", args.args.strip())
+        print("Additional WSClean arguments:", extra_args)
+        cmdargs += extra_args
 
     nameprefix = args.name.rstrip("-_")
     cmdargs += ["-name", nameprefix]
