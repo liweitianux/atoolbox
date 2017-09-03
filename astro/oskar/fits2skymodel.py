@@ -32,7 +32,7 @@ from datetime import datetime
 
 import numpy as np
 import astropy.io.fits as fits
-import astropy.constants as ac
+import astropy.units as au
 from astropy.wcs import WCS
 
 
@@ -106,14 +106,11 @@ class SkyModel:
     def factor_K2JyPixel(self):
         """
         Conversion factor to convert brightness unit from 'K' to 'Jy/pixel'
-
-        http://www.iram.fr/IRAMFR/IS/IS2002/html_1/node187.html
         """
-        pixarea = np.deg2rad(self.pixelsize/3600.0) ** 2  # [sr]
-        kB = ac.k_B.si.value  # Boltzmann constant [J/K]
-        c0 = ac.c.si.value  # speed of light in vacuum [m/s]
-        freqHz = self.freq * 1e6  # [Hz]
-        factor = 2*kB * 1.0e26 * pixarea * (freqHz/c0)**2
+        pixarea = (self.pixelsize * au.arcsec) ** 2
+        freq = self.freq * au.MHz
+        equiv = au.brightness_temperature(pixarea, freq)
+        factor = au.K.to(au.Jy, equivalencies=equiv)
         return factor
 
     @property
