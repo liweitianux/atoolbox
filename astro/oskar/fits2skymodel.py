@@ -36,7 +36,9 @@ import astropy.units as au
 from astropy.wcs import WCS
 
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO,
+                    format="%(asctime)s [%(levelname)s] %(message)s",
+                    datefmt="%H:%M:%S")
 logger = logging.getLogger(os.path.basename(sys.argv[0]))
 
 
@@ -261,14 +263,15 @@ def main():
     with fits.open(args.infile) as f:
         image = f[0].data
         header = f[0].header
-    logger.info("Read image slice: %s" % args.infile)
+    logger.info("Read input FITS image: %s" % args.infile)
 
     # Check data unit
     unit = header.get("BUNIT")
     if unit is None:
-        logger.warning("input FITS file of unknown data unit!")
+        logger.warning("Input FITS file of unknown data unit! " +
+                       "Assuming [K] (kelvin)!")
     elif unit.upper() not in ["K", "KELVIN"]:
-        logger.error("input FITS file of wrong data unit: %s" % unit)
+        logger.error("Input FITS file of wrong data unit: %s" % unit)
 
     freq = args.freq if args.freq else header["FREQ"]  # [MHz]
     if args.pixelsize:
