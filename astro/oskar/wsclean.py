@@ -36,10 +36,10 @@ def main():
     parser = argparse.ArgumentParser(description="Run WSClean")
     parser.add_argument("-n", "--dry-run", dest="dryrun", action="store_true",
                         help="do not actually run WSClean")
-    parser.add_argument("--args", dest="args",
+    parser.add_argument("-a", "--args", dest="args",
                         help="additional arguments for WSClean " +
                         "(in a quoted string separated by space)")
-    parser.add_argument("--dirty", dest="dirty", action="store_true",
+    parser.add_argument("-d", "--dirty", dest="dirty", action="store_true",
                         help="only create dirty images (by setting niter=0)")
     parser.add_argument("--update-model", dest="update_model",
                         action="store_true",
@@ -47,19 +47,21 @@ def main():
     parser.add_argument("--save-weights", dest="save_weights",
                         action="store_true",
                         help="save the gridded weights in <name>-weights.fits")
-    parser.add_argument("--weight-briggs", dest="briggs",
-                        type=float, default=0.0,
-                        help="Briggs weight parameter")
+    parser.add_argument("-w", "--weight", dest="weight", default="briggs",
+                        choices=["uniform", "natural", "briggs"],
+                        help="weighting method (default: 'briggs')")
+    parser.add_argument("--briggs", dest="briggs", type=float, default=0.0,
+                        help="Briggs weight parameter (default: 0)")
     parser.add_argument("--niter", dest="niter", type=int, default=100000,
                         help="maximum number of CLEAN iterations")
     parser.add_argument("--gain", dest="gain", type=float, default=0.1,
                         help="CLEAN gain for each minor iteration")
     parser.add_argument("--mgain", dest="mgain", type=float, default=0.85,
                         help="CLEAN gain for major iterations")
-    parser.add_argument("--size", dest="size", type=int,
+    parser.add_argument("-s", "--size", dest="size", type=int,
                         required=True,
                         help="output image size (pixel number on a side)")
-    parser.add_argument("--pixelsize", dest="pixelsize", type=float,
+    parser.add_argument("-p", "--pixelsize", dest="pixelsize", type=float,
                         required=True,
                         help="output image pixel size [arcsec]")
     parser.add_argument("--taper-gaus", dest="taper_gaus", type=float,
@@ -77,9 +79,9 @@ def main():
     exgrp.add_argument("--threshold", dest="threshold", type=float,
                        help="stopping CLEAN threshold [Jy]")
     #
-    parser.add_argument("--name", dest="name", required=True,
+    parser.add_argument("-N", "--name", dest="name", required=True,
                         help="filename prefix for the output files")
-    parser.add_argument("--ms", nargs="+", help="input visibility MSs")
+    parser.add_argument("-m", "--ms", nargs="+", help="input visibility MSs")
     args = parser.parse_args()
 
     nms = len(args.ms)  # i.e., number of MS == number of channels
@@ -97,7 +99,13 @@ def main():
     else:
         cmdargs += ["-niter", str(args.niter)]
 
-    cmdargs += ["-weight", "briggs", str(args.briggs)]
+    if args.weight == "uniform":
+        cmdargs += ["-weight", "uniform",
+                    "-weighting-rank-filter", "3"]
+    elif args.weight == "briggs":
+        cmdargs += ["-weight", "briggs", str(args.briggs)]
+    else:
+        cmdargs += ["-weight", args.weight]
     cmdargs += ["-gain", str(args.gain)]
     cmdargs += ["-mgain", str(args.mgain)]
     cmdargs += ["-size", str(args.size), str(args.size)]
