@@ -272,12 +272,51 @@ class AstroImage:
         self.load_expmap(expmap, verbose=verbose)
         self.load_bkgmap(bkgmap, verbose=verbose)
 
+    @staticmethod
+    def open_image(infile):
+        """
+        Open the slice image and return its header and 2D image data.
+
+        NOTE
+        ----
+        The input slice image may have following dimensions:
+        * NAXIS=2: [Y, X]
+        * NAXIS=3: [FREQ=1, Y, X]
+        * NAXIS=4: [STOKES=1, FREQ=1, Y, X]
+
+        NOTE
+        ----
+        Only open slice image that has only ONE frequency and ONE Stokes
+        parameter.
+
+        Returns
+        -------
+        header : `~astropy.io.fits.Header`
+        image : 2D `~numpy.ndarray`
+            The 2D [Y, X] image part of the slice image.
+        """
+        with fits.open(infile) as f:
+            header = f[0].header
+            data = f[0].data
+        if data.ndim == 2:
+            # NAXIS=2: [Y, X]
+            image = data
+        elif data.ndim == 3 and data.shape[0] == 1:
+            # NAXIS=3: [FREQ=1, Y, X]
+            image = data[0, :, :]
+        elif data.ndim == 4 and data.shape[0] == 1 and data.shape[1] == 1:
+            # NAXIS=4: [STOKES=1, FREQ=1, Y, X]
+            image = data[0, 0, :, :]
+        else:
+            raise ValueError("Slice '{0}' has invalid dimensions: {1}".format(
+                infile, data.shape))
+        return (header, image)
+
     def load_image(self, image, verbose=False):
         if verbose:
             print("Loading image ... ", end="", flush=True)
-        with fits.open(image) as imgfits:
-            self.image = imgfits[0].data.astype(np.float)
-            self.exposure = imgfits[0].header.get("EXPOSURE")
+        self.header, self.image = self.open_image(image)
+        self.exposure = self.header.get("EXPOSURE")
         if verbose:
             print("DONE", flush=True)
 
@@ -285,8 +324,7 @@ class AstroImage:
         if expmap:
             if verbose:
                 print("Loading exposure map ... ", end="", flush=True)
-            with fits.open(expmap) as imgfits:
-                self.expmap = imgfits[0].data.astype(np.float)
+            __, self.expmap = self.open_image(expmap)
             if verbose:
                 print("DONE", flush=True)
 
@@ -294,9 +332,8 @@ class AstroImage:
         if bkgmap:
             if verbose:
                 print("Loading background map ... ", end="", flush=True)
-            with fits.open(bkgmap) as imgfits:
-                self.bkgmap = imgfits[0].data.astype(np.float)
-                self.exposure_bkg = imgfits[0].header.get("EXPOSURE")
+            header, self.bkgmap = self.open_image(bkgmap)
+            self.exposure_bkg = header.get("EXPOSURE")
             if verbose:
                 print("DONE", flush=True)
 
@@ -447,4 +484,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
