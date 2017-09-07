@@ -82,7 +82,7 @@ class PSD:
         self.pixel = pixel
         self.normalize = normalize
 
-    def calc_psd2d(self, verbose=False):
+    def calc_psd2d(self):
         """
         Computes the 2D power spectral density of the given image.
         Note that the low frequency components are shifted to the center
@@ -97,22 +97,19 @@ class PSD:
             2D power spectral density, which is dimensionless if normalized,
             otherwise has unit ${pixel_unit}^2.
         """
-        if verbose:
-            print("Calculating 2D power spectral density ... ",
-                    end="", flush=True)
+        print("Calculating 2D power spectral density ... ", end="", flush=True)
         rows, cols = self.img.shape
-        ## Compute the power spectral density (i.e., power spectrum)
+        # Compute the power spectral density (i.e., power spectrum)
         imgf = np.fft.fftshift(np.fft.fft2(self.img))
         if self.normalize:
             norm = rows * cols * self.pixel[0]**2
         else:
             norm = 1.0  # Do not normalize
         self.psd2d = (np.abs(imgf) / norm) ** 2
-        if verbose:
-            print("DONE", flush=True)
+        print("DONE", flush=True)
         return self.psd2d
 
-    def calc_radial_psd1d(self, verbose=False):
+    def calc_radial_psd1d(self):
         """
         Computes the radially averaged power spectral density from the
         provided 2D power spectral density.
@@ -124,11 +121,9 @@ class PSD:
                         frequency
             radial_psd_err: standard deviations of each radial_psd
         """
-        if verbose:
-            print("Calculating radial (1D) power spectral density ... ",
-                    end="", flush=True)
-        if verbose:
-            print("padding ... ", end="", flush=True)
+        print("Calculating radial (1D) power spectral density ... ",
+              end="", flush=True)
+        print("padding ... ", end="", flush=True)
         psd2d    = self.pad_square(self.psd2d, value=np.nan)
         dim      = psd2d.shape[0]
         dim_half = (dim+1) // 2
@@ -141,9 +136,7 @@ class PSD:
         rho      = np.around(rho).astype(np.int)
         radial_psd     = np.zeros(dim_half)
         radial_psd_err = np.zeros(dim_half)
-        if verbose:
-            print("radially averaging ... ",
-                    end="", flush=True)
+        print("radially averaging ... ", end="", flush=True)
         for r in range(dim_half):
             # Get the indices of the elements satisfying rho[i,j]==r
             ii, jj = (rho == r).nonzero()
@@ -158,8 +151,7 @@ class PSD:
         self.freqs     = freqs
         self.psd1d     = radial_psd
         self.psd1d_err = radial_psd_err
-        if verbose:
-            print("DONE", end="", flush=True)
+        print("DONE", flush=True)
         return (freqs, radial_psd, radial_psd_err)
 
     @staticmethod
@@ -267,10 +259,10 @@ class AstroImage:
     # exposure time of the background map
     exposure_bkg = None
 
-    def __init__(self, image, expmap=None, bkgmap=None, verbose=False):
-        self.load_image(image,   verbose=verbose)
-        self.load_expmap(expmap, verbose=verbose)
-        self.load_bkgmap(bkgmap, verbose=verbose)
+    def __init__(self, image, expmap=None, bkgmap=None):
+        self.load_image(image)
+        self.load_expmap(expmap)
+        self.load_bkgmap(bkgmap)
 
     @staticmethod
     def open_image(infile):
@@ -312,32 +304,26 @@ class AstroImage:
                 infile, data.shape))
         return (header, image)
 
-    def load_image(self, image, verbose=False):
-        if verbose:
-            print("Loading image ... ", end="", flush=True)
+    def load_image(self, image):
+        print("Loading image ... ", end="", flush=True)
         self.header, self.image = self.open_image(image)
         self.exposure = self.header.get("EXPOSURE")
-        if verbose:
+        print("DONE", flush=True)
+
+    def load_expmap(self, expmap):
+        if expmap:
+            print("Loading exposure map ... ", end="", flush=True)
+            __, self.expmap = self.open_image(expmap)
             print("DONE", flush=True)
 
-    def load_expmap(self, expmap, verbose=False):
-        if expmap:
-            if verbose:
-                print("Loading exposure map ... ", end="", flush=True)
-            __, self.expmap = self.open_image(expmap)
-            if verbose:
-                print("DONE", flush=True)
-
-    def load_bkgmap(self, bkgmap, verbose=False):
+    def load_bkgmap(self, bkgmap):
         if bkgmap:
-            if verbose:
-                print("Loading background map ... ", end="", flush=True)
+            print("Loading background map ... ", end="", flush=True)
             header, self.bkgmap = self.open_image(bkgmap)
             self.exposure_bkg = header.get("EXPOSURE")
-            if verbose:
-                print("DONE", flush=True)
+            print("DONE", flush=True)
 
-    def fix_shapes(self, tolerance=2, verbose=False):
+    def fix_shapes(self, tolerance=2):
         """
         Fix the shapes of self.expmap and self.bkgmap to make them have
         the same shape as the self.image.
@@ -352,14 +338,12 @@ class AstroImage:
         Arguments:
           * tolerance: allow absolute difference between images
         """
-        def _fix_shape(img, ref, tol=tolerance, verbose=verbose):
+        def _fix_shape(img, ref, tol=tolerance):
             if img.shape == ref.shape:
-                if verbose:
-                    print("SKIPPED", flush=True)
+                print("SKIPPED", flush=True)
                 return img
             elif np.allclose(img.shape, ref.shape, atol=tol):
-                if verbose:
-                    print(img.shape, "->", ref.shape, flush=True)
+                print(img.shape, "->", ref.shape, flush=True)
                 rows, cols = img.shape
                 rows_ref, cols_ref = ref.shape
                 # rows
@@ -380,22 +364,18 @@ class AstroImage:
                         "(%d, %d) vs. (%d, %d)" % (img.shape + ref.shape))
         #
         if self.bkgmap is not None:
-            if verbose:
-                print("Fixing shape for bkgmap ... ", end="", flush=True)
+            print("Fixing shape for bkgmap ... ", end="", flush=True)
             self.bkgmap = _fix_shape(self.bkgmap, self.image)
         if self.expmap is not None:
-            if verbose:
-                print("Fixing shape for expmap ... ", end="", flush=True)
+            print("Fixing shape for expmap ... ", end="", flush=True)
             self.expmap = _fix_shape(self.expmap, self.image)
 
-    def subtract_bkg(self, verbose=False):
-        if verbose:
-            print("Subtracting background ... ", end="", flush=True)
+    def subtract_bkg(self):
+        print("Subtracting background ... ", end="", flush=True)
         self.image -= (self.bkgmap / self.exposure_bkg * self.exposure)
-        if verbose:
-            print("DONE", flush=True)
+        print("DONE", flush=True)
 
-    def correct_exposure(self, cut=0.015, verbose=False):
+    def correct_exposure(self, cut=0.015):
         """
         Correct the image for exposure by dividing by the expmap to
         create the exposure-corrected image.
@@ -406,22 +386,18 @@ class AstroImage:
                  than this threshold will be excluded/clipped (set to ZERO)
                  if set to None, then skip clipping image
         """
-        if verbose:
-            print("Correcting image for exposure ... ", end="", flush=True)
+        print("Correcting image for exposure ... ", end="", flush=True)
         with np.errstate(divide="ignore", invalid="ignore"):
             self.image /= self.expmap
         # set invalid values to ZERO
         self.image[ ~ np.isfinite(self.image) ] = 0.0
-        if verbose:
-            print("DONE", flush=True)
+        print("DONE", flush=True)
         if cut is not None:
             # clip image according the exposure threshold
-            if verbose:
-                print("Clipping image (%s) ... " % cut, end="", flush=True)
+            print("Clipping image (%s) ... " % cut, end="", flush=True)
             threshold = cut * np.max(self.expmap)
             self.image[ self.expmap < threshold ] = 0.0
-            if verbose:
-                print("DONE", flush=True)
+            print("DONE", flush=True)
 
 
 def main():
@@ -430,8 +406,6 @@ def main():
             epilog="Version: %s (%s)" % (__version__, __date__))
     parser.add_argument("-V", "--version", action="version",
             version="%(prog)s " + "%s (%s)" % (__version__, __date__))
-    parser.add_argument("-v", "--verbose", dest="verbose",
-            action="store_true", help="show verbose information")
     parser.add_argument("-C", "--clobber", dest="clobber",
             action="store_true",
             help="overwrite the output files if already exist")
@@ -458,17 +432,17 @@ def main():
 
     # Load image data
     image = AstroImage(image=args.infile, expmap=args.expmap,
-                       bkgmap=args.bkgmap, verbose=args.verbose)
-    image.fix_shapes(verbose=args.verbose)
+                       bkgmap=args.bkgmap)
+    image.fix_shapes()
     if args.bkgmap:
-        image.subtract_bkg(verbose=args.verbose)
+        image.subtract_bkg()
     if args.expmap:
-        image.correct_exposure(verbose=args.verbose)
+        image.correct_exposure()
 
     # Calculate the power spectral density
     psd = PSD(img=image.image, normalize=True)
-    psd.calc_psd2d(verbose=args.verbose)
-    freqs, psd1d, psd1d_err = psd.calc_radial_psd1d(verbose=args.verbose)
+    psd.calc_psd2d()
+    freqs, psd1d, psd1d_err = psd.calc_radial_psd1d()
 
     # Write out PSD results
     psd_data = np.column_stack((freqs, psd1d, psd1d_err))
