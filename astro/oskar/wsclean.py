@@ -18,7 +18,8 @@ import time
 
 
 def wsclean(args, dryrun=False):
-    cmd = ["wsclean"] + args
+    # NOTE: Convert all arguments to strings
+    cmd = ["wsclean"] + [str(arg) for arg in args]
     print("CMD: %s" % " ".join(cmd))
     if dryrun:
         print(">>> DRY RUN MODE <<<")
@@ -51,9 +52,11 @@ def main():
                         choices=["uniform", "natural", "briggs"],
                         help="weighting method (default: 'briggs')")
     parser.add_argument("--briggs", dest="briggs", type=float, default=0.0,
-                        help="Briggs weight parameter (default: 0)")
+                        help="Briggs robustness parameter (default: 0); " +
+                        "-1 (uniform) -> 1 (natural)")
     parser.add_argument("--niter", dest="niter", type=int, default=100000,
-                        help="maximum number of CLEAN iterations")
+                        help="maximum number of CLEAN iterations " +
+                        "(default: 100,000)")
     parser.add_argument("--gain", dest="gain", type=float, default=0.1,
                         help="CLEAN gain for each minor iteration")
     parser.add_argument("--mgain", dest="mgain", type=float, default=0.85,
@@ -95,25 +98,25 @@ def main():
     ]
 
     if args.dirty:
-        cmdargs += ["-niter", str(0)]  # make dirty image only
+        cmdargs += ["-niter", 0]  # make dirty image only
     else:
-        cmdargs += ["-niter", str(args.niter)]
+        cmdargs += ["-niter", args.niter]
 
     if args.weight == "uniform":
         cmdargs += ["-weight", "uniform",
                     "-weighting-rank-filter", "3"]
     elif args.weight == "briggs":
-        cmdargs += ["-weight", "briggs", str(args.briggs)]
+        cmdargs += ["-weight", "briggs", args.briggs]
     else:
         cmdargs += ["-weight", args.weight]
-    cmdargs += ["-gain", str(args.gain)]
-    cmdargs += ["-mgain", str(args.mgain)]
-    cmdargs += ["-size", str(args.size), str(args.size)]
+    cmdargs += ["-gain", args.gain]
+    cmdargs += ["-mgain", args.mgain]
+    cmdargs += ["-size", args.size, args.size]
     cmdargs += ["-scale", "{0}asec".format(args.pixelsize)]
 
     if args.fit_spec_order:
-        cmdargs += ["-joinchannels", "-channelsout", str(nms),
-                    "-fit-spectral-pol", str(args.fit_spec_order+1)]
+        cmdargs += ["-joinchannels", "-channelsout", nms,
+                    "-fit-spectral-pol", args.fit_spec_order+1]
 
     if args.update_model:
         cmdargs += ["-update-model-required"]
@@ -124,12 +127,12 @@ def main():
         cmdargs += ["-saveweights"]
 
     if args.threshold:
-        cmdargs += ["-threshold", str(args.threshold)]
+        cmdargs += ["-threshold", args.threshold]
     else:
-        cmdargs += ["-auto-threshold", str(args.threshold_auto)]
+        cmdargs += ["-auto-threshold", args.threshold_auto]
 
     if args.taper_gaus:
-        cmdargs += ["-taper-gaussian", str(args.taper_gaus)]
+        cmdargs += ["-taper-gaussian", args.taper_gaus]
 
     # additional WSClean arguments
     if args.args:
