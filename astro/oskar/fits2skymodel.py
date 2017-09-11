@@ -169,6 +169,7 @@ class SkyModel:
                   "Pixel size = %.2f [arcsec]\n" % self.pixelsize +
                   "RA0 = %.4f [deg]\n" % self.ra0 +
                   "Dec0 = %.4f [deg]\n" % self.dec0 +
+                  "Minimum value = %.4e [K]\n" % self.minvalue +
                   "Source counts = %d (%.1f%%)\n\n" % (counts, percent) +
                   "R.A.[deg]    Dec.[deg]    flux[Jy]")
         np.savetxt(outfile, sky, fmt='%.10e, %.10e, %.10e', header=header)
