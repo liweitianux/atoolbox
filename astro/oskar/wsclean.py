@@ -44,30 +44,41 @@ def main():
                         help="only create dirty images (by setting niter=0)")
     parser.add_argument("--update-model", dest="update_model",
                         action="store_true",
-                        help="update the MODEL_DATA column in MS")
+                        help="write/update the MODEL_DATA column in MS")
     parser.add_argument("--save-weights", dest="save_weights",
                         action="store_true",
-                        help="save the gridded weights in <name>-weights.fits")
+                        help="save gridded weights in <name>-weights.fits")
+    parser.add_argument("--save-uv", dest="save_uv",
+                        action="store_true",
+                        help="save gridded uv in <name>-uv-{real,imag}.fits")
+    parser.add_argument("--uv-range", dest="uv_range", default=":",
+                        help="uv range [lambda] (i.e., baseline lengths) " +
+                        "used for imaging; syntax: '<min>:<max>' " +
+                        "(default: ':', i.e., all uv/baselines)")
     parser.add_argument("-w", "--weight", dest="weight", default="briggs",
                         choices=["uniform", "natural", "briggs"],
                         help="weighting method (default: 'briggs')")
-    parser.add_argument("--briggs", dest="briggs", type=float, default=0.0,
+    parser.add_argument("-B", "--briggs", dest="briggs",
+                        type=float, default=0.0,
                         help="Briggs robustness parameter (default: 0); " +
                         "-1 (uniform) -> 1 (natural)")
-    parser.add_argument("--niter", dest="niter", type=int, default=100000,
+    parser.add_argument("-#", "--niter", dest="niter",
+                        type=int, default=100000,
                         help="maximum number of CLEAN iterations " +
                         "(default: 100,000)")
     parser.add_argument("--gain", dest="gain", type=float, default=0.1,
-                        help="CLEAN gain for each minor iteration")
+                        help="CLEAN gain for each minor iteration " +
+                        "(default: 0.1)")
     parser.add_argument("--mgain", dest="mgain", type=float, default=0.85,
-                        help="CLEAN gain for major iterations")
+                        help="CLEAN gain for major iterations " +
+                        "(default: 0.85)")
     parser.add_argument("-s", "--size", dest="size", type=int,
                         required=True,
                         help="output image size (pixel number on a side)")
     parser.add_argument("-p", "--pixelsize", dest="pixelsize", type=float,
                         required=True,
                         help="output image pixel size [arcsec]")
-    parser.add_argument("--taper-gaus", dest="taper_gaus", type=float,
+    parser.add_argument("-G", "--taper-gaus", dest="taper_gaus", type=float,
                         help="taper the weights with a Gaussian function " +
                         "to reduce the contribution of long baselines. " +
                         "Gaussian beam size in [arcsec].")
@@ -76,11 +87,12 @@ def main():
                         "spectra with [order] polynomial in normal-space")
     #
     exgrp = parser.add_mutually_exclusive_group()
-    exgrp.add_argument("--threshold-auto", dest="threshold_auto",
-                       type=float, default=1.5,
-                       help="estimate noise level and stop at <sigma>*<std>")
-    exgrp.add_argument("--threshold", dest="threshold", type=float,
-                       help="stopping CLEAN threshold [Jy]")
+    exgrp.add_argument("-S", "--threshold-nsigma", dest="threshold_nsigma",
+                       type=float, default=2.0,
+                       help="estimate the noise level <sigma> and stop at " +
+                       "nsigma*<sigma> (default: 2.0 <sigma>)")
+    exgrp.add_argument("-t", "--threshold", dest="threshold", type=float,
+                       help="stopping CLEAN threshold [mJy]")
     #
     parser.add_argument("-N", "--name", dest="name", required=True,
                         help="filename prefix for the output files")
@@ -125,11 +137,20 @@ def main():
 
     if args.save_weights:
         cmdargs += ["-saveweights"]
+    if args.save_uv:
+        cmdargs += ["-saveuv"]
+
+    # uv/baseline range
+    uvmin, uvmax = args.uv_range.strip().split(":")
+    if uvmin:
+        cmdargs += ["-minuv-l", float(uvmin)]
+    if uvmax:
+        cmdargs += ["-maxuv-l", float(uvmax)]
 
     if args.threshold:
-        cmdargs += ["-threshold", args.threshold]
+        cmdargs += ["-threshold", args.threshold*1e-3]  # [mJy] -> [Jy]
     else:
-        cmdargs += ["-auto-threshold", args.threshold_auto]
+        cmdargs += ["-auto-threshold", args.threshold_nsigma]
 
     if args.taper_gaus:
         cmdargs += ["-taper-gaussian", args.taper_gaus]
