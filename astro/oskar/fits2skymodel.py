@@ -179,7 +179,7 @@ class SkyModel:
         Write the converted sky model for simulation.
         """
         if os.path.exists(outfile) and (not clobber):
-            raise OSError("OSKAR sky model file already exists: " % outfile)
+            raise OSError("OSKAR sky model file already exists: %s" % outfile)
         sky = self.sky
         counts = sky.shape[0]
         percent = 100 * counts / self.image.size
@@ -282,8 +282,8 @@ def main():
                 os.mkdir(args.outdir)
 
     with fits.open(args.infile) as f:
-        image = f[0].data
-        header = f[0].header
+        image = f[0].data.astype(np.float32)
+        header = f[0].header.copy(strip=True)
     logger.info("Read input FITS image: %s" % args.infile)
 
     # Check data unit
