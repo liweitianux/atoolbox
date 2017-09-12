@@ -147,8 +147,8 @@ def main():
                           args.outfile_taper)
 
     with fits.open(args.infile) as f:
-        image = f[0].data
-        header = f[0].header
+        image = f[0].data.astype(np.float32)
+        header = f[0].header.copy(strip=True)
     logger.info("Read sky image from file: %s" % args.infile)
 
     L = args.Router
@@ -189,7 +189,7 @@ def main():
         header["OBJECT"] = ("Tukey Window", "Taper window")
         header["Rinner"] = (args.Rinner, "[pixel] inner radius")
         header["Router"] = (args.Router, "[pixel] outer radius")
-        hdu = fits.PrimaryHDU(data=taper, header=header)
+        hdu = fits.PrimaryHDU(data=taper.astype(np.float32), header=header)
         hdu.writeto(args.outfile_taper)
         logger.info("Wrote tapered to file: %s" % args.outfile_taper)
 
