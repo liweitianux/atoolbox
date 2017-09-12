@@ -230,8 +230,8 @@ def main():
                         "(default: obtain from the FITS header 'FREQ')")
     exgrp = parser.add_mutually_exclusive_group()
     exgrp.add_argument("-m", "--min-value", dest="minvalue", type=float,
-                       help="minimum threshold to the output sky model " +
-                       "(default: 1e-4, i.e., 0.1 mK)")
+                       help="minimum threshold to the output sky model; " +
+                       "unit: [K]; (default: 1e-4, i.e., 0.1 mK)")
     exgrp.add_argument("-M", "--min-peak-fraction", dest="minpfrac",
                        type=float,
                        help="minimum threshold determined as the fraction " +
@@ -243,7 +243,8 @@ def main():
                         action="store_true",
                         help="save a FITS version of the converted sky model")
     parser.add_argument("-o", "--outdir", dest="outdir",
-                        help="output directory for sky model files")
+                        help="output directory for sky model files " +
+                        "(default: current working directory)")
     parser.add_argument("--create-mask", dest="create_mask",
                         help="create a FITS mask for the output sky model")
     parser.add_argument("infile", help="input FITS image")

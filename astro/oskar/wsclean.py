@@ -34,7 +34,8 @@ def wsclean(args, dryrun=False):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Run WSClean")
+    parser = argparse.ArgumentParser(
+        description="Run WSClean with more handy arguments")
     parser.add_argument("-n", "--dry-run", dest="dryrun", action="store_true",
                         help="do not actually run WSClean")
     parser.add_argument("-a", "--args", dest="args",
@@ -116,7 +117,7 @@ def main():
 
     if args.weight == "uniform":
         cmdargs += ["-weight", "uniform",
-                    "-weighting-rank-filter", "3"]
+                    "-weighting-rank-filter", 3]
     elif args.weight == "briggs":
         cmdargs += ["-weight", "briggs", args.briggs]
     else:
