@@ -78,7 +78,26 @@ class SkyModel:
         self.minvalue = minvalue
         self.mask = mask
         self.projection = projection
-        logger.info("SkyModel: Loaded image @ %.2f [MHz]" % freq)
+        logger.info("SkyModel: Loaded image @ %.2f [MHz], " % freq +
+                    "%.1f [arcsec/pixel]" % pixelsize)
+        logger.info("Image size: %dx%d" % self.shape)
+        logger.info("FoV size: %.2fx%.2f [deg^2]" % self.fov)
+
+    @property
+    def shape(self):
+        """
+        FITS image (width, height)
+        """
+        width, height = list(reversed(self.image.shape))[:2]
+        return (width, height)
+
+    @property
+    def fov(self):
+        """
+        FITS image FoV size: (width, height) [deg]
+        """
+        width, height = self.shape
+        return (width*self.pixelsize/3600, height*self.pixelsize/3600)
 
     @property
     def wcs(self):
