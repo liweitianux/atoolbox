@@ -15,26 +15,34 @@ import shutil
 from time import time
 
 
-def run_oskar(configfile, model, freq, vis_oskar, vis_ms,
-              telescope=None, dryrun=False):
-    if vis_oskar is None and vis_ms is None:
+def run_oskar(configfile, model, freq, vis_ms, vis_oskar=None,
+              telescope=None, chunksize=None, dryrun=False):
+    """
+    Update simulation settings in the configuration file,
+    and run the simulator ``oskar_sim_interferometer``.
+    """
+    if chunksize is not None:
+        chunksize = int(chunksize)
+    if vis_ms is None and vis_oskar is None:
         raise ValueError("both 'vis_oskar' & 'vis_ms' are missing")
-    prog = "oskar_sim_interferometer"
 
     print("Update simulation settings ...")
+    simulator = "oskar_sim_interferometer"
     for item, value in [
+            ("simulator/max_sources_per_chunk", chunksize),
             ("sky/oskar_sky_model/file", model),
             ("telescope/input_directory", telescope),
             ("observation/start_frequency_hz", str(freq*1e6)),
             ("interferometer/oskar_vis_filename", vis_oskar),
             ("interferometer/ms_filename", vis_ms)]:
         if value is not None:
-            subprocess.check_call([prog, "--set", configfile, item, value])
+            subprocess.check_call([simulator, "--set",
+                                   configfile, item, value])
             print("Updated '%s' -> '%s'" % (item, value))
 
     print("-------------------------------------------------------------")
     print("Simulating %s @ %.2f [MHz] ..." % (model, freq))
-    cmd = [prog, configfile]
+    cmd = [simulator, configfile]
     if dryrun:
         print("Dry run mode!")
         print("CMD: %s" % " ".join(cmd))
@@ -49,7 +57,7 @@ def run_oskar(configfile, model, freq, vis_oskar, vis_ms,
 def main():
     default_fconfig = "sim_interferometer.f{freq:06.2f}.ini"
     parser = argparse.ArgumentParser()
-    parser.add_argument("-d", "--dryrun", dest="dryrun", action="store_true",
+    parser.add_argument("-d", "--dry-run", dest="dryrun", action="store_true",
                         help="dry run")
     parser.add_argument("-c", "--config", dest="config", required=True,
                         help="OSKAR base/common configuration file")
@@ -58,12 +66,11 @@ def main():
                         help="filename pattern of the configuration files " +
                         "updated for OSKAR usage " +
                         "(default: %s)" % default_fconfig)
-    parser.add_argument("--no-vis-oskar", dest="no_vis_oskar",
+    parser.add_argument("-S", "--chunk-size", dest="chunk_size", type=float,
+                        help="overwrite the chunk size in config file")
+    parser.add_argument("--vis-oskar", dest="vis_oskar",
                         action="store_true",
-                        help="not save visibility in OSKAR native format")
-    parser.add_argument("--no-vis-ms", dest="no_vis_ms",
-                        action="store_true",
-                        help="not save visibility in MeasurementSet format")
+                        help="also save visibility in OSKAR native format")
     parser.add_argument("-t", "--telescope", dest="telescope",
                         help="overwrite the telescope model in config file")
     parser.add_argument("-o", "--outdir", dest="outdir",
@@ -96,20 +103,17 @@ def main():
         print("[%d/%d] %s @ %.2f [MHz]" % (i+1, Nosm, skyfile, freq))
         print("-------------------------------------------------------------")
         basename = os.path.splitext(os.path.basename(skyfile))[0]
-        if args.no_vis_oskar:
-            vis_oskar = ""
-        else:
+        if args.vis_oskar:
             vis_oskar = os.path.join(args.outdir, basename+".oskar")
-        if args.no_vis_ms:
-            vis_ms = ""
         else:
-            vis_ms = os.path.join(args.outdir, basename+".ms")
+            vis_oskar = None
+        vis_ms = os.path.join(args.outdir, basename+".ms")
         configfile = args.fconfig.format(freq=freq)
         shutil.copy(args.config, configfile)
         print("Copied OSKAR configuration file as: %s" % configfile)
         run_oskar(configfile=configfile, freq=freq,
-                  model=skyfile, telescope=args.telescope,
-                  vis_oskar=vis_oskar, vis_ms=vis_ms,
+                  model=skyfile, vis_ms=vis_ms, vis_oskar=vis_oskar,
+                  telescope=args.telescope, chunksize=args.chunksize,
                   dryrun=args.dryrun)
 
     t2 = time()
