@@ -29,16 +29,16 @@ def run_oskar(configfile, model, freq, vis_ms, vis_oskar=None,
     print("Updating simulation settings ...")
     simulator = "oskar_sim_interferometer"
     for item, value in [
-            ("simulator/max_sources_per_chunk", chunksize),
-            ("sky/oskar_sky_model/file", model),
-            ("telescope/input_directory", telescope),
-            ("observation/start_frequency_hz", str(freq*1e6)),
+            ("simulator/max_sources_per_chunk",   chunksize),
+            ("sky/oskar_sky_model/file",          model),
+            ("telescope/input_directory",         telescope),
+            ("observation/start_frequency_hz",    freq*1e6),  # [MHz] -> [Hz]
             ("interferometer/oskar_vis_filename", vis_oskar),
-            ("interferometer/ms_filename", vis_ms)]:
+            ("interferometer/ms_filename",        vis_ms)]:
         if value is not None:
             subprocess.check_call([simulator, "--set",
-                                   configfile, item, value])
-            print("Updated '%s' -> '%s'" % (item, value))
+                                   configfile, item, str(value)])
+            print("Updated '%s' -> '%s'" % (item, str(value)))
 
     print("-------------------------------------------------------------")
     print("Simulating %s @ %.2f [MHz] ..." % (model, freq))
