@@ -26,7 +26,7 @@ def run_oskar(configfile, model, freq, vis_ms, vis_oskar=None,
     if vis_ms is None and vis_oskar is None:
         raise ValueError("both 'vis_oskar' & 'vis_ms' are missing")
 
-    print("Update simulation settings ...")
+    print("Updating simulation settings ...")
     simulator = "oskar_sim_interferometer"
     for item, value in [
             ("simulator/max_sources_per_chunk", chunksize),
@@ -66,7 +66,7 @@ def main():
                         help="filename pattern of the configuration files " +
                         "updated for OSKAR usage " +
                         "(default: %s)" % default_fconfig)
-    parser.add_argument("-S", "--chunk-size", dest="chunk_size", type=float,
+    parser.add_argument("-S", "--chunk-size", dest="chunksize", type=float,
                         help="overwrite the chunk size in config file")
     parser.add_argument("--vis-oskar", dest="vis_oskar",
                         action="store_true",
@@ -77,8 +77,12 @@ def main():
                         default="visibility",
                         help="simulated visibility output directory " +
                         "(default: 'visibility/')")
-    parser.add_argument("-l", "--list", dest="listfile", required=True,
-                        help="List of frequencies [MHz] and input sky models")
+    exgrp = parser.add_mutually_exclusive_group(required=True)
+    exgrp.add_argument("-l", "--list", dest="listfile",
+                       help="list of frequencies [MHz] and input sky models")
+    exgrp.add_argument("-i", "--items", dest="items", nargs="+",
+                       help="list of sky model items in format of " +
+                       "'<freq[MHz]>:<skymodel-file>'")
     args = parser.parse_args()
     t1 = time()
 
@@ -87,13 +91,18 @@ def main():
         print("Created output visibility directory: %s" % args.outdir)
 
     skymodels = []
-    for line in open(args.listfile).readlines():
-        if re.match(r"^(\s*$|\s*#)", line):
-            continue
-        freq, skyfile = line.strip().split()
-        freq = float(freq)
-        skymodels.append((freq, skyfile))
-        print("Got sky model: %s @ %.2f [MHz]" % (skyfile, freq))
+    if args.listfile:
+        for line in open(args.listfile).readlines():
+            if re.match(r"^(\s*$|\s*#)", line):
+                continue
+            freq, skyfile = line.strip().split()
+            freq = float(freq)
+            skymodels.append((freq, skyfile))
+    else:
+        for item in args.items:
+            freq, skyfile = item.split(":")
+            freq = float(freq)
+            skymodels.append((freq, skyfile))
 
     Nosm = len(skymodels)
     print("Number of sky models: %d" % Nosm)
