@@ -20,7 +20,8 @@ def run_oskar(configfile, model, freq, vis_oskar, vis_ms,
     if vis_oskar is None and vis_ms is None:
         raise ValueError("both 'vis_oskar' & 'vis_ms' are missing")
     prog = "oskar_sim_interferometer"
-    print("Update settings ...")
+
+    print("Update simulation settings ...")
     for item, value in [
             ("sky/oskar_sky_model/file", model),
             ("telescope/input_directory", telescope),
@@ -29,7 +30,9 @@ def run_oskar(configfile, model, freq, vis_oskar, vis_ms,
             ("interferometer/ms_filename", vis_ms)]:
         if value is not None:
             subprocess.check_call([prog, "--set", configfile, item, value])
-            print("Set '%s' -> '%s'" % (item, value))
+            print("Updated '%s' -> '%s'" % (item, value))
+
+    print("-------------------------------------------------------------")
     print("Simulating %s @ %.2f [MHz] ..." % (model, freq))
     cmd = [prog, configfile]
     if dryrun:
@@ -39,7 +42,8 @@ def run_oskar(configfile, model, freq, vis_oskar, vis_ms,
         t1 = time()
         subprocess.check_call(cmd)
         t2 = time()
-        print("Elapsed time: %.1f [s]" % (t2-t1))
+        print("Elapsed time: %.1f [min]" % ((t2-t1)/60))
+    print("-------------------------------------------------------------")
 
 
 def main():
@@ -80,14 +84,17 @@ def main():
         if re.match(r"^(\s*$|\s*#)", line):
             continue
         freq, skyfile = line.strip().split()
-        skymodels.append((float(freq), skyfile))
-        print("Got sky model: %s @ %s [MHz]" % (skyfile, freq))
+        freq = float(freq)
+        skymodels.append((freq, skyfile))
+        print("Got sky model: %s @ %.2f [MHz]" % (skyfile, freq))
 
-    for freq, skyfile in skymodels:
-        print(">>>")
-        print(">>> Frequency: %.2f [MHz]" % freq)
-        print(">>> Sky model: %s" % skyfile)
-        print(">>>")
+    Nosm = len(skymodels)
+    print("Number of sky models: %d" % Nosm)
+
+    for i, (freq, skyfile) in enumerate(skymodels):
+        print("=============================================================")
+        print("[%d/%d] %s @ %.2f [MHz]" % (i+1, Nosm, skyfile, freq))
+        print("-------------------------------------------------------------")
         basename = os.path.splitext(os.path.basename(skyfile))[0]
         if args.no_vis_oskar:
             vis_oskar = ""
@@ -106,7 +113,8 @@ def main():
                   dryrun=args.dryrun)
 
     t2 = time()
-    print("Total elapsed time: %.1f [s]" % (t2-t1))
+    print("=============================================================")
+    print("Total elapsed time: %.1f [min]" % ((t2-t1)/60))
 
 
 if __name__ == "__main__":
