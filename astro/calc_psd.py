@@ -19,11 +19,6 @@ Credit
   https://www.mathworks.com/matlabcentral/fileexchange/23636-radially-averaged-power-spectrum-of-2d-real-valued-matrix
 """
 
-__version__ = "0.5.0"
-__date__    = "2016-04-28"
-
-
-import sys
 import os
 import argparse
 
@@ -380,36 +375,34 @@ class AstroImage:
 
 def main():
     parser = argparse.ArgumentParser(
-            description="Compute the radially averaged power spectral density",
-            epilog="Version: %s (%s)" % (__version__, __date__))
-    parser.add_argument("-V", "--version", action="version",
-            version="%(prog)s " + "%s (%s)" % (__version__, __date__))
-    parser.add_argument("-C", "--clobber", dest="clobber",
-            action="store_true",
-            help="overwrite the output files if already exist")
-    parser.add_argument("-i", "--infile", dest="infile",
-            required=True, help="input image")
+            description="Calculate radially averaged power spectral density")
+    parser.add_argument("-C", "--clobber", dest="clobber", action="store_true",
+                        help="overwrite the output files if already exist")
     parser.add_argument("-b", "--bkgmap", dest="bkgmap", default=None,
-            help="background map (for background subtraction)")
+                        help="background image (for background subtraction)")
     parser.add_argument("-e", "--expmap", dest="expmap", default=None,
-            help="exposure map (for exposure correction)")
-    parser.add_argument("-o", "--outfile", dest="outfile",
-            required=True, help="output file to store the PSD data")
-    parser.add_argument("-p", "--png", dest="png", default=None,
-            help="plot the PSD and save (default: same basename as outfile)")
+                        help="exposure map (for exposure correction)")
+    parser.add_argument("-i", "--infile", dest="infile", required=True,
+                        help="input FITS image")
+    parser.add_argument("-o", "--outfile", dest="outfile", required=True,
+                        help="output TXT file to save the PSD data")
+    parser.add_argument("-p", "--plot", dest="plot", action="store_true",
+                        help="plot the PSD and save as PNG image")
     args = parser.parse_args()
 
-    if args.png is None:
-        args.png = os.path.splitext(args.outfile)[0] + ".png"
+    if args.plot:
+        plotfile = os.path.splitext(args.outfile)[0] + ".png"
 
     # Check output files whether already exists
     if (not args.clobber) and os.path.exists(args.outfile):
-        raise ValueError("outfile '%s' already exists" % args.outfile)
-    if (not args.clobber) and os.path.exists(args.png):
-        raise ValueError("output png '%s' already exists" % args.png)
+        raise OSError("outfile '%s' already exists" % args.outfile)
+    if args.plot:
+        if (not args.clobber) and os.path.exists(plotfile):
+            raise OSError("output plot file '%s' already exists" % plotfile)
 
     # Load image data
-    image = AstroImage(image=args.infile, expmap=args.expmap,
+    image = AstroImage(image=args.infile,
+                       expmap=args.expmap,
                        bkgmap=args.bkgmap)
     image.fix_shapes()
     if args.bkgmap:
@@ -426,12 +419,14 @@ def main():
     psd_data = np.column_stack((freqs, psd1d, psd1d_err))
     np.savetxt(args.outfile, psd_data, header="freqs  psd1d  psd1d_err")
 
-    # Make and save a plot
-    fig = Figure(figsize=(10, 8))
-    FigureCanvas(fig)
-    ax = fig.add_subplot(111)
-    psd.plot(ax=ax, fig=fig)
-    fig.savefig(args.png, format="png", dpi=150)
+    if args.plot:
+        # Make and save a plot
+        fig = Figure(figsize=(10, 8))
+        FigureCanvas(fig)
+        ax = fig.add_subplot(111)
+        psd.plot(ax=ax, fig=fig)
+        fig.savefig(plotfile, format="png", dpi=150)
+        print("Plotted PSD and saved as: %s" % plotfile)
 
 
 if __name__ == "__main__":
