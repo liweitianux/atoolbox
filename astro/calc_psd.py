@@ -1,44 +1,22 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
-# Credit:
-# [1]  Radially averaged power spectrum of 2D real-valued matrix
-#      Evan Ruzanski
-#      'raPsd2d.m'
-#      https://www.mathworks.com/matlabcentral/fileexchange/23636-radially-averaged-power-spectrum-of-2d-real-valued-matrix
-#
-# XXX:
-# * If the input image is NOT SQUARE; then are the horizontal frequencies
-#   the same as the vertical frequencies ??
-#
-# Aaron LI <aaronly.me@gmail.com>
-# Created: 2015-04-22
-# Updated: 2016-04-28
-#
-# Changelog:
-# 2016-04-28:
-#   * Fix wrong meshgrid with respect to the shift zero-frequency component
-#   * Use "numpy.fft" instead of "scipy.fftpack"
-#   * Split method "pad_square()" from "calc_radial_psd()"
-#   * Hide numpy warning when dividing by zero
-#   * Add method "AstroImage.fix_shapes()"
-#   * Add support for background subtraction and exposure correction
-#   * Show verbose information during calculation
-#   * Add class "AstroImage"
-#   * Set default value for 'args.png'
-#   * Rename from 'radialPSD2d.py' to 'calc_radial_psd.py'
-# 2016-04-26:
-#   * Adjust plot function
-#   * Update normalize argument; Add pixel argument
-# 2016-04-25:
-#   * Update plot function
-#   * Add command line scripting support
-#   * Encapsulate the functions within class 'PSD'
-#   * Update docs/comments
+# Copyright (c) 2015-2017 Aaron LI
+# MIT License
 #
 
 """
-Compute the radially averaged power spectral density (i.e., power spectrum).
+Compute the radially averaged power spectral density (i.e., power spectrum)
+of a 2D image.
+
+XXX: If the input image is NOT SQUARE; then are the horizontal frequencies
+     the same as the vertical frequencies ??
+
+Credit
+------
+* Radially averaged power spectrum of 2D real-valued matrix
+  Evan Ruzanski
+  'raPsd2d.m'
+  https://www.mathworks.com/matlabcentral/fileexchange/23636-radially-averaged-power-spectrum-of-2d-real-valued-matrix
 """
 
 __version__ = "0.5.0"
@@ -450,7 +428,7 @@ def main():
 
     # Make and save a plot
     fig = Figure(figsize=(10, 8))
-    canvas = FigureCanvas(fig)
+    FigureCanvas(fig)
     ax = fig.add_subplot(111)
     psd.plot(ax=ax, fig=fig)
     fig.savefig(args.png, format="png", dpi=150)
