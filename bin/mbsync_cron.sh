@@ -22,7 +22,8 @@
 #
 # Aaron LI
 # 2017-05-28
-# Updated: 2017-06-20
+#
+# 2017-10-25: Update "webmaster" to "postmaster"
 #
 
 set -e
@@ -75,7 +76,7 @@ usage() {
     error "available accounts:"
     error "  * aly"
     error "  * weitian"
-    error "  * webmaster"
+    error "  * postmaster"
     error "  * autistici"
     error "  * lavabit"
     error "  * outlook-aly"
@@ -100,7 +101,7 @@ check_cached_passphrase() {
 
 
 case "$1" in
-    aly|weitian|webmaster)
+    aly|weitian|postmaster)
         ACCOUNT="$1"
         ;;
     autistici)
