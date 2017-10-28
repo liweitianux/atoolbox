@@ -35,14 +35,13 @@ class PSD:
     Computes the 2D power spectral density and the radially averaged power
     spectral density (i.e., 1D power spectrum).
     """
-    def __init__(self, image, pixel=(1.0, "pixel"), normalize=True, step=None):
+    def __init__(self, image, pixel=(1.0, "pixel"), step=None):
         self.image = np.array(image, dtype=np.float)
         self.shape = self.image.shape
         if self.shape[0] != self.shape[1]:
             raise ValueError("input image is not square!")
 
         self.pixel = pixel
-        self.normalize = normalize
         self.step = step
         if step is not None and step <= 1:
             raise ValueError("step must be greater than 1")
@@ -87,24 +86,23 @@ class PSD:
         Note that the low frequency components are shifted to the center
         of the FFT'ed image.
 
-        NOTE:
+        NOTE
+        ----
         The zero-frequency component is shifted to position of index (0-based)
             (ceil((n-1) / 2), ceil((m-1) / 2)),
         where (n, m) are the number of rows and columns of the image/psd2d.
 
-        Return:
-            2D power spectral density, which is dimensionless if normalized,
-            otherwise has unit ${pixel_unit}^2.
+        Returns
+        -------
+        2D power spectral density, which has dimension of ${input_unit}^2.
         """
         print("Calculating 2D power spectral density ... ", end="", flush=True)
         rows, cols = self.shape
         # Compute the power spectral density (i.e., power spectrum)
         imgf = np.fft.fftshift(np.fft.fft2(self.image))
-        if self.normalize:
-            norm = rows * cols * self.pixel[0]**2
-        else:
-            norm = 1.0  # Do not normalize
-        self.psd2d = (np.abs(imgf) / norm) ** 2
+        # Normalization w.r.t. image size
+        norm = rows * cols * self.pixel[0]**2
+        self.psd2d = (np.abs(imgf) ** 2) / norm
         print("DONE", flush=True)
         return self.psd2d
 
@@ -196,11 +194,8 @@ class PSD:
         ax.set_xlim(xmin, xmax)
         ax.set_ylim(ymin, ymax)
         ax.set_title("Radially Averaged Power Spectral Density")
-        ax.set_xlabel(r"k (%s$^{-1}$)" % self.pixel[1])
-        if self.normalize:
-            ax.set_ylabel("Power")
-        else:
-            ax.set_ylabel(r"Power (%s$^2$)" % self.pixel[1])
+        ax.set_xlabel(r"k [%s$^{-1}$]" % self.pixel[1])
+        ax.set_ylabel("Power")
         fig.tight_layout()
         return (fig, ax)
 
@@ -276,7 +271,7 @@ def main():
             raise OSError("output plot file '%s' already exists" % plotfile)
 
     header, image = open_image(args.infile)
-    psdobj = PSD(image=image, normalize=True, step=args.step)
+    psdobj = PSD(image=image, step=args.step)
     freqs, psd, psd_err = psdobj.calc_psd()
 
     # Write out PSD results
