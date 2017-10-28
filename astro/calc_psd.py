@@ -180,15 +180,15 @@ class PSD:
         """
         if ax is None:
             fig, ax = plt.subplots(1, 1)
-        #
-        xmin = self.frequencies[1] / 1.2  # ignore the first 0
-        xmax = self.frequencies[-1]
-        ymin = np.nanmin(self.psd1d) / 10.0
-        ymax = np.nanmax(self.psd1d + self.psd1d_err)
-        #
-        ax.errorbar(self.frequencies, self.psd1d, yerr=self.psd1d_err,
-                    fmt="none")
-        ax.plot(self.frequencies, self.psd1d, "ko")
+
+        freqs = self.frequencies
+        xmin = freqs[1] / 1.2  # ignore the first 0
+        xmax = freqs[-1] * 1.1
+        ymin = np.min(self.psd1d) / 10.0
+        ymax = np.max(self.psd1d[1:] + self.psd1d_err[1:]) * 2
+
+        ax.errorbar(freqs, self.psd1d, yerr=self.psd1d_err, fmt="none")
+        ax.plot(freqs, self.psd1d, "ko")
         ax.set_xscale("log")
         ax.set_yscale("log")
         ax.set_xlim(xmin, xmax)
