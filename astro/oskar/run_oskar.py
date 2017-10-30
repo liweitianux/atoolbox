@@ -43,9 +43,9 @@ def run_oskar(configfile, model, freq, vis_ms, vis_oskar=None,
     print("-------------------------------------------------------------")
     print("Simulating %s @ %.2f [MHz] ..." % (model, freq))
     cmd = [simulator, configfile]
+    print("CMD: %s" % " ".join(cmd))
     if dryrun:
-        print("Dry run mode!")
-        print("CMD: %s" % " ".join(cmd))
+        print("Dry run mode -> DONE!")
     else:
         t1 = time()
         subprocess.check_call(cmd)
