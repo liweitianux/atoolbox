@@ -12,6 +12,7 @@ import os
 import sys
 import argparse
 from datetime import datetime, timezone
+from functools import lru_cache
 
 import numpy as np
 from astropy.io import fits
@@ -114,6 +115,7 @@ class FITSCube:
                 pass
 
     @property
+    @lru_cache()
     def wcs(self):
         w = WCS(naxis=3)
         w.wcs.ctype = ["pixel", "pixel", "pixel"]
@@ -156,6 +158,7 @@ class FITSCube:
         return ns
 
     @property
+    @lru_cache()
     def zvalues(self):
         """
         Calculate the Z-axis positions for all slices
@@ -166,6 +169,13 @@ class FITSCube:
         pix[:, 2] = np.arange(nslice)
         world = wcs.wcs_pix2world(pix, 0)
         return world[:, 2]
+
+    @property
+    def slices(self):
+        """
+        A list of slices in the cube w.r.t. ``zvalues``.
+        """
+        return (self.data[i, :, :] for i in range(self.nslice))
 
     @property
     def unit(self):
@@ -206,6 +216,10 @@ def cmd_info(args):
     print("Slice step/spacing: %s%s" % (cube.zstep, pzunit))
     print("Slice positions: %s <-> %s%s" %
           (zvalues.min(), zvalues.max(), pzunit))
+    if args.meanstd:
+        print("Slice <z>  <mean> +/- <std>:")
+        for z, image in zip(zvalues, cube.slices):
+            print("* %s  %s  %s" % (z, np.mean(image), np.std(image)))
 
 
 def cmd_create(args):
@@ -231,6 +245,9 @@ def main():
                                        help="additional help")
     # sub-command: "info"
     parser_info = subparsers.add_parser("info", help="show FITS cube info")
+    parser_info.add_argument("-m", "--mean-std", dest="meanstd",
+                             action="store_true",
+                             help="calculate mean+/-std for each slice")
     parser_info.add_argument("infile", help="FITS cube filename")
     parser_info.set_defaults(func=cmd_info)
     # sub-command: "create"
