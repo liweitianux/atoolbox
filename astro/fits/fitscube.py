@@ -100,10 +100,9 @@ class FITSCube:
 
     @property
     def header(self):
-        try:
-            return self.header_
-        except AttributeError:
-            return fits.Header()
+        if not hasattr(self, "header_"):
+            self.header_ = fits.Header()
+        return self.header_
 
     @header.setter
     def header(self, value):
