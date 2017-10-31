@@ -167,16 +167,45 @@ class FITSCube:
         world = wcs.wcs_pix2world(pix, 0)
         return world[:, 2]
 
+    @property
+    def unit(self):
+        """
+        Data cube unit.
+        """
+        return self.header.get("BUNIT")
+
+    @unit.setter
+    def unit(self, value):
+        self.header["BUNIT"] = value
+
+    @property
+    def zunit(self):
+        """
+        Unit of the slice z-axis positions.
+        """
+        return self.header.get("CUNIT3")
+
+    @zunit.setter
+    def zunit(self, value):
+        self.header["CUNIT3"] = value
+
 
 def cmd_info(args):
     """
     Sub-command: "info", show FITS cube information
     """
     cube = FITSCube(args.infile)
+    if cube.zunit:
+        pzunit = " [%s]" % cube.zunit
+    else:
+        pzunit = ""
+    zvalues = cube.zvalues
+    print("Data cube unit: %s" % cube.unit)
     print("Image/slice size: %dx%d" % (cube.width, cube.height))
     print("Number of slices: %d" % cube.nslice)
-    print("Slice step/spacing: %.3f" % cube.zstep)
-    print("Slice positions:\n{0}".format(cube.zvalues))
+    print("Slice step/spacing: %s%s" % (cube.zstep, pzunit))
+    print("Slice positions: %s <-> %s%s" %
+          (zvalues.min(), zvalues.max(), pzunit))
 
 
 def cmd_create(args):
@@ -187,6 +216,9 @@ def cmd_create(args):
         raise FileExistsError("output file already exists: %s" % args.outfile)
     cube = FITSCube()
     cube.add_slices(args.infiles, zbegin=args.zbegin, zstep=args.zstep)
+    cube.zunit = args.zunit
+    if args.unit:
+        cube.unit = args.unit
     cube.write(args.outfile, clobber=args.clobber)
     print("Created FITS cube: %s" % args.outfile)
 
@@ -206,12 +238,17 @@ def main():
     parser_create.add_argument("-C", "--clobber", dest="clobber",
                                action="store_true",
                                help="overwrite existing output file")
+    parser_create.add_argument("-U", "--data-unit", dest="unit",
+                               help="cube data unit (will overwrite the " +
+                               "slice data unit)")
     parser_create.add_argument("-z", "--z-begin", dest="zbegin",
                                type=float, default=0.0,
                                help="Z-axis position of the first slice")
     parser_create.add_argument("-s", "--z-step", dest="zstep",
                                type=float, default=1.0,
                                help="Z-axis step/spacing between slices")
+    parser_create.add_argument("-u", "--z-unit", dest="zunit",
+                               help="Z-axis unit (e.g., cm, Hz)")
     parser_create.add_argument("-o", "--outfile", dest="outfile",
                                required=True,
                                help="output FITS cube filename")
