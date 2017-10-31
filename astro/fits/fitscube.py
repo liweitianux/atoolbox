@@ -39,20 +39,20 @@ class FITSCube:
         # The Z-axis step/spacing between slices.
         self.zstep = self.header["CDELT3"]
 
-    def add_slices(self, slices, zbegin=0.0, zstep=1.0):
+    def add_slices(self, infiles, zbegin=0.0, zstep=1.0):
         """
         Create a FITS cube from input image slices.
         """
-        self.slices = slices
+        self.infiles = infiles
         self.zbegin = zbegin
         self.zstep = zstep
-        nslice = len(slices)
-        header, image = self.open_image(slices[0])
+        nslice = len(infiles)
+        header, image = self.open_image(infiles[0])
         shape = (nslice, ) + image.shape
         data = np.zeros(shape, dtype=image.dtype)
-        for i, s in enumerate(slices):
-            print("[%d/%d] Adding image slice: %s ..." % (i+1, nslice, s))
-            hdr, img = self.open_image(s)
+        for i, fn in enumerate(infiles):
+            print("[%d/%d] Adding image slice: %s ..." % (i+1, nslice, fn))
+            hdr, img = self.open_image(fn)
             data[i, :, :] = img
         self.data = data
         self.header = header.copy(strip=True)
