@@ -138,7 +138,7 @@ class PSD:
         radii = self.radii
         nr = len(radii)
         if nr > 100:
-            print("\n    ... many points to calculate, may take a while ... ",
+            print("\n    ... %d data points, may take a while ... " % nr,
                   end="", flush=True)
         else:
             print(" %d data points ... " % nr, end="", flush=True)
@@ -196,7 +196,7 @@ class PSD:
         ax.set_yscale("log")
         ax.set_xlim(xmin, xmax)
         ax.set_ylim(ymin, ymax)
-        ax.set_title("Radially Averaged Power Spectral Density")
+        ax.set_title("Radial (Azimuthally Averaged) Power Spectral Density")
         ax.set_xlabel(r"k [%s$^{-1}$]" % self.pixel[1])
         ax.set_ylabel("Power")
         fig.tight_layout()
@@ -257,8 +257,9 @@ def main():
                         "for very large images!")
     parser.add_argument("-p", "--plot", dest="plot", action="store_true",
                         help="plot the PSD and save as a PNG image")
-    parser.add_argument("-i", "--infile", dest="infile", required=True,
-                        help="input FITS image")
+    parser.add_argument("-i", "--infile", dest="infile", nargs="+",
+                        help="input FITS image(s); if multiple images " +
+                        "are provided, they are added first.")
     parser.add_argument("-o", "--outfile", dest="outfile", required=True,
                         help="output TXT file to save the PSD data")
     args = parser.parse_args()
@@ -273,7 +274,20 @@ def main():
         if (not args.clobber) and os.path.exists(plotfile):
             raise OSError("output plot file '%s' already exists" % plotfile)
 
-    header, image = open_image(args.infile)
+    header, image = open_image(args.infile[0])
+    bunit = header.get("BUNIT", "???")
+    print("Read image from: %s" % args.infile[0])
+    print("Data unit: %s" % bunit)
+
+    for fn in args.infile[1:]:
+        print("Adding additional image: %s" % fn)
+        header2, image2 = open_image(fn)
+        bunit2 = header2.get("BUNIT", "???")
+        if bunit2 == bunit:
+            image += image2
+        else:
+            raise ValueError("image has different unit: %s" % bunit2)
+
     psdobj = PSD(image=image, step=args.step)
     freqs, psd, psd_err = psdobj.calc_psd()
 
