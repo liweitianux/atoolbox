@@ -80,13 +80,15 @@ class PS2D:
     * Cube data unit: [K] (brightness temperature)
     """
     def __init__(self, cube, pixelsize, frequencies,
-                 window_name=None, window_width="extended"):
+                 window_name=None, window_width="extended", unit="???"):
         logger.info("Initializing PS2D instance ...")
         self.cube = cube
         self.pixelsize = pixelsize  # [arcsec]
+        self.unit = unit
         logger.info("Loaded data cube: %dx%d (cells) * %d (channels)" %
                     (self.Nx, self.Ny, self.Nz))
         logger.info("Image pixel size: %.2f [arcsec]" % pixelsize)
+        logger.info("Data unit: %s" % unit)
 
         self.frequencies = np.asarray(frequencies)  # [MHz]
         self.nfreq = len(self.frequencies)
@@ -355,7 +357,7 @@ class PS2D:
         hdr["HDUNAME"] = ("PS2D", "block name")
         hdr["CONTENT"] = ("2D cylindrically averaged power spectrum",
                           "data product")
-        hdr["BUNIT"] = ("K^2 Mpc^3", "data unit")
+        hdr["BUNIT"] = ("%s^2 Mpc^3" % self.unit, "data unit")
         # Physical coordinates: IRAF LTM/LTV
         # Li{Image} = LTMi_i * Pi{Physical} + LTVi
         # Reference: ftp://iraf.noao.edu/iraf/web/projects/fitswcs/specwcs.html
@@ -412,15 +414,21 @@ def main():
     with fits.open(args.infile[0]) as f:
         cube = f[0].data
         header = f[0].header
-    bunit = header.get("BUNIT", "UNKNOWN")
+    bunit = header.get("BUNIT", "???")
+    logger.info("Cube data unit: %s" % bunit)
     if bunit.upper() not in ["K", "KELVIN", "MK"]:
-        logger.warning("Wrong data unit: %s" % bunit)
-    else:
-        logger.info("Data unit: %s" % bunit)
+        logger.warning("input cube in unknown unit: %s" % bunit)
 
     for fn in args.infile[1:]:
         logger.info("Adding additional FITS cube: %s" % fn)
-        cube += fits.open(fn)[0].data
+        with fits.open(fn) as f:
+            cube2 = f[0].data
+            header2 = f[0].header
+            bunit2 = header2.get("BUNIT", "???")
+        if bunit2.upper() == bunit.upper():
+            cube += cube2
+        else:
+            raise ValueError("cube has different unit: %s" % bunit2)
 
     wcs = WCS(header)
     nfreq = cube.shape[0]
@@ -431,7 +439,7 @@ def main():
         pixelsize = abs(wcs.wcs.cdelt[0]) * 3600  # [deg] -> [arcsec]
 
     ps2d = PS2D(cube=cube, pixelsize=pixelsize, frequencies=frequencies,
-                window_name=args.window)
+                window_name=args.window, unit=bunit)
     ps2d.calc_ps3d()
     ps2d.calc_ps2d()
     ps2d.save(outfile=args.outfile, clobber=args.clobber)
