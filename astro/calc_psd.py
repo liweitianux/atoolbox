@@ -5,8 +5,10 @@
 #
 
 """
-Compute the radially averaged power spectral density (i.e., power spectrum)
-of a 2D image (in FITS format).  The input image must be square.
+Compute the radial (i.e., azimuthally averaged) power spectral density
+(a.k.a. power spectrum) of a FITS image.
+
+NOTE: The input image must be square.
 
 Credit
 ------
@@ -32,8 +34,8 @@ plt.style.use("ggplot")
 
 class PSD:
     """
-    Computes the 2D power spectral density and the radially averaged power
-    spectral density (i.e., 1D power spectrum).
+    Computes the 2D power spectral density and the azimuthally averaged power
+    spectral density (i.e., 1D radial power spectrum).
     """
     def __init__(self, image, pixel=(1.0, "pixel"), step=None):
         self.image = np.array(image, dtype=np.float)
@@ -108,20 +110,21 @@ class PSD:
 
     def calc_psd(self):
         """
-        Computes the radially averaged power spectral density from the
-        provided 2D power spectral density.
+        Azimuthally average the above 2D power spectral density to generate
+        the 1D radial power spectral density.
 
-        Return:
-            (freqs, radial_psd, radial_psd_err)
-            freqs: spatial freqencies (unit: ${pixel_unit}^(-1))
-            radial_psd: radially averaged power spectral density for each
-                        frequency
-            radial_psd_err: standard deviations of each radial_psd
+        Returns
+        -------
+        frequencies: 1D float `~numpy.ndarray`
+            Spatial frequencies, [{pixel_unit}^(-1)]
+        psd1d, psd1d_err: 1D float `~numpy.ndarray`
+            Azimuthally averaged powers and their standard deviations at
+            each (radial) spatial frequency bin.
         """
         if not hasattr(self, "ps2d") or self.psd2d is None:
             self.calc_psd2d()
 
-        print("Radially averaging 2D power spectral density ... ",
+        print("Azimuthally averaging 2D power spectral density ... ",
               end="", flush=True)
         dim = self.shape[0]
         dim_half = (dim+1) // 2
@@ -176,7 +179,7 @@ class PSD:
 
     def plot(self, ax=None, fig=None):
         """
-        Make a plot of the radial (1D) PSD with matplotlib.
+        Make a plot of the 1D radial PSD with matplotlib.
         """
         if ax is None:
             fig, ax = plt.subplots(1, 1)
@@ -242,7 +245,7 @@ def open_image(infile):
 
 def main():
     parser = argparse.ArgumentParser(
-            description="Calculate radially averaged power spectral density")
+            description="Calculate radial power spectral density")
     parser.add_argument("-C", "--clobber", dest="clobber", action="store_true",
                         help="overwrite the output files if already exist")
     parser.add_argument("-s", "--step", dest="step", type=float, default=None,
@@ -252,12 +255,12 @@ def main():
                         "at every frequency point will be calculated, " +
                         "i.e., using a even grid, which may be very slow " +
                         "for very large images!")
+    parser.add_argument("-p", "--plot", dest="plot", action="store_true",
+                        help="plot the PSD and save as a PNG image")
     parser.add_argument("-i", "--infile", dest="infile", required=True,
                         help="input FITS image")
     parser.add_argument("-o", "--outfile", dest="outfile", required=True,
                         help="output TXT file to save the PSD data")
-    parser.add_argument("-p", "--plot", dest="plot", action="store_true",
-                        help="plot the PSD and save as PNG image")
     args = parser.parse_args()
 
     if args.plot:
