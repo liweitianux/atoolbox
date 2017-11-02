@@ -42,6 +42,12 @@ from astropy.wcs import WCS
 from astropy.cosmology import FlatLambdaCDM
 import astropy.constants as ac
 
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
+from matplotlib.figure import Figure
+
+
+plt.style.use("ggplot")
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s [%(levelname)s] %(message)s",
@@ -207,6 +213,23 @@ class PS2D:
         except TypeError:
             hdu.writeto(outfile, clobber=clobber)
         logger.info("Wrote 2D power spectrum to file: %s" % outfile)
+
+    def plot(self, fig, ax):
+        """
+        Plot the calculated 2D power spectrum.
+        """
+        x = self.k_perp
+        y = self.k_los
+        mappable = ax.pcolormesh(x[1:], y[1:], np.log10(self.ps2d[1:, 1:]))
+        ax.set(xscale="log", yscale="log",
+               xlim=(x[1], x[-1]), ylim=(y[1], y[-1]),
+               xlabel=r"k$_{perp}$ [Mpc$^{-1}$]",
+               ylabel=r"k$_{los}$ [Mpc$^{-1}$]",
+               title="2D Power Spectrum")
+        cb = fig.colorbar(mappable, ax=ax, pad=0.01, aspect=30)
+        cb.ax.set_xlabel(r"[%s$^2$ Mpc$^3$]" % self.unit)
+        fig.tight_layout()
+        return (fig, ax)
 
     @property
     def Nx(self):
@@ -397,10 +420,13 @@ def main():
     parser.add_argument("-C", "--clobber", dest="clobber",
                         action="store_true",
                         help="overwrite existing file")
+    parser.add_argument("-P", "--plot", dest="plot",
+                        action="store_true",
+                        help="plot the 2D power spectrum and save")
     parser.add_argument("-p", "--pixelsize", dest="pixelsize", type=float,
-                        help="image cube pixel size [arcsec] (default: " +
+                        help="spatial pixel size [arcsec] (default: " +
                         "obtain from FITS header WCS info)")
-    parser.add_argument("--window", dest="window",
+    parser.add_argument("-w", "--window", dest="window",
                         choices=["nuttall"],
                         help="apply window along frequency axis " +
                         "(default: None)")
@@ -443,6 +469,15 @@ def main():
     ps2d.calc_ps3d()
     ps2d.calc_ps2d()
     ps2d.save(outfile=args.outfile, clobber=args.clobber)
+
+    if args.plot:
+        fig = Figure(figsize=(9, 8))
+        FigureCanvas(fig)
+        ax = fig.add_subplot(1, 1, 1)
+        ps2d.plot(ax=ax, fig=fig)
+        plotfile = os.path.splitext(args.outfile)[0] + ".png"
+        fig.savefig(plotfile, format="png", dpi=150)
+        logger.info("Plotted 2D PSD and saved to image: %s" % plotfile)
 
 
 if __name__ == "__main__":
