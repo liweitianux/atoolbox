@@ -1,4 +1,5 @@
-#!/bin/sh
+#!/usr/bin/env bash
+#
 # Original Posted at http://crunchbang.org/forums/viewtopic.php?pid=126921%23p126921#p126921
 # [ESC] character in original post removed here.
 

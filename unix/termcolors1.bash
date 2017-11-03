@@ -1,5 +1,8 @@
-#!/bin/sh
-# https://gist.github.com/esundahl/1651086
+#!/usr/bin/env bash
+#
+# * https://gist.github.com/esundahl/1651086
+# * https://wiki.archlinux.org/index.php/X_resources
+#
 
 function color_test {
     # Daniel Crisman's ANSI color chart script from
@@ -14,7 +17,7 @@ function color_test {
     # colors (default + 8 escapes).
     #
     
-    T='gYw' # The test text
+    T='gYw'  # The test text
     
     echo -e "\n                 40m     41m     42m     43m\
      44m     45m     46m     47m"
