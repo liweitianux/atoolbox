@@ -36,8 +36,24 @@ class PSD:
     """
     Computes the 2D power spectral density and the azimuthally averaged power
     spectral density (i.e., 1D radial power spectrum).
+
+    Parameters
+    ----------
+    image : 2D `~numpy.ndarray`
+        Input image array
+    pixel : (float, str), optional
+        Specify the pixel size and its unit of the image.
+        e.g., (0.33, "arcmin")
+    step : float, optional
+        If specified, then a log-even grid with the given step ratio will
+        be used to do the azimuthal averages.  Otherwise, a evenly
+        pixel-by-pixel (along radial direction) is adopted.
+    meanstd : bool, optional
+        By default, the median and 16% and 84% percentiles (i.e., 68% IQR)
+        will be calculated for each averaged annulus.  If this option is
+        ``True`` then calculate the mean and standard deviation instead.
     """
-    def __init__(self, image, pixel=(1.0, "pixel"), step=None):
+    def __init__(self, image, pixel=(1.0, "pixel"), step=None, meanstd=False):
         self.image = np.array(image, dtype=float)
         self.shape = self.image.shape
         if self.shape[0] != self.shape[1]:
@@ -47,6 +63,8 @@ class PSD:
         self.step = step
         if step is not None and step <= 1:
             raise ValueError("step must be greater than 1")
+
+        self.meanstd = meanstd
 
     @property
     @lru_cache()
@@ -115,11 +133,21 @@ class PSD:
 
         Returns
         -------
-        frequencies: 1D float `~numpy.ndarray`
+        frequencies : 1D float `~numpy.ndarray`
             Spatial frequencies, [{pixel_unit}^(-1)]
-        psd1d, psd1d_err: 1D float `~numpy.ndarray`
-            Azimuthally averaged powers and their standard deviations at
+        psd1d : 1D float `~numpy.ndarray`
+            The median or mean (``self.meanstd=True``) of the powers within
             each (radial) spatial frequency bin.
+        psd1d_errl, psd1d_erru : 1D float `~numpy.ndarray`
+            The lower and upper errors of the powers.  By default, they are
+            determined from the 16% and 84% percentiles w.r.t. the median.
+            If ``self.meanstd=True`` then they are the standard deviation.
+
+        Attributes
+        ----------
+        psd1d
+        psd1d_errl
+        psd1d_erru
         """
         if not hasattr(self, "ps2d") or self.psd2d is None:
             self.calc_psd2d()
@@ -143,7 +171,8 @@ class PSD:
         else:
             print(" %d data points ... " % nr, end="", flush=True)
         psd1d = np.zeros(nr)
-        psd1d_err = np.zeros(nr)
+        psd1d_errl = np.zeros(nr)  # lower error
+        psd1d_erru = np.zeros(nr)  # upper error
         for i, r in enumerate(radii):
             if (i+1) % 100 == 0:
                 percent = 100 * (i+1) / nr
@@ -151,13 +180,22 @@ class PSD:
             ii, jj = (rho <= r).nonzero()
             rho[ii, jj] = np.inf
             data = self.psd2d[ii, jj]
-            psd1d[i] = np.mean(data)
-            psd1d_err[i] = np.std(data)
+            if self.meanstd:
+                psd1d[i] = np.mean(data)
+                std = np.std(data)
+                psd1d_errl[i] = std
+                psd1d_erru[i] = std
+            else:
+                median, q16, q84 = np.percentile(data, q=(50, 16, 84))
+                psd1d[i] = median
+                psd1d_errl[i] = median - q16
+                psd1d_erru[i] = q84 - median
         print("DONE", flush=True)
 
         self.psd1d = psd1d
-        self.psd1d_err = psd1d_err
-        return (self.frequencies, psd1d, psd1d_err)
+        self.psd1d_errl = psd1d_errl
+        self.psd1d_erru = psd1d_erru
+        return (self.frequencies, psd1d, psd1d_errl, psd1d_erru)
 
     @staticmethod
     def cart2pol(x, y):
@@ -177,6 +215,27 @@ class PSD:
         y = rho * np.sin(phi)
         return (x, y)
 
+    def save(self, outfile):
+        data = np.column_stack((self.frequencies, self.psd1d,
+                                self.psd1d_errl, self.psd1d_erru))
+        header = [
+            "pixel: %s [%s]" % self.pixel,
+            "frequency: [%s^-1]" % self.pixel[1],
+        ]
+        if self.meanstd:
+            header += [
+                "psd1d: *mean* powers of radial spectral annuli",
+                "psd1d_errl, psd1d_erru: *standard deviation* (lower, upper)",
+            ]
+        else:
+            header += [
+                "psd1d: *median* powers of radial spectral annuli",
+                "psd1d_errl, psd1d_erru: 16% and 84% *percentiles*",
+            ]
+        header += ["", "frequency   psd1d   psd1d_errl   psd1d_erru"]
+        np.savetxt(outfile, data, header="\n".join(header))
+        print("Saved PSD data to: %s" % outfile)
+
     def plot(self, ax):
         """
         Make a plot of the 1D radial power spectrum.
@@ -185,15 +244,24 @@ class PSD:
         xmin = freqs[1] / 1.2  # ignore the first 0
         xmax = freqs[-1] * 1.1
         ymin = np.min(self.psd1d) / 10.0
-        ymax = np.max(self.psd1d[1:] + self.psd1d_err[1:]) * 2
+        ymax = np.max(self.psd1d[1:] + self.psd1d_erru[1:]) * 1.5
 
-        ax.errorbar(freqs, self.psd1d, yerr=self.psd1d_err, fmt="none")
-        ax.plot(freqs, self.psd1d, marker="o")
+        if self.meanstd:
+            label = "mean"
+            labelerr = "standard deviation"
+        else:
+            label = "median"
+            labelerr = "68% IQR"
+        yerr = np.row_stack((self.psd1d_errl, self.psd1d_erru))
+        ax.errorbar(freqs, self.psd1d, yerr=yerr,
+                    fmt="none", label=labelerr)
+        ax.plot(freqs, self.psd1d, marker="o", label=label)
         ax.set(xscale="log", yscale="log",
                xlim=(xmin, xmax), ylim=(ymin, ymax),
                title="Radial (Azimuthally Averaged) Power Spectral Density",
                xlabel=r"k [%s$^{-1}$]" % self.pixel[1],
                ylabel="Power")
+        ax.legend()
 
         if self.pixel[1] != "pixel":
             # Add an additional X axis for pixel-based frequencies
@@ -271,6 +339,11 @@ def main():
     parser.add_argument("-p", "--pixelsize", dest="pixelsize", type=float,
                         help="image spatial pixel size [arcsec] " +
                         "(will try to obtain from FITS header)")
+    parser.add_argument("-m", "--mean-std", dest="meanstd",
+                        action="store_true",
+                        help="calculate the mean and standard deviation " +
+                        "for each averaged annulus instead of the median " +
+                        "16%% and 84%% percentiles (i.e., 68%% IQR)")
     parser.add_argument("-P", "--plot", dest="plot", action="store_true",
                         help="plot the PSD and save as a PNG image")
     parser.add_argument("-i", "--infile", dest="infile", nargs="+",
@@ -317,20 +390,16 @@ def main():
         else:
             raise ValueError("image has different unit: %s" % bunit2)
 
-    psdobj = PSD(image=image, pixel=pixel, step=args.step)
-    freqs, psd, psd_err = psdobj.calc_psd()
-
-    # Write out PSD results
-    psd_data = np.column_stack((freqs, psd, psd_err))
-    np.savetxt(args.outfile, psd_data, header="freqs  psd  psd_err")
-    print("Saved PSD data to: %s" % args.outfile)
+    psd = PSD(image=image, pixel=pixel, step=args.step, meanstd=args.meanstd)
+    psd.calc_psd()
+    psd.save(args.outfile)
 
     if args.plot:
         # Make and save a plot
         fig = Figure(figsize=(8, 8))
         FigureCanvas(fig)
         ax = fig.add_subplot(1, 1, 1)
-        psdobj.plot(ax=ax)
+        psd.plot(ax=ax)
         fig.tight_layout()
         fig.savefig(plotfile, format="png", dpi=150)
         print("Plotted PSD and saved to image: %s" % plotfile)
