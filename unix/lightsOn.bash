@@ -1,4 +1,5 @@
-#!/bin/bash
+#!/usr/bin/env bash
+#
 # lightsOn.sh
 
 # Copyright (c) 2011 iye.cba at gmail com
