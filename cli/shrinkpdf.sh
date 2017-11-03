@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Shrink the size of PDF files by adjust its quality using gs.
+# Shrink the size of PDF files by adjust its quality using `gs` (GhostScript).
 #
 # Aaron LI
 # 2013/09/18
