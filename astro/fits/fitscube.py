@@ -165,7 +165,7 @@ class FITSCube:
         """
         nslice = self.nslice
         wcs = self.wcs
-        pix = np.zeros(shape=(nslice, 3), dtype=np.int)
+        pix = np.zeros(shape=(nslice, 3), dtype=int)
         pix[:, 2] = np.arange(nslice)
         world = wcs.wcs_pix2world(pix, 0)
         return world[:, 2]

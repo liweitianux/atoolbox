@@ -69,7 +69,7 @@ def freq2z(freq):
 
 
 def get_frequencies(wcs, nfreq):
-    pix = np.zeros(shape=(nfreq, 3), dtype=np.int)
+    pix = np.zeros(shape=(nfreq, 3), dtype=int)
     pix[:, -1] = np.arange(nfreq)
     world = wcs.wcs_pix2world(pix, 0)
     freqMHz = world[:, -1] / 1e6
@@ -88,7 +88,7 @@ class PS2D:
     def __init__(self, cube, pixelsize, frequencies,
                  window_name=None, window_width="extended", unit="???"):
         logger.info("Initializing PS2D instance ...")
-        self.cube = cube
+        self.cube = np.array(cube, dtype=float)
         self.pixelsize = pixelsize  # [arcsec]
         self.unit = unit
         logger.info("Loaded data cube: %dx%d (cells) * %d (channels)" %
@@ -157,12 +157,10 @@ class PS2D:
         """
         if self.window is not None:
             logger.info("Applying window along frequency axis ...")
-            cube2 = self.cube * self.window[:, np.newaxis, np.newaxis]
-        else:
-            cube2 = self.cube.astype(np.float)
+            self.cube *= self.window[:, np.newaxis, np.newaxis]
 
         logger.info("Calculating 3D FFT ...")
-        cubefft = fftpack.fftshift(fftpack.fftn(cube2))
+        cubefft = fftpack.fftshift(fftpack.fftn(self.cube))
 
         logger.info("Calculating 3D PS ...")
         ps3d = np.abs(cubefft) ** 2  # [K^2]
@@ -190,7 +188,7 @@ class PS2D:
         p_z = np.abs(np.arange(self.Nz) - ic_z)
         mx, my = np.meshgrid(p_xy, p_xy)
         rho, phi = self.cart2pol(mx, my)
-        rho = np.around(rho).astype(np.int)
+        rho = np.around(rho).astype(int)
 
         logger.info("Cylindrically averaging 3D power spectrum ...")
         for r in range(n_k_perp):

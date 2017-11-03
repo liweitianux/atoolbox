@@ -38,7 +38,7 @@ class PSD:
     spectral density (i.e., 1D radial power spectrum).
     """
     def __init__(self, image, pixel=(1.0, "pixel"), step=None):
-        self.image = np.array(image, dtype=np.float)
+        self.image = np.array(image, dtype=float)
         self.shape = self.image.shape
         if self.shape[0] != self.shape[1]:
             raise ValueError("input image is not square!")

@@ -1015,7 +1015,7 @@ class SpectrumSet(Spectrum):  # {{{
         """
         neg_counts = self.spec_data < 0
         N = len(neg_counts)
-        neg_channels = np.arange(N, dtype=np.int)[neg_counts]
+        neg_channels = np.arange(N, dtype=int)[neg_counts]
         if len(neg_channels) > 0:
             print("WARNING: %d channels have NEGATIVE counts" % \
                     len(neg_channels), file=sys.stderr)
@@ -1038,7 +1038,7 @@ class SpectrumSet(Spectrum):  # {{{
                     self.spec_data[ch] = 0
             # update negative channels indices
             neg_counts = self.spec_data < 0
-            neg_channels = np.arange(N, dtype=np.int)[neg_counts]
+            neg_channels = np.arange(N, dtype=int)[neg_counts]
         if i > 0:
             print("FIXED!", file=sys.stderr)
             # record history
