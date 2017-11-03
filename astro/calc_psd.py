@@ -194,7 +194,26 @@ class PSD:
                title="Radial (Azimuthally Averaged) Power Spectral Density",
                xlabel=r"k [%s$^{-1}$]" % self.pixel[1],
                ylabel="Power")
-        return ax
+
+        if self.pixel[1] != "pixel":
+            # Add an additional X axis for pixel-based frequencies
+            ax2 = ax.twiny()
+            ax2.set_xscale(ax.get_xscale())
+            pix_ticks = np.logspace(-4, 0, num=5)  # [pixel^-1]
+            ax2.set_xticks(pix_ticks)
+            ax2.set_xticklabels([r"10$^{%d}$" % ep
+                                 for ep in np.log10(pix_ticks)])
+            x1_min, x1_max = ax.get_xlim()
+            x2_min, x2_max = x1_min*self.pixel[0], x1_max*self.pixel[0]
+            ax2.set_xlim(x2_min, x2_max)
+            ax2.set_xlabel(r"k [pixel$^{-1}$] (1 pixel = %.2f %s)" %
+                           self.pixel)
+            ax2.grid(False)
+            # Raise title position to avoid overlapping
+            ax.title.set_position([0.5, 1.1])
+            return (ax, ax2)
+        else:
+            return ax
 
 
 def open_image(infile):
