@@ -249,6 +249,9 @@ def main():
                         "at every frequency point will be calculated, " +
                         "i.e., using a even grid, which may be very slow " +
                         "for very large images!")
+    parser.add_argument("-p", "--pixelsize", dest="pixelsize", type=float,
+                        help="image spatial pixel size [arcsec] " +
+                        "(will try to obtain from FITS header)")
     parser.add_argument("-P", "--plot", dest="plot", action="store_true",
                         help="plot the PSD and save as a PNG image")
     parser.add_argument("-i", "--infile", dest="infile", nargs="+",
@@ -271,7 +274,20 @@ def main():
     header, image = open_image(args.infile[0])
     bunit = header.get("BUNIT", "???")
     print("Read image from: %s" % args.infile[0])
+    print("Image size: %dx%d" % tuple(reversed(image.shape)))
     print("Data unit: %s" % bunit)
+
+    if args.pixelsize:
+        pixel = (args.pixelsize/60, "arcmin")  # [arcsec]->[arcmin]
+    else:
+        try:
+            pixel = (header["PixSize"]/60, "arcmin")  # [arcsec]->[arcmin]
+        except KeyError:
+            try:
+                pixel = (abs(header["CDELT1"])*60, "arcmin")  # [deg]->[arcmin]
+            except KeyError:
+                pixel = (1.0, "pixel")
+    print("Image pixel size: %.2f [%s]" % pixel)
 
     for fn in args.infile[1:]:
         print("Adding additional image: %s" % fn)
@@ -282,7 +298,7 @@ def main():
         else:
             raise ValueError("image has different unit: %s" % bunit2)
 
-    psdobj = PSD(image=image, step=args.step)
+    psdobj = PSD(image=image, pixel=pixel, step=args.step)
     freqs, psd, psd_err = psdobj.calc_psd()
 
     # Write out PSD results
