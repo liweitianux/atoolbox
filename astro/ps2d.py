@@ -98,7 +98,7 @@ class PS2D:
         frequencies at each image slice [MHz]
     meanstd : bool, optional
         if ``True``, calculate the mean and standard deviation for each
-        power bin instead of the median and 68% IQR.
+        power bin instead of the median and 68% percentile range.
     unit : str, optional
         unit of the cube data; will be used to determine the power spectrum
         unit as well as the plot labels.
@@ -195,7 +195,7 @@ class PS2D:
         -------
         ps2d : 3D `~numpy.ndarray`
             3D array of shape (3, n_k_los, n_k_perp) including the median
-            and lower and upper errors (68% IQR) at each power bin.
+            and lower and upper errors (68% percentile range).
             If ``self.meanstd=True`` then the mean and standard deviation
             are calculated instead.
 
@@ -260,7 +260,7 @@ class PS2D:
             title_err = "Error (standard deviation)"
         else:
             title = "2D Power Spectrum (median)"
-            title_err = "Error (68% IQR)"
+            title_err = "Error (68% percentile range)"
 
         # median/mean
         mappable = ax.pcolormesh(x[1:], y[1:],
@@ -274,7 +274,7 @@ class PS2D:
         cb = ax.figure.colorbar(mappable, ax=ax, pad=0.01, aspect=30)
         cb.ax.set_xlabel(r"[%s$^2$ Mpc$^3$]" % self.unit)
 
-        # error (68% IQR / standard deviation)
+        # error (68% percentile range / standard deviation)
         error = 0.5 * (self.ps2d[1, :, :] + self.ps2d[2, :, :])
         mappable = ax_err.pcolormesh(x[1:], y[1:],
                                      np.log10(error[1:, 1:]),
@@ -453,7 +453,7 @@ class PS2D:
         if self.meanstd:
             hdr["AvgType"] = ("mean + standard deviation", "average type")
         else:
-            hdr["AvgType"] = ("median + 68% IQR", "average type")
+            hdr["AvgType"] = ("median + 68% percentile range", "average type")
 
         hdr["WINDOW"] = (self.window_name, "window applied along LoS")
         hdr["WinWidth"] = (self.window_width, "window width")
@@ -503,7 +503,7 @@ def main():
                         action="store_true",
                         help="calculate the mean and standard deviation " +
                         "for each averaged annulus instead of the median " +
-                        "16%% and 84%% percentiles (i.e., 68%% IQR)")
+                        "16%% and 84%% percentiles (i.e., 68%% error)")
     parser.add_argument("-P", "--plot", dest="plot",
                         action="store_true",
                         help="plot the 2D power spectrum and save")

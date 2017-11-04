@@ -49,7 +49,7 @@ class PSD:
         be used to do the azimuthal averages.  Otherwise, a evenly
         pixel-by-pixel (along radial direction) is adopted.
     meanstd : bool, optional
-        By default, the median and 16% and 84% percentiles (i.e., 68% IQR)
+        By default, the median and 16% and 84% percentiles (i.e., 68% error)
         will be calculated for each averaged annulus.  If this option is
         ``True`` then calculate the mean and standard deviation instead.
     """
@@ -251,7 +251,7 @@ class PSD:
             labelerr = "standard deviation"
         else:
             label = "median"
-            labelerr = "68% IQR"
+            labelerr = "68% percentile range"
         yerr = np.row_stack((self.psd1d_errl, self.psd1d_erru))
         ax.errorbar(freqs, self.psd1d, yerr=yerr,
                     fmt="none", label=labelerr)
@@ -343,7 +343,7 @@ def main():
                         action="store_true",
                         help="calculate the mean and standard deviation " +
                         "for each averaged annulus instead of the median " +
-                        "16%% and 84%% percentiles (i.e., 68%% IQR)")
+                        "16%% and 84%% percentiles (i.e., 68%% error)")
     parser.add_argument("-P", "--plot", dest="plot", action="store_true",
                         help="plot the PSD and save as a PNG image")
     parser.add_argument("-i", "--infile", dest="infile", nargs="+",
