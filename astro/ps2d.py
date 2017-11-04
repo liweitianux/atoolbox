@@ -93,6 +93,9 @@ class PS2D:
         cube image pixel size [arcsec]
     frequencies : 1D `~numpy.ndarray`
         frequencies at each image slice [MHz]
+    meanstd : bool, optional
+        if ``True``, calculate the mean and standard deviation for each
+        power bin instead of the median and 68% IQR.
     window_name : str, optional
         if specified, taper the cube along the frequency axis using the
         specified window.
@@ -102,7 +105,7 @@ class PS2D:
         unit of the cube data; will be used to determine the power spectrum
         unit as well as the plot labels.
     """
-    def __init__(self, cube, pixelsize, frequencies,
+    def __init__(self, cube, pixelsize, frequencies, meanstd=False,
                  window_name=None, window_width="extended", unit="???"):
         logger.info("Initializing PS2D instance ...")
         self.cube = np.array(cube, dtype=float)
@@ -131,6 +134,7 @@ class PS2D:
 
         # Transverse comoving distance at zc; unit: [Mpc]
         self.DMz = cosmo.comoving_transverse_distance(self.zc).value
+        self.meanstd = meanstd
         self.window_name = window_name
         self.window_width = window_width
         self.window = self.gen_window(name=window_name, width=window_width)
@@ -184,11 +188,23 @@ class PS2D:
         """
         Calculate the 2D power spectrum by cylindrically binning
         the above 3D power spectrum.
+
+        Returns
+        -------
+        ps2d : 3D `~numpy.ndarray`
+            3D array of shape (3, n_k_los, n_k_perp) including the median
+            and lower and upper errors (68% IQR) at each power bin.
+            If ``self.meanstd=True`` then the mean and standard deviation
+            are calculated instead.
+
+        Attributes
+        ----------
+        ps2d
         """
         logger.info("Calculating 2D power spectrum ...")
         n_k_perp = len(self.k_perp)
         n_k_los = len(self.k_los)
-        ps2d = np.zeros(shape=(n_k_los, n_k_perp))  # (k_los, k_perp)
+        ps2d = np.zeros(shape=(3, n_k_los, n_k_perp))  # value, errl, erru
 
         eps = 1e-8
         ic_xy = (np.abs(self.k_xy) < eps).nonzero()[0][0]
@@ -205,7 +221,16 @@ class PS2D:
             for s in range(n_k_los):
                 iz = (p_z == s).nonzero()[0]
                 cells = np.concatenate([self.ps3d[z, iy, ix] for z in iz])
-                ps2d[s, r] = cells.mean()
+                if self.meanstd:
+                    ps2d[0, s, r] = cells.mean()
+                    std = cells.std()
+                    ps2d[1, s, r] = std
+                    ps2d[2, s, r] = std
+                else:
+                    median, q16, q84 = np.percentile(cells, q=(50, 16, 84))
+                    ps2d[0, s, r] = median
+                    ps2d[1, s, r] = median - q16
+                    ps2d[2, s, r] = q84 - median
 
         self.ps2d = ps2d
         return ps2d
@@ -227,7 +252,8 @@ class PS2D:
         """
         x = self.k_perp
         y = self.k_los
-        mappable = ax.pcolormesh(x[1:], y[1:], np.log10(self.ps2d[1:, 1:]),
+        mappable = ax.pcolormesh(x[1:], y[1:],
+                                 np.log10(self.ps2d[0, 1:, 1:]),
                                  cmap="jet")
         ax.set(xscale="log", yscale="log",
                xlim=(x[1], x[-1]), ylim=(y[1], y[-1]),
@@ -389,6 +415,11 @@ class PS2D:
         hdr["CONTENT"] = ("2D cylindrically averaged power spectrum",
                           "data product")
         hdr["BUNIT"] = ("%s^2 Mpc^3" % self.unit, "data unit")
+        if self.meanstd:
+            hdr["AvgType"] = ("mean + standard deviation", "average type")
+        else:
+            hdr["AvgType"] = ("median + 68% IQR", "average type")
+
         # Physical coordinates: IRAF LTM/LTV
         # Li{Image} = LTMi_i * Pi{Physical} + LTVi
         # Reference: ftp://iraf.noao.edu/iraf/web/projects/fitswcs/specwcs.html
@@ -396,6 +427,7 @@ class PS2D:
         hdr["LTM1_1"] = 1.0 / dk_xy
         hdr["LTV2"] = 0.0
         hdr["LTM2_2"] = 1.0 / dk_z
+
         # WCS physical coordinates
         hdr["WCSTY1P"] = "PHYSICAL"
         hdr["CTYPE1P"] = ("k_perp", "wavenumbers perpendicular to LoS")
@@ -409,6 +441,7 @@ class PS2D:
         hdr["CRVAL2P"] = (0.0, "coordinate of the reference pixel")
         hdr["CDELT2P"] = (dk_z, "coordinate delta/step")
         hdr["CUNIT2P"] = ("Mpc^-1", "coordinate unit")
+
         # Data information
         hdr["PixSize"] = (self.pixelsize, "[arcsec] data cube pixel size")
         hdr["Z_C"] = (self.zc, "data cube central redshift")
@@ -428,6 +461,11 @@ def main():
     parser.add_argument("-C", "--clobber", dest="clobber",
                         action="store_true",
                         help="overwrite existing file")
+    parser.add_argument("-m", "--mean-std", dest="meanstd",
+                        action="store_true",
+                        help="calculate the mean and standard deviation " +
+                        "for each averaged annulus instead of the median " +
+                        "16%% and 84%% percentiles (i.e., 68%% IQR)")
     parser.add_argument("-P", "--plot", dest="plot",
                         action="store_true",
                         help="plot the 2D power spectrum and save")
@@ -473,7 +511,7 @@ def main():
         pixelsize = abs(wcs.wcs.cdelt[0]) * 3600  # [deg] -> [arcsec]
 
     ps2d = PS2D(cube=cube, pixelsize=pixelsize, frequencies=frequencies,
-                window_name=args.window, unit=bunit)
+                meanstd=args.meanstd, window_name=args.window, unit=bunit)
     ps2d.calc_ps3d()
     ps2d.calc_ps2d()
     ps2d.save(outfile=args.outfile, clobber=args.clobber)
