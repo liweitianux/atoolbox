@@ -84,6 +84,23 @@ class PS2D:
     ----
     * Cube dimensions: [nfreq, height, width] <-> [Z, Y, X]
     * Cube data unit: [K] (brightness temperature)
+
+    Parameters
+    ----------
+    cube : 3D `~numpy.ndarray`
+        3D spectral cube of shape (nfreq, height, width)
+    pixelsize : float
+        cube image pixel size [arcsec]
+    frequencies : 1D `~numpy.ndarray`
+        frequencies at each image slice [MHz]
+    window_name : str, optional
+        if specified, taper the cube along the frequency axis using the
+        specified window.
+    window_width : str, optional
+        if ``extended`` then use the extended window instead.
+    unit : str, optional
+        unit of the cube data; will be used to determine the power spectrum
+        unit as well as the plot labels.
     """
     def __init__(self, cube, pixelsize, frequencies,
                  window_name=None, window_width="extended", unit="???"):
@@ -139,14 +156,6 @@ class PS2D:
             window = window[(midx-nleft):(midx+nright+1)]
         logger.info("Generated window: %s (%s/%d)" % (name, width, width_pix))
         return window
-
-    def pad_cube(self):
-        """
-        Pad the image cube to be square in spatial dimensions.
-        """
-        if self.Nx != self.Ny:
-            logger.info("Padding image to be square ...")
-            raise NotImplementedError
 
     def calc_ps3d(self):
         """
