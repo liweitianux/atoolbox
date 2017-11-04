@@ -96,17 +96,17 @@ class PS2D:
     meanstd : bool, optional
         if ``True``, calculate the mean and standard deviation for each
         power bin instead of the median and 68% IQR.
+    unit : str, optional
+        unit of the cube data; will be used to determine the power spectrum
+        unit as well as the plot labels.
     window_name : str, optional
         if specified, taper the cube along the frequency axis using the
         specified window.
     window_width : str, optional
         if ``extended`` then use the extended window instead.
-    unit : str, optional
-        unit of the cube data; will be used to determine the power spectrum
-        unit as well as the plot labels.
     """
     def __init__(self, cube, pixelsize, frequencies, meanstd=False,
-                 window_name=None, window_width="extended", unit="???"):
+                 unit="???", window_name=None, window_width=None):
         logger.info("Initializing PS2D instance ...")
         self.cube = np.array(cube, dtype=float)
         self.pixelsize = pixelsize  # [arcsec]
@@ -139,25 +139,24 @@ class PS2D:
         self.window_width = window_width
         self.window = self.gen_window(name=window_name, width=window_width)
 
-    def gen_window(self, name=None, width="extended"):
+    def gen_window(self, name=None, width=None):
         if name is None:
             return None
 
         window_func = getattr(signal.windows, name)
+        nfreq = self.nfreq
+        window = window_func(nfreq, sym=False)
+        width_pix = self.nfreq
         if width == "extended":
-            w = window_func(self.nfreq, sym=False)
-            ex = 1.0 / (w.sum() / self.nfreq)
-            width_pix = int(ex * self.nfreq)
-        else:
-            width_pix = self.nfreq
-
-        window = window_func(width_pix, sym=False)
-        if len(window) > self.nfreq:
+            ex = 1.0 / (window.sum() / nfreq)
+            width_pix = int(ex * nfreq)
+            window = window_func(width_pix, sym=False)
             # cut the filter
             midx = int(len(window) / 2)  # index of the peak element
-            nleft = int(self.nfreq / 2)  # number of element on the left
-            nright = int((self.nfreq-1) / 2)  # number of element on the right
+            nleft = int(nfreq / 2)  # number of element on the left
+            nright = int((nfreq-1) / 2)  # number of element on the right
             window = window[(midx-nleft):(midx+nright+1)]
+
         logger.info("Generated window: %s (%s/%d)" % (name, width, width_pix))
         return window
 
@@ -420,6 +419,9 @@ class PS2D:
         else:
             hdr["AvgType"] = ("median + 68% IQR", "average type")
 
+        hdr["WINDOW"] = (self.window_name, "window applied along LoS")
+        hdr["WinWidth"] = (self.window_width, "window width")
+
         # Physical coordinates: IRAF LTM/LTV
         # Li{Image} = LTMi_i * Pi{Physical} + LTVi
         # Reference: ftp://iraf.noao.edu/iraf/web/projects/fitswcs/specwcs.html
@@ -476,6 +478,10 @@ def main():
                         choices=["nuttall"],
                         help="apply window along frequency axis " +
                         "(default: None)")
+    parser.add_argument("--window-width", dest="window_width",
+                        choices=["extended"],
+                        help="width of the window to adjust its shape " +
+                        "(default: None, i.e., standard)")
     parser.add_argument("-i", "--infile", dest="infile", nargs="+",
                         help="input FITS image cube(s); if multiple cubes " +
                         "are provided, they are added first.")
@@ -511,7 +517,8 @@ def main():
         pixelsize = abs(wcs.wcs.cdelt[0]) * 3600  # [deg] -> [arcsec]
 
     ps2d = PS2D(cube=cube, pixelsize=pixelsize, frequencies=frequencies,
-                meanstd=args.meanstd, window_name=args.window, unit=bunit)
+                meanstd=args.meanstd, unit=bunit,
+                window_name=args.window, window_width=args.window_width)
     ps2d.calc_ps3d()
     ps2d.calc_ps2d()
     ps2d.save(outfile=args.outfile, clobber=args.clobber)
