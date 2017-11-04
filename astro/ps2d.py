@@ -218,11 +218,12 @@ class PS2D:
         """
         x = self.k_perp
         y = self.k_los
-        mappable = ax.pcolormesh(x[1:], y[1:], np.log10(self.ps2d[1:, 1:]))
+        mappable = ax.pcolormesh(x[1:], y[1:], np.log10(self.ps2d[1:, 1:]),
+                                 cmap="jet")
         ax.set(xscale="log", yscale="log",
                xlim=(x[1], x[-1]), ylim=(y[1], y[-1]),
-               xlabel=r"k$_{perp}$ [Mpc$^{-1}$]",
-               ylabel=r"k$_{los}$ [Mpc$^{-1}$]",
+               xlabel=r"k$_{\perp}$ [Mpc$^{-1}$]",
+               ylabel=r"k$_{||}$ [Mpc$^{-1}$]",
                title="2D Power Spectrum")
         cb = fig.colorbar(mappable, ax=ax, pad=0.01, aspect=30)
         cb.ax.set_xlabel(r"[%s$^2$ Mpc$^3$]" % self.unit)
