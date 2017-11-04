@@ -39,7 +39,6 @@ import numpy as np
 from scipy import fftpack
 from scipy import signal
 from astropy.io import fits
-from astropy.wcs import WCS
 from astropy.cosmology import FlatLambdaCDM
 import astropy.constants as ac
 
@@ -64,19 +63,41 @@ OmegaM0 = 0.27
 cosmo = FlatLambdaCDM(H0=H0, Om0=OmegaM0)
 
 
-@lru_cache()
 def freq2z(freq):
     z = freq21cm / freq - 1.0
     return z
 
 
-@lru_cache()
-def get_frequencies(wcs, nfreq):
-    pix = np.zeros(shape=(nfreq, 3), dtype=int)
-    pix[:, -1] = np.arange(nfreq)
-    world = wcs.wcs_pix2world(pix, 0)
-    freqMHz = world[:, -1] / 1e6
-    return freqMHz
+def get_frequencies(header):
+    """
+    Get the frequencies for each cube slice.
+    Unit: [MHz]
+    """
+    nfreq = header["NAXIS3"]
+    freq0 = header["CRVAL3"]  # [Hz]
+    freqstep = header["CDELT3"]  # [Hz]
+    frequencies = freq0 + freqstep*np.arange(nfreq)
+    return frequencies / 1e6  # [MHz]
+
+
+def get_pixelsize(header):
+    """
+    Get the pixel size of cube image.
+    Unit: [arcsec]
+    """
+    try:
+        pixelsize = header["PixSize"]  # [arcsec]
+    except KeyError:
+        try:
+            pixelsize = header["CDELT1"]  # [deg]
+            if abs(pixelsize-1.0) < 1e-8:
+                # Place-holder value set by ``fitscube.py``
+                pixelsize = None
+            else:
+                pixelsize = abs(pixelsize)*3600  # [arcsec]
+        except KeyError:
+            pixelsize = None
+    return pixelsize
 
 
 class PS2D:
@@ -508,8 +529,8 @@ def main():
                         action="store_true",
                         help="plot the 2D power spectrum and save")
     parser.add_argument("-p", "--pixelsize", dest="pixelsize", type=float,
-                        help="spatial pixel size [arcsec] (default: " +
-                        "obtain from FITS header WCS info)")
+                        help="spatial pixel size [arcsec] (required " +
+                        "if cannot obtain from FITS header)")
     parser.add_argument("-w", "--window", dest="window",
                         choices=["nuttall"],
                         help="apply window along frequency axis " +
@@ -544,13 +565,13 @@ def main():
         else:
             raise ValueError("cube has different unit: %s" % bunit2)
 
-    wcs = WCS(header)
-    nfreq = cube.shape[0]
-    frequencies = get_frequencies(wcs, nfreq)
+    frequencies = get_frequencies(header)
     if args.pixelsize:
         pixelsize = args.pixelsize  # [arcsec]
     else:
-        pixelsize = abs(wcs.wcs.cdelt[0]) * 3600  # [deg] -> [arcsec]
+        pixelsize = get_pixelsize(header)
+    if pixelsize is None:
+        raise RuntimeError("--pixelsize required")
 
     ps2d = PS2D(cube=cube, pixelsize=pixelsize, frequencies=frequencies,
                 meanstd=args.meanstd, unit=bunit,
