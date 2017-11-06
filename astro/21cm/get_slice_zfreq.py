@@ -82,7 +82,7 @@ class LightCone:
         header["Lside"] = (self.header["Lside"],
                            self.header.comments["Lside"])
         header["Nside"] = (self.header["Nside"],
-                           self.header.comments["Lside"])
+                           self.header.comments["Nside"])
         header["REDSHIFT"] = (z, "redshift of this slice")
         header["FREQ"] = (freq, "[MHz] observed HI signal frequency")
         header["Dc"] = (Dc, "[cMpc] comoving distance")

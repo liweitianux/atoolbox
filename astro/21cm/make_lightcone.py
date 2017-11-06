@@ -49,10 +49,10 @@ unit: K
 zmin:
 zmax:
 dz:
-# Simulation cube side length [Mpc] (required)
+# Simulation cube side length [cMpc] (required)
 # (sim_length from SimFast21 configuration file)
 Lside:
-# Number of cells of the input cubes (required)
+# Number of cells at each side of the input cubes (required)
 # (N_smoothed from SimFast21 configuration file)
 Nside:
 # Filename pattern of the input coeval cubes
@@ -271,7 +271,7 @@ class LightCone:
         header["Dc_max"] = (Dc_max, "[cMpc] comoving distance at zmax")
         header["Dc_step"] = (dDc, "[cMpc] comoving distance between slices")
         header["Lside"] = (self.configs.Lside, "[cMpc] Simulation side length")
-        header["Nside"] = (self.configs.Nside, "Side number of cells")
+        header["Nside"] = (self.configs.Nside, "Number of cells at each side")
         header["DATE"] = (datetime.now(timezone.utc).astimezone().isoformat(),
                           "File creation date")
         header.add_history(" ".join(sys.argv))
