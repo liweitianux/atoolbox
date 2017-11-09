@@ -1,29 +1,10 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
-# References:
-# [1] Definition of RMF and ARF file formats
-#     https://heasarc.gsfc.nasa.gov/docs/heasarc/caldb/docs/memos/cal_gen_92_002/cal_gen_92_002.html
-# [2] The OGIP Spectral File Format
-#     https://heasarc.gsfc.nasa.gov/docs/heasarc/ofwg/docs/summary/ogip_92_007_summary.html
-# [3] CIAO: Auxiliary Response File
-#     http://cxc.harvard.edu/ciao/dictionary/arf.html
-# [4] CIAO: Redistribution Matrix File
-#     http://cxc.harvard.edu/ciao/dictionary/rmf.html
-# [5] astropy - FITS format code
-#     http://docs.astropy.org/en/stable/io/fits/usage/table.html#column-creation
-# [6] XSPEC - Spectral Fitting
-#     https://heasarc.gsfc.nasa.gov/docs/xanadu/xspec/manual/XspecSpectralFitting.html
-# [7] Direct X-ray Spectra Deprojection
-#     https://www-xray.ast.cam.ac.uk/papers/dsdeproj/
-#     Sanders & Fabian 2007, MNRAS, 381, 1381
-#
-#
-# Weitian LI
-# Created: 2016-03-26
-# Updated: 2016-06-07
+# Copyright (c) 2016-2017 Weitian LI
+# 2016-03-26
 #
 # Change log:
+# 2017-11-12: Cleanups
 # 2016-06-07:
 #   * Explain the errors/uncertainties calculation approach
 # 2016-04-20:
@@ -60,15 +41,10 @@
 #   * Implement background subtraction
 #   * Add config `subtract_bkg' and corresponding argument
 #
-# XXX/FIXME:
-#   * Deprojection: account for ARF differences across different regions
-#
 # TODO:
+#   * Deprojection: account for ARF differences across different regions
 #   * Split classes ARF, RMF, Spectrum, and SpectrumSet to a separate module
 #
-
-__version__ = "0.5.3"
-__date__    = "2016-06-07"
 
 
 """
@@ -80,6 +56,25 @@ according to the generated crosstalk ARFs by SAS `arfgen'.
 After the crosstalk effect being corrected, the deprojection is performed
 to deproject the crosstalk-corrected spectra to derive the spectra with
 both the crosstalk effect and projection effect corrected.
+
+
+References
+----------
+[1] Definition of RMF and ARF file formats
+    https://heasarc.gsfc.nasa.gov/docs/heasarc/caldb/docs/memos/cal_gen_92_002/cal_gen_92_002.html
+[2] The OGIP Spectral File Format
+    https://heasarc.gsfc.nasa.gov/docs/heasarc/ofwg/docs/summary/ogip_92_007_summary.html
+[3] CIAO: Auxiliary Response File
+    http://cxc.harvard.edu/ciao/dictionary/arf.html
+[4] CIAO: Redistribution Matrix File
+    http://cxc.harvard.edu/ciao/dictionary/rmf.html
+[5] astropy - FITS format code
+    http://docs.astropy.org/en/stable/io/fits/usage/table.html#column-creation
+[6] XSPEC - Spectral Fitting
+    https://heasarc.gsfc.nasa.gov/docs/xanadu/xspec/manual/XspecSpectralFitting.html
+[7] Direct X-ray Spectra Deprojection
+    https://www-xray.ast.cam.ac.uk/papers/dsdeproj/
+    Sanders & Fabian 2007, MNRAS, 381, 1381
 
 
 Sample config file (in `ConfigObj' syntax):
@@ -135,6 +130,22 @@ bkg = reg2_bkg.pi
 -----------------------------------------------------------
 """
 
+
+import sys
+import os
+import argparse
+from datetime import datetime
+from copy import copy
+
+import numpy as np
+import scipy.interpolate
+from astropy.io import fits
+from configobj import ConfigObj
+
+
+__version__ = "0.5.5"
+__date__ = "2017-11-12"
+
 WARNING = """
 ********************************* WARNING ************************************
 The generated spectra are substantially modified (e.g., scale, add, subtract),
@@ -144,19 +155,6 @@ especially the metal abundances and normalizations.
 """
 
 
-import sys
-import os
-import argparse
-from datetime import datetime
-from copy import copy
-
-import numpy as np
-import scipy as sp
-import scipy.interpolate
-from astropy.io import fits
-from configobj import ConfigObj
-
-
 def group_data(data, grouping):
     """
     Group the data with respect to the supplied `grouping' specification
@@ -164,7 +162,7 @@ def group_data(data, grouping):
     same group are summed up and assigned to the FIRST channel of this
     group, while the OTHRE channels are all set to ZERO.
     """
-    data_grp = np.array(data).copy()
+    data_grp = np.array(data)
     for i in reversed(range(len(data))):
         if grouping[i] == 1:
             # the beginning channel of a group
@@ -186,7 +184,8 @@ class ARF:  # {{{
     The effective area is [cm^2], and the QE is [counts/photon]; they are
     multiplied together to create the ARF, resulting in [cm^2 counts/photon].
 
-    **CAVEAT/NOTE**:
+    CAVEAT/NOTE
+    -----------
     Generally, the "ENERG_LO" and "ENERG_HI" columns of an ARF are *different*
     to the "E_MIN" and "E_MAX" columns of a RMF (which are corresponding
     to the spectrum channel energies).
@@ -200,7 +199,8 @@ class ARF:  # {{{
     spectral channels, i.e., the energy positions of each ARF data point and
     spectral channel are consistent.  Thus the interpolation is not needed.
 
-    References:
+    References
+    ----------
     [1] CIAO: Auxiliary Response File
         http://cxc.harvard.edu/ciao/dictionary/arf.html
     [2] Definition of RMF and ARF file formats
@@ -279,9 +279,9 @@ class ARF:  # {{{
             energy = self.get_energy()
             arf    = self.get_data(copy=False)
             if verbose:
-                print("INFO: interpolating '%s' (this may take a while) ..." \
-                        % self.filename, file=sys.stderr)
-            f_interp = sp.interpolate.interp1d(energy, arf, kind="cubic",
+                print("INFO: interpolating ARF '%s' (may take a while) ..." %
+                      self.filename, file=sys.stderr)
+            f_interp = scipy.interpolate.interp1d(energy, arf, kind="cubic",
                     bounds_error=False, fill_value=0.0, assume_sorted=True)
             self.f_interp = f_interp
         if x is not None:
@@ -331,7 +331,8 @@ class RMF:  # {{{
     variable length array columns.  This format is compact but hard to
     manipulate and understand.
 
-    **CAVEAT/NOTE**:
+    CAVEAT/NOTE
+    -----------
     + See also the above ARF CAVEAT/NOTE.
     + The "EBOUNDS" extension contains the `CHANNEL', `E_MIN' and `E_MAX'
       columns.  This `CHANNEL' is the same as that of a spectrum.  Therefore,
@@ -340,7 +341,8 @@ class RMF:  # {{{
     + The `ENERG_LO' and `ENERG_HI' columns of the "MATRIX" extension are
       the same as that of a ARF.
 
-    References:
+    References
+    ----------
     [1] CIAO: Redistribution Matrix File
         http://cxc.harvard.edu/ciao/dictionary/rmf.html
     [2] Definition of RMF and ARF file formats
@@ -412,8 +414,8 @@ class RMF:  # {{{
             f_chan = np.array(f_chan).reshape(-1)
             f_chan -= 1  # FITS indices are 1-based
             n_chan = np.array(n_chan).reshape(-1)
-            idx = np.concatenate([ np.arange(f, f+n) \
-                    for f, n in zip(f_chan, n_chan) ])
+            idx = np.concatenate([np.arange(f, f+n)
+                                  for f, n in zip(f_chan, n_chan)])
             rmfrow = np.zeros(n_channel, dtype=dtype)
             rmfrow[idx] = mat_row
             return rmfrow
@@ -636,7 +638,8 @@ class Spectrum:  # {{{
         Reset the keywords to "NONE" to avoid confusion or mistakes,
         and also add mandatory spectral keywords if missing.
 
-        Reference:
+        Reference
+        ---------
         [1] The OGIP Spectral File Format, Sec. 3.1.1
             https://heasarc.gsfc.nasa.gov/docs/heasarc/ofwg/docs/summary/ogip_92_007_summary.html
         """
@@ -715,7 +718,8 @@ class SpectrumSet(Spectrum):  # {{{
     This class handles a set of spectrum, including the source spectrum,
     RMF, ARF, and the background spectrum.
 
-    **NOTE**:
+    NOTE
+    ----
     The "COUNTS" column data are converted from "int32" to "float32",
     since this spectrum will be subtracted/compensated according to the
     ratios of ARFs.
@@ -771,7 +775,8 @@ class SpectrumSet(Spectrum):  # {{{
         """
         Get the energy values of each channel if RMF present.
 
-        NOTE:
+        NOTE
+        ----
         The "E_MIN" and "E_MAX" columns of the RMF is required to calculate
         the spectrum channel energies.
         And the channel energies are generally different to the "ENERG_LO"
@@ -782,7 +787,7 @@ class SpectrumSet(Spectrum):  # {{{
         else:
             return self.rmf.get_energy(mean=mean)
 
-    def get_arf(self, mean="geometric", groupped=True, copy=True):
+    def get_arf(self, groupped=True, copy=True):
         """
         Get the interpolated ARF data w.r.t the spectral channel energies
         if the ARF presents.
@@ -835,7 +840,9 @@ class SpectrumSet(Spectrum):  # {{{
         to the region angular size to make it correspond to the whole annulus
         region (i.e., 360 degrees).
 
-        NOTE: the spectral data and errors (i.e., `self.spec_data', and
+        NOTE
+        ----
+        The spectral data and errors (i.e., `self.spec_data', and
         `self.spec_err') is MODIFIED!
         """
         self.spec_data *= (360.0 / self.angle)
@@ -853,7 +860,8 @@ class SpectrumSet(Spectrum):  # {{{
         spectrum, the ARF (which is used during the later spectral
         manipulations), and the background spectrum (if presents).
 
-        NOTE:
+        NOTE
+        ----
         * The spectral data (i.e., self.spec_data) is MODIFIED!
         * The spectral data within the same group are summed up.
         * The self grouping is overwritten if `grouping' is supplied, as well
@@ -904,11 +912,11 @@ class SpectrumSet(Spectrum):  # {{{
         Return:
           background-subtracted spectrum data
         """
-        ratio = (self.EXPOSURE / self.bkg.EXPOSURE) * \
-                (self.BACKSCAL / self.bkg.BACKSCAL) * \
-                (self.AREASCAL / self.bkg.AREASCAL)
-        operation = "  SUBTRACT_BACKGROUND: %s - %s * %s" % \
-                (self.filename, ratio, self.bkg.filename)
+        ratio = ((self.EXPOSURE / self.bkg.EXPOSURE) *
+                 (self.BACKSCAL / self.bkg.BACKSCAL) *
+                 (self.AREASCAL / self.bkg.AREASCAL))
+        operation = ("  SUBTRACT_BACKGROUND: %s - %s * %s" %
+                     (self.filename, ratio, self.bkg.filename))
         if verbose:
             print(operation, file=sys.stderr)
         spec_data_subbkg = self.spec_data - ratio * self.bkg.get_data()
@@ -937,7 +945,8 @@ class SpectrumSet(Spectrum):  # {{{
         both be subtracted before applying this subtraction for crosstalk
         correction, as well as the below `compensate()' procedure.
 
-        NOTE:
+        NOTE
+        ----
         1. The crosstalk ARF must be provided, since the `spectrumset.arf'
            is required to be its ARF without taking crosstalk into account:
                spec1_new = spec1 - spec2 * (cross_arf_2_to_1 / arf2)
@@ -966,8 +975,8 @@ class SpectrumSet(Spectrum):  # {{{
             arf_ratio = arfresp_cross / arfresp_spec
             # fix nan/inf values due to division by zero
             arf_ratio[ ~ np.isfinite(arf_ratio) ] = 0.0
-        spec_data = self.get_data(group_squeeze=group_squeeze) - \
-                spectrumset.get_data(group_squeeze=group_squeeze)*arf_ratio
+        spec_data = (self.get_data(group_squeeze=group_squeeze) - 
+                     spectrumset.get_data(group_squeeze=group_squeeze)*arf_ratio)
         self.set_data(spec_data, group_squeeze=group_squeeze)
         # record history
         if add_history:
@@ -1001,8 +1010,8 @@ class SpectrumSet(Spectrum):  # {{{
             arf_ratio = arfresp_cross / arfresp_this
             # fix nan/inf values due to division by zero
             arf_ratio[ ~ np.isfinite(arf_ratio) ] = 0.0
-        spec_data = self.get_data(group_squeeze=group_squeeze) + \
-                self.get_data(group_squeeze=group_squeeze) * arf_ratio
+        spec_data = (self.get_data(group_squeeze=group_squeeze) +
+                     self.get_data(group_squeeze=group_squeeze) * arf_ratio)
         self.set_data(spec_data, group_squeeze=group_squeeze)
         # record history
         if add_history:
@@ -1017,8 +1026,8 @@ class SpectrumSet(Spectrum):  # {{{
         N = len(neg_counts)
         neg_channels = np.arange(N, dtype=int)[neg_counts]
         if len(neg_channels) > 0:
-            print("WARNING: %d channels have NEGATIVE counts" % \
-                    len(neg_channels), file=sys.stderr)
+            print("WARNING: %d channels have NEGATIVE counts" %
+                  len(neg_channels), file=sys.stderr)
         i = 0
         while len(neg_channels) > 0:
             i += 1
@@ -1067,7 +1076,9 @@ class SpectrumSet(Spectrum):  # {{{
         according to the estimated spectral group errors by assuming the
         normal distribution.
 
-        NOTE: this method should be called AFTER the `copy()' method.
+        NOTE
+        ----
+        This method should be called *after* the `copy()' method.
         """
         super().randomize()
         if self.bkg:
@@ -1158,7 +1169,7 @@ class Crosstalk:  # {{{
         """
         if add_history:
             self.spectrumset.header.add_history("Crosstalk Correction BEGIN")
-            self.spectrumset.header.add_history("  TOOL: %s (v%s) @ %s" % (\
+            self.spectrumset.header.add_history("  TOOL: %s (v%s) @ %s" % (
                     os.path.basename(sys.argv[0]), __version__,
                     datetime.utcnow().isoformat()))
         # background subtraction
@@ -1205,8 +1216,8 @@ class Crosstalk:  # {{{
         new = copy(self)
         # properly handle the copy of spectrumsets
         new.spectrumset = self.spectrumset.copy()
-        new.cross_in_specset = [ specset.copy() \
-                for specset in self.cross_in_specset ]
+        new.cross_in_specset = [specset.copy()
+                                for specset in self.cross_in_specset]
         return new
 
     def randomize(self):
@@ -1232,12 +1243,14 @@ class Deprojection:  # {{{
     assumption of spherical symmetry of the source object, and produce
     the DEPROJECTED spectra.
 
-    NOTE:
+    NOTE
+    ----
     * Assumption of the spherical symmetry
     * Background should be subtracted before deprojection
     * ARF differences of different regions are taken into account
 
-    Reference & Credit:
+    Credit
+    ------
     [1] Direct X-ray Spectra Deprojection
         https://www-xray.ast.cam.ac.uk/papers/dsdeproj/
         Sanders & Fabian 2007, MNRAS, 381, 1381
@@ -1270,9 +1283,8 @@ class Deprojection:  # {{{
         for spec, rin in zip(self.spectra, radii_inner):
             spec.set_radius_inner(rin)
             if verbose:
-                print("Deprojection: loaded spectrum: radius: (%s, %s)" % \
-                        (spec.radius_inner, spec.radius_outer),
-                        file=sys.stderr)
+                print("Deprojection: loaded spectrum: radius: (%s, %s)" %
+                      (spec.radius_inner, spec.radius_outer), file=sys.stderr)
         # check EXPOSURE validity (all spectra must have the same exposures)
         exposures = [ spec.EXPOSURE for spec in self.spectra ]
         assert np.allclose(exposures[:-1], exposures[1:])
@@ -1280,8 +1292,8 @@ class Deprojection:  # {{{
     def subtract_bkg(self, verbose=True):
         for spec in self.spectra:
             if not spec.bkg:
-                raise ValueError("Spectrum '%s' has NO background" % \
-                        spec.filename)
+                raise ValueError("Spectrum '%s' has NO background" %
+                                 spec.filename)
             spec.subtract_bkg(inplace=True, verbose=verbose)
 
     def apply_grouping(self, verbose=False):
@@ -1423,9 +1435,10 @@ def calc_median_errors(results):
     Calculate the median and errors for the spectral data gathered
     through Monte Carlo simulations.
 
-    NOTE:
-    Errors calculation just use the quantiles,
-    i.e., 1sigma ~= 68.3% = Q(84.15%) - Q(15.85%)
+    NOTE
+    ----
+    Errors are calculated from the percentiles,
+    i.e., 1sigma ~= 68.3% = P(84.15%) - P(15.85%)
     """
     results = np.array(results)
     # `results' now has shape: (mc_times, num_spec, num_channel)
@@ -1520,8 +1533,8 @@ def main(config, subtract_bkg, fix_negative, mc_times,
             group_squeeze=group_squeeze, copy=True) ]
 
     # Monte Carlo for spectral group error estimation
-    print("INFO: Monte Carlo to estimate spectral errors (%d times) ..." % \
-            mc_times, file=sys.stderr)
+    print("INFO: Monte Carlo to estimate spectral errors (%d times) ..." %
+          mc_times, file=sys.stderr)
     for i in range(mc_times):
         if i % 100 == 0:
             print("%d..." % i, end="", flush=True, file=sys.stderr)
@@ -1550,7 +1563,7 @@ def main(config, subtract_bkg, fix_negative, mc_times,
     deprojection.set_spec_data(medians, group_squeeze=group_squeeze)
     deprojection.add_stat_err(errors, group_squeeze=group_squeeze)
     if verbose:
-        print("INFO: Writing the crosstalk-corrected and deprojected " + \
+        print("INFO: Writing the crosstalk-corrected and deprojected " +
               "spectra with estimated statistical errors ...", file=sys.stderr)
     deprojection.fix_header()
     deprojection.write(clobber=clobber)
@@ -1619,8 +1632,8 @@ def main_deprojection(config, mc_times, verbose=False, clobber=False):
             group_squeeze=group_squeeze, copy=True) ]
 
     # Monte Carlo for spectral group error estimation
-    print("INFO: Monte Carlo to estimate spectral errors (%d times) ..." % \
-            mc_times, file=sys.stderr)
+    print("INFO: Monte Carlo to estimate spectral errors (%d times) ..." %
+          mc_times, file=sys.stderr)
     for i in range(mc_times):
         if i % 100 == 0:
             print("%d..." % i, end="", flush=True, file=sys.stderr)
@@ -1643,7 +1656,7 @@ def main_deprojection(config, mc_times, verbose=False, clobber=False):
     deprojection.set_spec_data(medians, group_squeeze=group_squeeze)
     deprojection.add_stat_err(errors, group_squeeze=group_squeeze)
     if verbose:
-        print("INFO: Writing the deprojected spectra " + \
+        print("INFO: Writing the deprojected spectra " +
               "with estimated statistical errors ...", file=sys.stderr)
     deprojection.fix_header()
     deprojection.write(clobber=clobber)
@@ -1719,8 +1732,8 @@ def main_crosstalk(config, subtract_bkg, fix_negative, mc_times,
                         for spec in cc_spectra ])
 
     # Monte Carlo for spectral group error estimation
-    print("INFO: Monte Carlo to estimate spectral errors (%d times) ..." % \
-            mc_times, file=sys.stderr)
+    print("INFO: Monte Carlo to estimate spectral errors (%d times) ..." %
+          mc_times, file=sys.stderr)
     for i in range(mc_times):
         if i % 100 == 0:
             print("%d..." % i, end="", flush=True, file=sys.stderr)
@@ -1743,9 +1756,8 @@ def main_crosstalk(config, subtract_bkg, fix_negative, mc_times,
                 file=sys.stderr)
     medians, errors = calc_median_errors(cc_results)
     if verbose:
-        print("INFO: Writing the crosstalk-corrected spectra " + \
-                "with estimated statistical errors ...",
-                file=sys.stderr)
+        print("INFO: Writing the crosstalk-corrected spectra " +
+              "with estimated statistical errors ...", file=sys.stderr)
     for spec, data, err in zip(cc_spectra, medians, errors):
         spec.set_data(data, group_squeeze=group_squeeze)
         spec.add_stat_err(err, group_squeeze=group_squeeze)
@@ -1761,8 +1773,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
             description="Correct the crosstalk effects for XMM EPIC spectra",
             epilog="Version: %s (%s)" % (__version__, __date__))
-    parser.add_argument("config", help="config file in which describes " +\
-            "the crosstalk relations ('ConfigObj' syntax)")
+    parser.add_argument("config", help="config file in which describes " +
+                        "the crosstalk relations ('ConfigObj' syntax)")
     parser.add_argument("-m", "--mode", dest="mode", default=default_mode,
             help="operation mode (both | crosstalk | deprojection)")
     parser.add_argument("-B", "--no-subtract-bkg", dest="subtract_bkg",
