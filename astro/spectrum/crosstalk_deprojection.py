@@ -5,10 +5,12 @@
 #
 # Change log:
 # 2017-11-12:
-#   * Various cleanups
+#   * Report spectrum data changes
+#   * Add 'regid' to identify spectrum/arf/rmf regions
 #   * Add 'info_emin' and 'info_emax' configuration options
-#   * Remove command line arguments
 #   * Add global configurations variable 'CONFIGS'
+#   * Remove command line arguments
+#   * Various cleanups
 # 2016-06-07:
 #   * Explain the errors/uncertainties calculation approach
 # 2016-04-20:
@@ -154,7 +156,7 @@ from astropy.io import fits
 from configobj import ConfigObj
 
 
-__version__ = "0.5.6"
+__version__ = "0.6.0"
 __date__ = "2017-11-12"
 
 WARNING = """
@@ -184,7 +186,7 @@ def group_data(data, grouping):
         else:
             # other channels of a group
             data_grp[i-1] += data_grp[i]
-            data_grp[i]    = 0
+            data_grp[i] = 0
     assert np.isclose(sum(data_grp), sum(data))
     return data_grp
 
@@ -220,30 +222,31 @@ class ARF:  # {{{
     [2] Definition of RMF and ARF file formats
         https://heasarc.gsfc.nasa.gov/docs/heasarc/caldb/docs/memos/cal_gen_92_002/cal_gen_92_002.html
     """
-    filename = None
-    # only consider the "SPECTRUM" extension
-    header   = None
-    energ_lo = None
-    energ_hi = None
-    specresp = None
     # function of the interpolated ARF
     f_interp = None
     # energies of the spectral channels
     energy_channel = None
     # spectral channel grouping specification
-    grouping       = None
-    groupped       = False
+    grouping = None
+    groupped = False
     # groupped ARF channels with respect to the grouping
-    specresp_grp   = None
+    specresp_grp = None
 
-    def __init__(self, filename):
+    def __init__(self, filename, regid=None):
         self.filename = filename
+        self.regid = regid
         with fits.open(filename) as fitsobj:
             ext_specresp = fitsobj["SPECRESP"]
             self.header = ext_specresp.header
-            self.energ_lo = ext_specresp.data["ENERG_LO"]
-            self.energ_hi = ext_specresp.data["ENERG_HI"]
-            self.specresp = ext_specresp.data["SPECRESP"]
+            self.energ_lo = ext_specresp.data["ENERG_LO"]  # [keV]
+            self.energ_hi = ext_specresp.data["ENERG_HI"]  # [keV]
+            self.specresp = ext_specresp.data["SPECRESP"]  # [cm^2]
+
+    def __str__(self):
+        if self.regid:
+            return self.regid
+        else:
+            return self.filename
 
     def get_data(self, groupped=False, group_squeeze=False, copy=True):
         if groupped:
@@ -257,26 +260,26 @@ class ARF:  # {{{
         else:
             return specresp
 
-    def get_energy(self, mean="geometric"):
+    @property
+    def energy(self):
         """
         Return the mean energy values of the ARF.
-
-        Arguments:
-          * mean: type of the mean energy:
-                  + "geometric": geometric mean, i.e., e = sqrt(e_min*e_max)
-                  + "arithmetic": arithmetic mean, i.e., e = 0.5*(e_min+e_max)
+        The geometric mean is adopted, i.e., e = sqrt(e_min*e_max)
+        Unit: [keV]
         """
-        if mean == "geometric":
-            energy = np.sqrt(self.energ_lo * self.energ_hi)
-        elif mean == "arithmetic":
-            energy = 0.5 * (self.energ_lo + self.energ_hi)
+        return np.sqrt(self.energ_lo * self.energ_hi)
+
+    @property
+    def energy_groupped(self):
+        if self.groupped:
+            energy = self.energy
+            return energy[self.grouping == 1]
         else:
-            raise ValueError("Invalid mean type: %s" % mean)
-        return energy
+            return None
 
     def interpolate(self, x=None, verbose=False):
         """
-        Cubic interpolate the ARF curve using `scipy.interpolate'
+        Interpolate the ARF curve using `scipy.interpolate'
 
         If the requested point is outside of the data range, the
         fill value of *zero* is returned.
@@ -289,13 +292,12 @@ class ARF:  # {{{
           otherwise, the interpolated data are returned.
         """
         if not hasattr(self, "f_interp") or self.f_interp is None:
-            energy = self.get_energy()
             arf = self.get_data(copy=False)
             if verbose:
-                print("INFO: interpolating ARF '%s' (may take a while) ..." %
+                print("INFO: Interpolating ARF '%s' (may take a while) ..." %
                       self.filename, file=sys.stderr)
             f_interp = scipy.interpolate.interp1d(
-                energy, arf, kind="cubic", bounds_error=False,
+                self.energy, arf, kind="quadratic", bounds_error=False,
                 fill_value=0.0, assume_sorted=True)
             self.f_interp = f_interp
 
@@ -318,7 +320,7 @@ class ARF:  # {{{
         if self.groupped:
             return
         if verbose:
-            print("INFO: Grouping spectrum '%s' ..." % self.filename,
+            print("INFO: Grouping ARF '%s' ..." % self.filename,
                   file=sys.stderr)
         self.energy_channel = energy_channel
         self.grouping = grouping
@@ -363,33 +365,19 @@ class RMF:  # {{{
     [2] Definition of RMF and ARF file formats
         https://heasarc.gsfc.nasa.gov/docs/heasarc/caldb/docs/memos/cal_gen_92_002/cal_gen_92_002.html
     """
-    filename    = None
-    ## extension "MATRIX"
-    hdr_matrix  = None
-    energ_lo    = None
-    energ_hi    = None
-    n_grp       = None
-    f_chan      = None
-    n_chan      = None
-    # raw squeezed RMF matrix data
-    matrix      = None
-    ## extension "EBOUNDS"
-    hdr_ebounds = None
-    channel     = None
-    e_min       = None
-    e_max       = None
-    ## converted 2D RMF matrix/image from the squeezed binary table
-    #  size: len(energ_lo) x len(channel)
-    rmfimg      = None
+    # converted 2D RMF matrix/image from the squeezed binary table
+    # size: len(energ_lo) x len(channel)
+    rmfimg = None
 
-    def __init__(self, filename):
+    def __init__(self, filename, regid=None):
         self.filename = filename
+        self.regid = regid
         with fits.open(filename) as fitsobj:
             # "MATRIX" extension
             ext_matrix = fitsobj["MATRIX"]
             self.hdr_matrix = ext_matrix.header
-            self.energ_lo = ext_matrix.data["ENERG_LO"]
-            self.energ_hi = ext_matrix.data["ENERG_HI"]
+            self.energ_lo = ext_matrix.data["ENERG_LO"]  # [keV]
+            self.energ_hi = ext_matrix.data["ENERG_HI"]  # [keV]
             self.n_grp = ext_matrix.data["N_GRP"]
             self.f_chan = ext_matrix.data["F_CHAN"]
             self.n_chan = ext_matrix.data["N_CHAN"]
@@ -398,25 +386,23 @@ class RMF:  # {{{
             ext_ebounds = fitsobj["EBOUNDS"]
             self.hdr_ebounds = ext_ebounds.header
             self.channel = ext_ebounds.data["CHANNEL"]
-            self.e_min = ext_ebounds.data["E_MIN"]
-            self.e_max = ext_ebounds.data["E_MAX"]
+            self.e_min = ext_ebounds.data["E_MIN"]  # [keV]
+            self.e_max = ext_ebounds.data["E_MAX"]  # [keV]
 
-    def get_energy(self, mean="geometric"):
+    def __str__(self):
+        if self.regid:
+            return self.regid
+        else:
+            return self.filename
+
+    @property
+    def energy(self):
         """
         Return the mean energy values of the RMF "EBOUNDS".
-
-        Arguments:
-          * mean: type of the mean energy:
-                  + "geometric": geometric mean, i.e., e = sqrt(e_min*e_max)
-                  + "arithmetic": arithmetic mean, i.e., e = 0.5*(e_min+e_max)
+        The geometric mean is adopted, i.e., e = sqrt(e_min*e_max)
+        Unit: [keV]
         """
-        if mean == "geometric":
-            energy = np.sqrt(self.e_min * self.e_max)
-        elif mean == "arithmetic":
-            energy = 0.5 * (self.e_min + self.e_max)
-        else:
-            raise ValueError("Invalid mean type: %s" % mean)
-        return energy
+        return np.sqrt(self.e_min * self.e_max)
 
     def get_rmfimg(self):
         """
@@ -436,7 +422,7 @@ class RMF:  # {{{
         #
         if self.rmfimg is None:
             # Make the 2D RMF matrix/image
-            n_energy  = len(self.energ_lo)
+            n_energy = len(self.energ_lo)
             n_channel = len(self.channel)
             rmf_dtype = self.matrix[0].dtype
             rmfimg = np.zeros(shape=(n_energy, n_channel), dtype=rmf_dtype)
@@ -454,7 +440,10 @@ class RMF:  # {{{
         header = self.hdr_matrix.copy(strip=True)
         header.extend(self.hdr_ebounds.copy(strip=True))
         outfits = fits.PrimaryHDU(data=rmfimg, header=header)
-        outfits.writeto(outfile, checksum=True, clobber=clobber)
+        try:
+            outfits.writeto(outfile, checksum=True, overwrite=clobber)
+        except TypeError:
+            outfits.writeto(outfile, checksum=True, clobber=clobber)
 # class RMF }}}
 
 
@@ -729,7 +718,10 @@ class Spectrum:  # {{{
                                                  header=self.header)
         # Replace the original spectrum data
         fitsobj["SPECTRUM"] = ext_spec
-        fitsobj.writeto(outfile, clobber=clobber, checksum=True)
+        try:
+            fitsobj.writeto(outfile, overwrite=clobber, checksum=True)
+        except TypeError:
+            fitsobj.writeto(outfile, clobber=clobber, checksum=True)
 # class Spectrum }}}
 
 
@@ -796,7 +788,8 @@ class SpectrumSet(Spectrum):  # {{{
             outfile = self.outfile
         super().write(outfile=outfile, clobber=clobber)
 
-    def get_energy(self, mean="geometric"):
+    @property
+    def energy(self):
         """
         Get the energy values of each channel if RMF present.
 
@@ -810,7 +803,15 @@ class SpectrumSet(Spectrum):  # {{{
         if self.rmf is None:
             return None
         else:
-            return self.rmf.get_energy(mean=mean)
+            return self.rmf.energy
+
+    @property
+    def energy_groupped(self):
+        energy = self.energy
+        if self.groupped and energy is not None:
+            return energy[self.grouping == 1]
+        else:
+            return None
 
     def get_arf(self, groupped=True, copy=True):
         """
@@ -827,7 +828,7 @@ class SpectrumSet(Spectrum):  # {{{
         else:
             return self.arf.get_data(groupped=groupped, copy=copy)
 
-    def read_xflt(self):
+    def read_xflt(self, verbose=False):
         """
         Read the XFLT000# keywords from the header, check the validity (e.g.,
         "XFLT0001" should equals "XFLT0002", "XFLT0003" should equals 0).
@@ -857,8 +858,10 @@ class SpectrumSet(Spectrum):  # {{{
         # if NO additional XFLT000# keys exist, assume "annulus" region
         if self.angle < eps:
             self.angle = 360.0
+        if verbose:
+            print("[%s] region angle: %.2f [deg]" % (str(self), self.angle))
 
-    def scale(self):
+    def scale(self, verbose=False):
         """
         Scale the spectral data (and spectral group errors if present) of
         the source spectrum (and background spectra if present) according
@@ -870,14 +873,17 @@ class SpectrumSet(Spectrum):  # {{{
         The spectral data and errors (i.e., `self.spec_data', and
         `self.spec_err') is MODIFIED!
         """
-        self.spec_data *= (360.0 / self.angle)
+        factor = 360.0 / self.angle
+        if verbose:
+            print("[%s] region scale factor: %.2f" % (str(self), factor))
+        self.spec_data *= factor
         if self.spec_err is not None:
-            self.spec_err *= (360.0 / self.angle)
+            self.spec_err *= factor
         # also scale the background spectrum if present
         if self.bkg:
-            self.bkg.spec_data *= (360.0 / self.angle)
+            self.bkg.spec_data *= factor
             if self.bkg.spec_err is not None:
-                self.bkg.spec_err *= (360.0 / self.angle)
+                self.bkg.spec_err *= factor
 
     def apply_grouping(self, grouping=None, quality=None, verbose=False):
         """
@@ -894,7 +900,7 @@ class SpectrumSet(Spectrum):  # {{{
         """
         super().apply_grouping(grouping=grouping, quality=quality)
         # also group the ARF accordingly
-        self.arf.apply_grouping(energy_channel=self.get_energy(),
+        self.arf.apply_grouping(energy_channel=self.energy,
                                 grouping=self.grouping, verbose=verbose)
         # group the background spectrum if present
         if self.bkg:
@@ -944,12 +950,16 @@ class SpectrumSet(Spectrum):  # {{{
                      (self.filename, ratio, self.bkg.filename))
         if verbose:
             print(operation, file=sys.stderr)
-        datasum1 = np.sum(self.spec_data)
+        energy = self.energy
+        eidx = ((energy >= CONFIGS["info_emin"]) &
+                (energy <= CONFIGS["info_emax"]))
+        datasum1 = np.sum(self.spec_data[eidx])
         spec_data_subbkg = self.spec_data - ratio * self.bkg.get_data()
-        datasum2 = np.sum(spec_data_subbkg)
+        datasum2 = np.sum(spec_data_subbkg[eidx])
         datacp = 100 * (datasum2-datasum1) / datasum1
-        print("[%s] bkg subtraction: %g -> %g (%.2f%%)" %
-              (str(self), datasum1, datasum2, datacp))
+        if verbose:
+            print("[%s] bkg subtraction: %g -> %g (%.2f%%)" %
+                  (str(self), datasum1, datasum2, datacp))
         if inplace:
             self.spec_data = spec_data_subbkg
             self.spec_bkg_subtracted = True
@@ -987,7 +997,7 @@ class SpectrumSet(Spectrum):  # {{{
             spectrumset.filename)
         if verbose:
             print(operation, file=sys.stderr)
-        energy = self.get_energy()
+        energy = self.energy
         if groupped:
             spectrumset.arf.apply_grouping(energy_channel=energy,
                                            grouping=self.grouping,
@@ -1007,9 +1017,19 @@ class SpectrumSet(Spectrum):  # {{{
             arf_ratio = arfresp_cross / arfresp_spec
             # fix nan/inf values due to division by zero
             arf_ratio[~np.isfinite(arf_ratio)] = 0.0
-        spec_data = (self.get_data(group_squeeze=group_squeeze) -
-                     spectrumset.get_data(group_squeeze=group_squeeze)*arf_ratio)
-        self.set_data(spec_data, group_squeeze=group_squeeze)
+        spec_data1 = self.get_data(group_squeeze=group_squeeze)
+        spec_data2 = spectrumset.get_data(group_squeeze=group_squeeze)
+        spec_data_new = spec_data1 - spec_data2 * arf_ratio
+        self.set_data(spec_data_new, group_squeeze=group_squeeze)
+        energy_groupped = self.energy_groupped
+        eidx = ((energy_groupped >= CONFIGS["info_emin"]) &
+                (energy_groupped <= CONFIGS["info_emax"]))
+        datasum1 = np.sum(spec_data1[eidx])
+        datasum2 = np.sum(spec_data_new[eidx])
+        datacp = 100 * (datasum2-datasum1) / datasum1
+        if verbose:
+            print("[%s] crosstalk/subtract -> [%s]: %g -> %g (%.2f%%)" %
+                  (str(self), str(spectrumset), datasum1, datasum2, datacp))
         # record history
         if add_history:
             self.header.add_history(operation)
@@ -1028,7 +1048,7 @@ class SpectrumSet(Spectrum):  # {{{
             self.filename)
         if verbose:
             print(operation, file=sys.stderr)
-        energy = self.get_energy()
+        energy = self.energy
         if groupped:
             cross_arf.apply_grouping(energy_channel=energy,
                                      grouping=self.grouping,
@@ -1044,9 +1064,18 @@ class SpectrumSet(Spectrum):  # {{{
             arf_ratio = arfresp_cross / arfresp_this
             # fix nan/inf values due to division by zero
             arf_ratio[~np.isfinite(arf_ratio)] = 0.0
-        spec_data = (self.get_data(group_squeeze=group_squeeze) +
-                     self.get_data(group_squeeze=group_squeeze) * arf_ratio)
-        self.set_data(spec_data, group_squeeze=group_squeeze)
+        spec_data = self.get_data(group_squeeze=group_squeeze)
+        spec_data_new = spec_data * (1 + arf_ratio)
+        self.set_data(spec_data_new, group_squeeze=group_squeeze)
+        energy_groupped = self.energy_groupped
+        eidx = ((energy_groupped >= CONFIGS["info_emin"]) &
+                (energy_groupped <= CONFIGS["info_emax"]))
+        datasum1 = np.sum(spec_data[eidx])
+        datasum2 = np.sum(spec_data_new[eidx])
+        datacp = 100 * (datasum2-datasum1) / datasum1
+        if verbose:
+            print("[%s] crosstalk/compensate <- [%s]: %g -> %g (%.2f%%)" %
+                  (str(self), str(cross_arf), datasum1, datasum2, datacp))
         # record history
         if add_history:
             self.header.add_history(operation)
@@ -1132,7 +1161,7 @@ class Crosstalk:  # {{{
     # `SpectrumSet' and `ARF' objects corresponding to the spectra from
     # which the photons were scattered into this spectrum.
     cross_in_specset = None
-    cross_in_arf     = None
+    cross_in_arf = None
     # `ARF' objects corresponding to the regions to which the photons of
     # this spectrum were scattered into.
     cross_out_arf = None
@@ -1142,32 +1171,33 @@ class Crosstalk:  # {{{
     # whether the spectrum is groupped
     groupped = False
 
-    def __init__(self, config, arf_dict={}, rmf_dict={},
+    def __init__(self, config, regid=None, arf_dict={}, rmf_dict={},
                  grouping=None, quality=None):
         """
         Arguments:
           * config: a section of the whole config file (`ConfigObj' object)
         """
+        self.regid = regid
         self.cross_in_specset = []
-        self.cross_in_arf     = []
-        self.cross_out_arf    = []
+        self.cross_in_arf = []
+        self.cross_out_arf = []
         # this spectrum to be corrected
         self.spectrumset = SpectrumSet(
-            filename=config["spec"],
+            filename=config["spec"], regid=regid,
             outfile=config["outfile"],
-            arf=arf_dict.get(config["arf"], config["arf"]),
-            rmf=rmf_dict.get(config.get("rmf"), config.get("rmf")),
+            arf=arf_dict[config["arf"]],
+            rmf=rmf_dict.get(config.get("rmf"), None),
             bkg=config.get("bkg"))
         # spectra and cross arf from which photons were scattered in
-        for reg_in in config["cross_in"].values():
+        for k, v in config["cross_in"].items():
             specset = SpectrumSet(
-                filename=reg_in["spec"],
-                arf=arf_dict.get(reg_in["arf"], reg_in["arf"]),
-                rmf=rmf_dict.get(reg_in.get("rmf"), reg_in.get("rmf")),
-                bkg=reg_in.get("bkg"))
+                filename=v["spec"], regid=k,
+                arf=arf_dict[config["arf"]],
+                rmf=rmf_dict.get(config.get("rmf"), None),
+                bkg=v.get("bkg"))
             self.cross_in_specset.append(specset)
-            self.cross_in_arf.append(arf_dict.get(reg_in["cross_arf"],
-                                                  ARF(reg_in["cross_arf"])))
+            self.cross_in_arf.append(
+                arf_dict.get(v["cross_arf"], ARF(v["cross_arf"], regid=k)))
         # regions into which the photons of this spectrum were scattered into
         if "cross_out" in config.sections:
             cross_arf = config["cross_out"].as_list("cross_arf")
@@ -1304,7 +1334,7 @@ class Deprojection:  # {{{
         for spec in spectra:
             if not isinstance(spec, SpectrumSet):
                 raise ValueError("Not a 'SpectrumSet' object")
-            spec.read_xflt()
+            spec.read_xflt(verbose=verbose)
             self.spectra.append(spec)
         self.spectra = spectra
         self.grouping = grouping
@@ -1338,12 +1368,12 @@ class Deprojection:  # {{{
         for spec in self.spectra:
             spec.estimate_errors(gehrels=gehrels)
 
-    def scale(self):
+    def scale(self, verbose=False):
         """
         Scale the spectral data according to the region angular size.
         """
         for spec in self.spectra:
-            spec.scale()
+            spec.scale(verbose=verbose)
 
     def do_deprojection(self, group_squeeze=True,
                         add_history=False, verbose=False):
@@ -1425,14 +1455,14 @@ class Deprojection:  # {{{
             spec.fix_header_keywords(
                     reset_kw=["RESPFILE", "ANCRFILE", "BACKFILE"])
 
-    def write(self, filenames=[], clobber=False):
+    def write(self, outfiles=None, clobber=False):
         """
         Write the deprojected spectra to output file.
         """
-        if filenames == []:
-            filenames = [spec.outfile for spec in self.spectra]
-        for spec, outfile in zip(self.spectra, filenames):
-            spec.write(filename=outfile, clobber=clobber)
+        if outfiles is None:
+            outfiles = [spec.outfile for spec in self.spectra]
+        for spec, outfile in zip(self.spectra, outfiles):
+            spec.write(outfile=outfile, clobber=clobber)
 
     @staticmethod
     def projected_volume(r1, r2, R1, R2):
@@ -1488,27 +1518,26 @@ def calc_median_errors(results):
 
 # main routine {{{
 def main(config, subtract_bkg, fix_negative, mc_times,
-         verbose=False, clobber=False):
+         verbose=False, clobber=False, **kwargs):
     # collect ARFs and RMFs into dictionaries (avoid interpolation every time)
     arf_files = set()
     rmf_files = set()
     for region in config.sections:
         config_reg = config[region]
-        arf_files.add(config_reg.get("arf"))
-        rmf_files.add(config_reg.get("rmf"))
-        for reg_in in config_reg["cross_in"].values():
-            arf_files.add(reg_in.get("arf"))
-            arf_files.add(reg_in.get("cross_arf"))
+        arf_files.add((config_reg["arf"], region))
+        rmf_files.add((config_reg["rmf"], region))
+        for k, v in config_reg["cross_in"].items():
+            arf_files.add((v["arf"], k))
+            arf_files.add((v["cross_arf"], k))
         if "cross_out" in config_reg.sections:
             for arf in config_reg["cross_out"].as_list("cross_arf"):
-                arf_files.add(arf)
-    arf_files = arf_files - set([None])
-    arf_dict = {arf: ARF(arf) for arf in arf_files}
-    rmf_files = rmf_files - set([None])
-    rmf_dict = {rmf: RMF(rmf) for rmf in rmf_files}
-    if verbose:
-        print("INFO: arf_files:", arf_files, file=sys.stderr)
-        print("INFO: rmf_files:", rmf_files, file=sys.stderr)
+                arf_files.add((arf, None))
+    print("INFO: arf_files:", arf_files, file=sys.stderr)
+    print("INFO: rmf_files:", rmf_files, file=sys.stderr)
+    arf_dict = {arf: ARF(arf, regid=reg)
+                for arf, reg in arf_files if arf is not None}
+    rmf_dict = {rmf: RMF(rmf, regid=reg)
+                for rmf, reg in rmf_files if rmf is not None}
 
     # get the GROUPING and QUALITY data
     grouping_fits = fits.open(config["grouping"])
@@ -1526,7 +1555,7 @@ def main(config, subtract_bkg, fix_negative, mc_times,
     for region in config.sections:
         if verbose:
             print("INFO: processing '%s' ..." % region, file=sys.stderr)
-        crosstalk = Crosstalk(config.get(region),
+        crosstalk = Crosstalk(config.get(region), regid=region,
                               arf_dict=arf_dict, rmf_dict=rmf_dict,
                               grouping=grouping, quality=quality)
         crosstalk.apply_grouping(verbose=verbose)
@@ -1549,7 +1578,7 @@ def main(config, subtract_bkg, fix_negative, mc_times,
     if verbose:
         print("INFO: scaling spectra according the region angular size...",
               file=sys.stderr)
-    deprojection.scale()
+    deprojection.scale(verbose=verbose)
     if verbose:
         print("INFO: doing deprojection ...", file=sys.stderr)
     deprojection.do_deprojection(add_history=True, verbose=verbose)
@@ -1561,7 +1590,7 @@ def main(config, subtract_bkg, fix_negative, mc_times,
     print("INFO: Monte Carlo to estimate spectral errors (%d times) ..." %
           mc_times, file=sys.stderr)
     for i in range(mc_times):
-        if i % 100 == 0:
+        if i % 50 == 0:
             print("%d..." % i, end="", flush=True, file=sys.stderr)
         # correct crosstalk effects
         cc_spectra_copy = []
@@ -1577,7 +1606,7 @@ def main(config, subtract_bkg, fix_negative, mc_times,
         deprojection_copy = Deprojection(spectra=cc_spectra_copy,
                                          grouping=grouping,
                                          quality=quality, verbose=False)
-        deprojection_copy.scale()
+        deprojection_copy.scale(verbose=False)
         deprojection_copy.do_deprojection(add_history=False, verbose=False)
         deproj_results.append(deprojection_copy.get_spec_data(
                 group_squeeze=group_squeeze, copy=True))
@@ -1598,7 +1627,8 @@ def main(config, subtract_bkg, fix_negative, mc_times,
 
 
 # main_deprojection routine {{{
-def main_deprojection(config, mc_times, verbose=False, clobber=False):
+def main_deprojection(config, mc_times, verbose=False, clobber=False,
+                      **kwargs):
     """
     Only perform the spectral deprojection.
     """
@@ -1607,15 +1637,14 @@ def main_deprojection(config, mc_times, verbose=False, clobber=False):
     rmf_files = set()
     for region in config.sections:
         config_reg = config[region]
-        arf_files.add(config_reg.get("arf"))
-        rmf_files.add(config_reg.get("rmf"))
-    arf_files = arf_files - set([None])
-    arf_dict = {arf: ARF(arf) for arf in arf_files}
-    rmf_files = rmf_files - set([None])
-    rmf_dict = {rmf: RMF(rmf) for rmf in rmf_files}
-    if verbose:
-        print("INFO: arf_files:", arf_files, file=sys.stderr)
-        print("INFO: rmf_files:", rmf_files, file=sys.stderr)
+        arf_files.add((config_reg["arf"], region))
+        rmf_files.add((config_reg["rmf"], region))
+    print("INFO: arf_files:", arf_files, file=sys.stderr)
+    print("INFO: rmf_files:", rmf_files, file=sys.stderr)
+    arf_dict = {arf: ARF(arf, regid=reg)
+                for arf, reg in arf_files if arf is not None}
+    rmf_dict = {rmf: RMF(rmf, regid=reg)
+                for rmf, reg in rmf_files if rmf is not None}
 
     # get the GROUPING and QUALITY data
     grouping_fits = fits.open(config["grouping"])
@@ -1631,7 +1660,8 @@ def main_deprojection(config, mc_times, verbose=False, clobber=False):
     for region in config.sections:
         config_reg = config[region]
         specset = SpectrumSet(
-            filename=config_reg["spec"], outfile=config_reg["outfile"],
+            filename=config_reg["spec"], regid=region,
+            outfile=config_reg["outfile"],
             arf=arf_dict.get(config_reg["arf"], config_reg["arf"]),
             rmf=rmf_dict.get(config_reg["rmf"], config_reg["rmf"]),
             bkg=config_reg["bkg"])
@@ -1644,7 +1674,7 @@ def main_deprojection(config, mc_times, verbose=False, clobber=False):
     if verbose:
         print("INFO: scaling spectra according the region angular size ...",
               file=sys.stderr)
-    deprojection.scale()
+    deprojection.scale(verbose=verbose)
 
     # keep a (almost) clean copy of the input projected spectra
     proj_spectra_cleancopy = [spec.copy() for spec in proj_spectra]
@@ -1663,7 +1693,7 @@ def main_deprojection(config, mc_times, verbose=False, clobber=False):
     print("INFO: Monte Carlo to estimate spectral errors (%d times) ..." %
           mc_times, file=sys.stderr)
     for i in range(mc_times):
-        if i % 100 == 0:
+        if i % 50 == 0:
             print("%d..." % i, end="", flush=True, file=sys.stderr)
         # copy and randomize the input projected spectra
         proj_spectra_copy = [spec.copy().randomize()
@@ -1694,7 +1724,7 @@ def main_deprojection(config, mc_times, verbose=False, clobber=False):
 
 # main_crosstalk routine {{{
 def main_crosstalk(config, subtract_bkg, fix_negative, mc_times,
-                   verbose=False, clobber=False):
+                   verbose=False, clobber=False, **kwargs):
     """
     Only perform the crosstalk correction.
     """
@@ -1703,21 +1733,20 @@ def main_crosstalk(config, subtract_bkg, fix_negative, mc_times,
     rmf_files = set()
     for region in config.sections:
         config_reg = config[region]
-        arf_files.add(config_reg.get("arf"))
-        rmf_files.add(config_reg.get("rmf"))
-        for reg_in in config_reg["cross_in"].values():
-            arf_files.add(reg_in.get("arf"))
-            arf_files.add(reg_in.get("cross_arf"))
+        arf_files.add((config_reg["arf"], region))
+        rmf_files.add((config_reg["rmf"], region))
+        for k, v in config_reg["cross_in"].items():
+            arf_files.add((v["arf"], k))
+            arf_files.add((v["cross_arf"], k))
         if "cross_out" in config_reg.sections:
             for arf in config_reg["cross_out"].as_list("cross_arf"):
-                arf_files.add(arf)
-    arf_files = arf_files - set([None])
-    arf_dict = {arf: ARF(arf) for arf in arf_files}
-    rmf_files = rmf_files - set([None])
-    rmf_dict = {rmf: RMF(rmf) for rmf in rmf_files}
-    if verbose:
-        print("INFO: arf_files:", arf_files, file=sys.stderr)
-        print("INFO: rmf_files:", rmf_files, file=sys.stderr)
+                arf_files.add((arf, None))
+    print("INFO: arf_files:", arf_files, file=sys.stderr)
+    print("INFO: rmf_files:", rmf_files, file=sys.stderr)
+    arf_dict = {arf: ARF(arf, regid=reg)
+                for arf, reg in arf_files if arf is not None}
+    rmf_dict = {rmf: RMF(rmf, regid=reg)
+                for rmf, reg in rmf_files if rmf is not None}
 
     # get the GROUPING and QUALITY data
     if "grouping" in config.keys():
@@ -1739,7 +1768,7 @@ def main_crosstalk(config, subtract_bkg, fix_negative, mc_times,
     for region in config.sections:
         if verbose:
             print("INFO: processing '%s' ..." % region, file=sys.stderr)
-        crosstalk = Crosstalk(config.get(region),
+        crosstalk = Crosstalk(config.get(region), regid=region,
                               arf_dict=arf_dict, rmf_dict=rmf_dict,
                               grouping=grouping, quality=quality)
         if grouping is not None:
@@ -1765,7 +1794,7 @@ def main_crosstalk(config, subtract_bkg, fix_negative, mc_times,
     print("INFO: Monte Carlo to estimate spectral errors (%d times) ..." %
           mc_times, file=sys.stderr)
     for i in range(mc_times):
-        if i % 100 == 0:
+        if i % 50 == 0:
             print("%d..." % i, end="", flush=True, file=sys.stderr)
         # correct crosstalk effects
         cc_spectra_copy = []
@@ -1847,7 +1876,7 @@ if __name__ == "__main__":
         info_emax = 7.0
     CONFIGS.update(info_emin=info_emin, info_emax=info_emax)
 
-    for k, v in CONFIGS:
+    for k, v in CONFIGS.items():
         print("* %s: %s" % (k, v))
 
     if mode.lower() == "both":
