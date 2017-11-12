@@ -45,15 +45,16 @@ class PSD:
         Specify the pixel size and its unit of the image.
         e.g., (0.33, "arcmin")
     step : float, optional
-        If specified, then a log-even grid with the given step ratio will
-        be used to do the azimuthal averages.  Otherwise, a evenly
-        pixel-by-pixel (along radial direction) is adopted.
+        By default, a logarithmic grid with the specified step ratio
+        (default: 1.1) will be used to do the azimuthal averages.
+        If specified a value <=1 or None, then a evenly pixel-by-pixel
+        (along radial direction) is adopted.
     meanstd : bool, optional
         By default, the median and 16% and 84% percentiles (i.e., 68% error)
         will be calculated for each averaged annulus.  If this option is
         ``True`` then calculate the mean and standard deviation instead.
     """
-    def __init__(self, image, pixel=(1.0, "pixel"), step=None,
+    def __init__(self, image, pixel=(1.0, "pixel"), step=1.1,
                  meanstd=False, bunit=None):
         self.image = np.array(image, dtype=float)
         self.shape = self.image.shape
@@ -61,9 +62,10 @@ class PSD:
             raise ValueError("input image is not square!")
 
         self.pixel = pixel
-        self.step = step
-        if step is not None and step <= 1:
-            raise ValueError("step must be greater than 1")
+        if step is None or step <= 1:
+            self.step = None
+        else:
+            self.step = step
 
         self.meanstd = meanstd
         self.bunit = bunit
@@ -336,11 +338,11 @@ def main():
             description="Calculate radial power spectral density")
     parser.add_argument("-C", "--clobber", dest="clobber", action="store_true",
                         help="overwrite the output files if already exist")
-    parser.add_argument("-s", "--step", dest="step", type=float, default=None,
-                        help="step ratio between 2 consecutive radial " +
-                        "frequency points, must be > 1, thus a log-even " +
-                        "grid is adopted; if not specified, then the power " +
-                        "at every frequency point will be calculated, " +
+    parser.add_argument("-s", "--step", dest="step", type=float, default=1.1,
+                        help="step ratio (>1) between 2 consecutive radial " +
+                        "frequency points, i.e., a logarithmic grid used. " +
+                        "if specified a value <=1, then the power at every " +
+                        "radial frequency point will be calculated, " +
                         "i.e., using a even grid, which may be very slow " +
                         "for very large images!")
     parser.add_argument("-p", "--pixelsize", dest="pixelsize", type=float,
