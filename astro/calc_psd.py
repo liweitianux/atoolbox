@@ -53,7 +53,8 @@ class PSD:
         will be calculated for each averaged annulus.  If this option is
         ``True`` then calculate the mean and standard deviation instead.
     """
-    def __init__(self, image, pixel=(1.0, "pixel"), step=None, meanstd=False):
+    def __init__(self, image, pixel=(1.0, "pixel"), step=None,
+                 meanstd=False, bunit=None):
         self.image = np.array(image, dtype=float)
         self.shape = self.image.shape
         if self.shape[0] != self.shape[1]:
@@ -65,6 +66,7 @@ class PSD:
             raise ValueError("step must be greater than 1")
 
         self.meanstd = meanstd
+        self.bunit = bunit
 
     @property
     @lru_cache()
@@ -252,6 +254,11 @@ class PSD:
         else:
             label = "median"
             labelerr = "68% percentile range"
+        if self.bunit:
+            ylabel = r"Power [(%s)$^2$]" % self.bunit
+        else:
+            ylabel = "Power"
+
         yerr = np.row_stack((self.psd1d_errl, self.psd1d_erru))
         ax.errorbar(freqs, self.psd1d, yerr=yerr,
                     fmt="none", label=labelerr)
@@ -260,7 +267,7 @@ class PSD:
                xlim=(xmin, xmax), ylim=(ymin, ymax),
                title="Radial (Azimuthally Averaged) Power Spectral Density",
                xlabel=r"k [%s$^{-1}$]" % self.pixel[1],
-               ylabel="Power")
+               ylabel=ylabel)
         ax.legend()
 
         if self.pixel[1] != "pixel":
@@ -390,7 +397,8 @@ def main():
         else:
             raise ValueError("image has different unit: %s" % bunit2)
 
-    psd = PSD(image=image, pixel=pixel, step=args.step, meanstd=args.meanstd)
+    psd = PSD(image=image, pixel=pixel, step=args.step,
+              meanstd=args.meanstd, bunit=bunit)
     psd.calc_psd()
     psd.save(args.outfile)
 
