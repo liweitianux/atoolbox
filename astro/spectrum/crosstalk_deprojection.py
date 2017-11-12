@@ -4,7 +4,11 @@
 # 2016-03-26
 #
 # Change log:
-# 2017-11-12: Cleanups
+# 2017-11-12:
+#   * Various cleanups
+#   * Add 'info_emin' and 'info_emax' configuration options
+#   * Remove command line arguments
+#   * Add global configurations variable 'CONFIGS'
 # 2016-06-07:
 #   * Explain the errors/uncertainties calculation approach
 # 2016-04-20:
@@ -84,16 +88,23 @@ mode = both
 # supply a *groupped* spectrum (from which the "GROUPING" and "QUALITY"
 # are used to group all the following spectra)
 grouping = spec_grp.pi
-# whether to subtract the background before crosstalk correction
+# whether to subtract the background before crosstalk correction and
+# deprojection. (default: True)
 subtract_bkg = True
 # whether to fix the negative channel values due to spectral subtractions
+# (default: False)
 fix_negative = False
-# Monte Carlo times for spectral error estimation
+# Monte Carlo times for spectral error estimation (default: 5000)
 mc_times = 5000
-# show progress details and verbose information
+# show progress details and verbose information (default: True)
 verbose = True
-# overwrite existing files
+# overwrite existing files (default: False)
 clobber = False
+# energy band within which the spectral data changes (due to e.g.,
+# background subtraction, crosstalk correction) will be reported.
+# default: 0.5 - 7.0 keV
+info_emin = 0.5
+info_emax = 7.0
 
 # NOTE:
 # ONLY specifiy ONE set of projected spectra (i.e., from the same detector
@@ -143,7 +154,7 @@ from astropy.io import fits
 from configobj import ConfigObj
 
 
-__version__ = "0.5.5"
+__version__ = "0.5.6"
 __date__ = "2017-11-12"
 
 WARNING = """
@@ -153,6 +164,9 @@ therefore, take special care when interpretating the fitting results,
 especially the metal abundances and normalizations.
 ******************************************************************************
 """
+
+# Global configurations
+CONFIGS = {}
 
 
 def group_data(data, grouping):
@@ -479,8 +493,9 @@ class Spectrum:  # {{{
     spec_dtype = None
     spec_fits_format = None
 
-    def __init__(self, filename):
+    def __init__(self, filename, regid=None):
         self.filename = filename
+        self.regid = regid
         with fits.open(filename) as fitsobj:
             ext_spec = fitsobj["SPECTRUM"]
             self.header = ext_spec.header.copy(strip=True)
@@ -510,6 +525,12 @@ class Spectrum:  # {{{
         self.RESPFILE = self.header.get("RESPFILE")
         self.ANCRFILE = self.header.get("ANCRFILE")
         self.BACKFILE = self.header.get("BACKFILE")
+
+    def __str__(self):
+        if self.regid:
+            return self.regid
+        else:
+            return self.filename
 
     def get_data(self, group_squeeze=False, copy=True):
         """
@@ -740,8 +761,9 @@ class SpectrumSet(Spectrum):  # {{{
     _spec_dtype = np.float64
     _spec_fits_format = "D"
 
-    def __init__(self, filename, outfile=None, arf=None, rmf=None, bkg=None):
-        super().__init__(filename=filename)
+    def __init__(self, filename, regid=None, outfile=None,
+                 arf=None, rmf=None, bkg=None):
+        super().__init__(filename=filename, regid=regid)
         self.outfile = outfile
         # convert spectrum data type if necessary
         if self.spec_data.dtype != self._spec_dtype:
@@ -922,7 +944,12 @@ class SpectrumSet(Spectrum):  # {{{
                      (self.filename, ratio, self.bkg.filename))
         if verbose:
             print(operation, file=sys.stderr)
+        datasum1 = np.sum(self.spec_data)
         spec_data_subbkg = self.spec_data - ratio * self.bkg.get_data()
+        datasum2 = np.sum(spec_data_subbkg)
+        datacp = 100 * (datasum2-datasum1) / datasum1
+        print("[%s] bkg subtraction: %g -> %g (%.2f%%)" %
+              (str(self), datasum1, datasum2, datacp))
         if inplace:
             self.spec_data = spec_data_subbkg
             self.spec_bkg_subtracted = True
@@ -1456,16 +1483,6 @@ def calc_median_errors(results):
     upperpcs = results[int(mc_times * 0.8415)]
     errors = np.sqrt(0.5 * ((medians-lowerpcs)**2 + (upperpcs-medians)**2))
     return (medians, errors)
-
-
-def set_argument(name, default, cmdargs, config):
-    value = default
-    if name in config.keys():
-        value = config.as_bool(name)
-    value_cmd = vars(cmdargs)[name]
-    if value_cmd != default:
-        value = value_cmd  # command arguments overwrite others
-    return value
 # helper functions }}}
 
 
@@ -1780,57 +1797,68 @@ def main_crosstalk(config, subtract_bkg, fix_negative, mc_times,
 
 
 if __name__ == "__main__":
-    # arguments' default values
-    default_mode = "both"
-    default_mc_times = 5000
-    # commandline arguments parser
     parser = argparse.ArgumentParser(
             description="Correct the crosstalk effects for XMM EPIC spectra",
             epilog="Version: %s (%s)" % (__version__, __date__))
     parser.add_argument("config", help="config file in which describes " +
                         "the crosstalk relations ('ConfigObj' syntax)")
-    parser.add_argument("-m", "--mode", dest="mode", default=default_mode,
-            help="operation mode (both | crosstalk | deprojection)")
-    parser.add_argument("-B", "--no-subtract-bkg", dest="subtract_bkg",
-            action="store_false", help="do NOT subtract background first")
-    parser.add_argument("-N", "--fix-negative", dest="fix_negative",
-            action="store_true", help="fix negative channel values")
-    parser.add_argument("-M", "--mc-times", dest="mc_times",
-            type=int, default=default_mc_times,
-            help="Monte Carlo times for error estimation")
-    parser.add_argument("-C", "--clobber", dest="clobber",
-            action="store_true", help="overwrite output file if exists")
-    parser.add_argument("-v", "--verbose", dest="verbose",
-            action="store_true", help="show verbose information")
     args = parser.parse_args()
-    # merge commandline arguments and config
-    config       = ConfigObj(args.config)
-    subtract_bkg = set_argument("subtract_bkg", True,  args, config)
-    fix_negative = set_argument("fix_negative", False, args, config)
-    verbose      = set_argument("verbose",      False, args, config)
-    clobber      = set_argument("clobber",      False, args, config)
-    # operation mode
-    mode = config.get("mode", default_mode)
-    if args.mode != default_mode:
-        mode = args.mode
-    # Monte Carlo times
-    mc_times = config.as_int("mc_times")
-    if args.mc_times != default_mc_times:
-        mc_times = args.mc_times
+
+    configs = ConfigObj(args.config)
+    # Operation mode (default: both)
+    mode = configs.get("mode", "both")
+    CONFIGS.update(mode=mode)
+    # Monte Carlo times to estimate the errors (default: 5000 iterations)
+    mc_times = int(configs.get("mc_times", 5000))
+    CONFIGS.update(mc_times=mc_times)
+    # Whether to subtract background first (default: True)
+    try:
+        subtract_bkg = configs.as_bool("subtract_bkg")
+    except KeyError:
+        subtract_bkg = True
+    CONFIGS.update(subtract_bkg=subtract_bkg)
+    # Whether to fix the negative values after correction (default: False)
+    try:
+        fix_negative = configs.as_bool("fix_negative")
+    except KeyError:
+        fix_negative = False
+    CONFIGS.update(fix_negative=fix_negative)
+    # Whether to show verbose information (default: True)
+    try:
+        verbose = configs.as_bool("verbose")
+    except KeyError:
+        verbose = True
+    CONFIGS.update(verbose=verbose)
+    # Whether to overwrite existing output files (default: False)
+    try:
+        clobber = configs.as_bool("clobber")
+    except KeyError:
+        clobber = True
+    CONFIGS.update(clobber=clobber)
+    # Energy band within which to report the spectral data changes
+    # (default: 0.5-7.0 keV)
+    try:
+        info_emin = configs.as_float("info_emin")
+    except KeyError:
+        info_emin = 0.5
+    try:
+        info_emax = configs.as_float("info_emax")
+    except KeyError:
+        info_emax = 7.0
+    CONFIGS.update(info_emin=info_emin, info_emax=info_emax)
+
+    for k, v in CONFIGS:
+        print("* %s: %s" % (k, v))
 
     if mode.lower() == "both":
         print("MODE: CROSSTALK + DEPROJECTION", file=sys.stderr)
-        main(config, subtract_bkg=subtract_bkg, fix_negative=fix_negative,
-             mc_times=mc_times, verbose=verbose, clobber=clobber)
+        main(configs, **CONFIGS)
     elif mode.lower() == "deprojection":
         print("MODE: DEPROJECTION", file=sys.stderr)
-        main_deprojection(config, mc_times=mc_times,
-                          verbose=verbose, clobber=clobber)
+        main_deprojection(configs, **CONFIGS)
     elif mode.lower() == "crosstalk":
         print("MODE: CROSSTALK", file=sys.stderr)
-        main_crosstalk(config, subtract_bkg=subtract_bkg,
-                       fix_negative=fix_negative, mc_times=mc_times,
-                       verbose=verbose, clobber=clobber)
+        main_crosstalk(configs, **CONFIGS)
     else:
         raise ValueError("Invalid operation mode: %s" % mode)
     print(WARNING)
