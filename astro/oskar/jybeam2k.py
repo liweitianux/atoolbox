@@ -80,7 +80,7 @@ def main():
                 raise ValueError("--frequency required")
     print("Frequency: %.2f [MHz]" % freq)
 
-    # beam size
+    # Elliptical Gaussian beam (full width at half power; FWHP)
     bmajor = header["BMAJ"] * 3600  # [arcsec]
     bminor = header["BMIN"] * 3600  # [arcsec]
     beam = np.pi * bmajor*bminor / (4*np.log(2))  # [arcsec^2]

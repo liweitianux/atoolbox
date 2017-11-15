@@ -36,13 +36,14 @@ def wsclean(args, dryrun=False):
 def main():
     parser = argparse.ArgumentParser(
         description="Run WSClean with more handy arguments")
-    parser.add_argument("-n", "--dry-run", dest="dryrun", action="store_true",
-                        help="do not actually run WSClean")
     parser.add_argument("-a", "--args", dest="args",
-                        help="additional arguments for WSClean " +
-                        "(in a quoted string separated by space)")
+                        help="additional arguments for WSClean, " +
+                        "in a quoted string separated by space, e.g.," +
+                        "' -simulate-noise 0.001' (NOTE the beginning space!)")
     parser.add_argument("-d", "--dirty", dest="dirty", action="store_true",
                         help="only create dirty images (by setting niter=0)")
+    parser.add_argument("-n", "--dry-run", dest="dryrun", action="store_true",
+                        help="do not actually run WSClean")
     parser.add_argument("--update-model", dest="update_model",
                         action="store_true",
                         help="write/update the MODEL_DATA column in MS")
@@ -51,12 +52,13 @@ def main():
                         help="save gridded weights in <name>-weights.fits")
     parser.add_argument("--save-uv", dest="save_uv",
                         action="store_true",
-                        help="save gridded uv in <name>-uv-{real,imag}.fits")
+                        help="save gridded uv plane (i.e., FFT of the " +
+                        "residual image) in <name>-uv-{real,imag}.fits")
     parser.add_argument("--uv-range", dest="uv_range", default=":",
                         help="uv range [lambda] (i.e., baseline lengths) " +
                         "used for imaging; syntax: '<min>:<max>' " +
                         "(default: ':', i.e., all uv/baselines)")
-    parser.add_argument("-w", "--weight", dest="weight", default="briggs",
+    parser.add_argument("-w", "--weight", dest="weight", default="uniform",
                         choices=["uniform", "natural", "briggs"],
                         help="weighting method (default: 'briggs')")
     parser.add_argument("-B", "--briggs", dest="briggs",
@@ -64,9 +66,9 @@ def main():
                         help="Briggs robustness parameter (default: 0); " +
                         "-1 (uniform) -> 1 (natural)")
     parser.add_argument("-#", "--niter", dest="niter",
-                        type=int, default=100000,
+                        type=int, default=200000,
                         help="maximum number of CLEAN iterations " +
-                        "(default: 100,000)")
+                        "(default: 200,000)")
     parser.add_argument("--gain", dest="gain", type=float, default=0.1,
                         help="CLEAN gain for each minor iteration " +
                         "(default: 0.1)")
@@ -121,7 +123,7 @@ def main():
     elif args.weight == "briggs":
         cmdargs += ["-weight", "briggs", args.briggs]
     else:
-        cmdargs += ["-weight", args.weight]
+        cmdargs += ["-weight", args.weight]  # natural
     cmdargs += ["-gain", args.gain]
     cmdargs += ["-mgain", args.mgain]
     cmdargs += ["-size", args.size, args.size]
