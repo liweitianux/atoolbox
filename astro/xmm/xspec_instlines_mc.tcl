@@ -249,6 +249,7 @@ puts "Number of free parameters: [ llength $freeparameters ]"
 print_header $freeparameters $outfd
 
 puts "-----------------------------------------------------------------------"
+freeze_norms $gaussians
 set tstart [ clock seconds ]
 for {set i 0} {$i < $mc_times} {incr i} {
     puts -nonewline "... [ expr {$i + 1} ] / ${mc_times} ..."
@@ -261,14 +262,13 @@ for {set i 0} {$i < $mc_times} {incr i} {
         puts [ format " Elapsed %.1f min / ETA %.1f min ..." $elapsed $eta ]
     }
     randomize_norms $gaussians
-    freeze_norms $gaussians
     fit
     print_data $freeparameters $outfd
 }
 puts "-----------------------------------------------------------------------"
 set tnow [ clock seconds ]
 set elapsed [ expr {($tnow - $tstart) / 60.0} ]
-puts [ format "Total elapsed time: %.1f min" $elapsed ]
+puts [ format "Total Monte Carlo time: %.1f min" $elapsed ]
 
 close $outfd
 # Recover query and chatter level
