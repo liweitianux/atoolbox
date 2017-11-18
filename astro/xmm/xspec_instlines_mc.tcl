@@ -55,11 +55,11 @@ chatter 5
 
 # Name of this script
 set script_name "xspec_instlines_mc.tcl"
-set date_now [ clock format [ clock seconds ] -format %Y%m%d ]
+set time_now [ clock format [ clock seconds ] -format %Y%m%dT%H%M ]
 # Default output filename to store the Monte Carlo results
-set outfile_default "xspec_instlines_mc.${date_now}.csv"
+set outfile_default "xspec_instlines_mc.${time_now}.csv"
 # Default file to log the XSPEC messages (as the screen output is suppressed)
-set logfile_default "xspec_instlines_mc.${date_now}.log"
+set logfile_default "xspec_instlines_mc.${time_now}.log"
 # Default number of Monte Carlo times
 set mc_times_default 1000
 
@@ -69,9 +69,10 @@ set mc_times_default 1000
 
 # Save current XSPEC fitting results
 proc save_xspec {} {
-    set now [ clock format [ clock seconds ] -format %Y%m%d%H%M ]
-    set xspec_outfile "xspec_saveall.${now}.xcm"
+    global time_now
+    set xspec_outfile "xspec_saveall.${time_now}.xcm"
     save all $xspec_outfile
+    puts "XSPEC fitting results saved to: $xspec_outfile"
 }
 
 # Print the header line of the given parameters
