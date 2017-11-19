@@ -525,9 +525,8 @@ def main():
                         help="calculate the mean and standard deviation " +
                         "for each averaged annulus instead of the median " +
                         "16%% and 84%% percentiles (i.e., 68%% error)")
-    parser.add_argument("-P", "--plot", dest="plot",
-                        action="store_true",
-                        help="plot the 2D power spectrum and save")
+    parser.add_argument("-P", "--no-plot", dest="noplot", action="store_true",
+                        help="do NOT plot the 2D power spectrum and save")
     parser.add_argument("-p", "--pixelsize", dest="pixelsize", type=float,
                         help="spatial pixel size [arcsec] (required " +
                         "if cannot obtain from FITS header)")
@@ -580,7 +579,7 @@ def main():
     ps2d.calc_ps2d()
     ps2d.save(outfile=args.outfile, clobber=args.clobber)
 
-    if args.plot:
+    if not args.noplot:
         fig = Figure(figsize=(16, 8), dpi=150)
         FigureCanvas(fig)
         ax = fig.add_subplot(1, 2, 1)

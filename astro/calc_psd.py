@@ -339,8 +339,9 @@ def main():
     parser.add_argument("-C", "--clobber", dest="clobber", action="store_true",
                         help="overwrite the output files if already exist")
     parser.add_argument("-s", "--step", dest="step", type=float, default=1.1,
-                        help="step ratio (>1) between 2 consecutive radial " +
-                        "frequency points, i.e., a logarithmic grid used. " +
+                        help="step ratio (>1; default: 1.1) between 2 " +
+                        "consecutive radial frequency points, " +
+                        "i.e., a logarithmic grid used. " +
                         "if specified a value <=1, then the power at every " +
                         "radial frequency point will be calculated, " +
                         "i.e., using a even grid, which may be very slow " +
@@ -353,8 +354,8 @@ def main():
                         help="calculate the mean and standard deviation " +
                         "for each averaged annulus instead of the median " +
                         "16%% and 84%% percentiles (i.e., 68%% error)")
-    parser.add_argument("-P", "--plot", dest="plot", action="store_true",
-                        help="plot the PSD and save as a PNG image")
+    parser.add_argument("-P", "--no-plot", dest="noplot", action="store_true",
+                        help="do NOT plot the PSD and save")
     parser.add_argument("-i", "--infile", dest="infile", nargs="+",
                         help="input FITS image(s); if multiple images " +
                         "are provided, they are added first.")
@@ -362,15 +363,8 @@ def main():
                         help="output TXT file to save the PSD data")
     args = parser.parse_args()
 
-    if args.plot:
-        plotfile = os.path.splitext(args.outfile)[0] + ".png"
-
-    # Check output files whether already exists
     if (not args.clobber) and os.path.exists(args.outfile):
         raise OSError("outfile '%s' already exists" % args.outfile)
-    if args.plot:
-        if (not args.clobber) and os.path.exists(plotfile):
-            raise OSError("output plot file '%s' already exists" % plotfile)
 
     header, image = open_image(args.infile[0])
     bunit = header.get("BUNIT", "???")
@@ -404,14 +398,14 @@ def main():
     psd.calc_psd()
     psd.save(args.outfile)
 
-    if args.plot:
-        # Make and save a plot
-        fig = Figure(figsize=(8, 8))
+    if not args.noplot:
+        fig = Figure(figsize=(8, 8), dpi=150)
         FigureCanvas(fig)
         ax = fig.add_subplot(1, 1, 1)
         psd.plot(ax=ax)
         fig.tight_layout()
-        fig.savefig(plotfile, format="png", dpi=150)
+        plotfile = os.path.splitext(args.outfile)[0] + ".png"
+        fig.savefig(plotfile)
         print("Plotted PSD and saved to image: %s" % plotfile)
 
 
