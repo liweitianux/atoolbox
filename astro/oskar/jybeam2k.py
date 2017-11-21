@@ -42,16 +42,49 @@ def open_image(infile):
     return (header, data)
 
 
+def calc_beam_size(header):
+    """
+    Calculate the beam/PSF size using the 'WSCNORMF' keyword recorded by
+    the WSClean imager, which applies to the natural-weighted image, and
+    is more accurate than the fitted beam (stored as 'BMAJ' and 'BMIN'.)
+    """
+    try:
+        weight = header["WSCWEIGH"]
+        normf = header["WSCNORMF"]
+        print("WSCWEIGH: %s" % weight)
+        print("WSCNORMF: %.1f" % normf)
+    except KeyError:
+        raise RuntimeError("NO necessary WSC* keyword; switch to " +
+                           "--use-fitted-beam instead")
+    if weight.upper() != "NATURAL":
+        print("WARNING: weighting scheme is '%s' != natural!" % weight)
+    width = header["NAXIS1"]
+    height = header["NAXIS2"]
+    pixelsize = np.abs(header["CDELT1"]) * 3600  # [arcsec]
+    print("Image: %dx%d, %.1f [arcsec/pixel]" % (width, height, pixelsize))
+    beam_size = (width*height * pixelsize**2) / normf
+    return beam_size
+
+
 def main():
     parser = argparse.ArgumentParser(
-        description="Convert image unit from [Jy/beam] to [K]")
+        description="Convert WSClean created image from [Jy/beam] to [K]",
+        epilog=("By default the 'WSCNORMF' keyword is taken to derive " +
+                "the beam/PSF size for natural-weighted image created " +
+                "by WSClean, which is more accurate than the fitted " +
+                "beam stored as 'BMAJ' and 'BMIN'."))
     parser.add_argument("-C", "--clobber", dest="clobber",
                         action="store_true",
                         help="overwrite existing output file")
-    parser.add_argument("-b", "--beam", dest="beam", type=float,
+    parser.add_argument("-B", "--use-fitted-beam", dest="use_fitted_beam",
+                        action="store_true",
+                        help="use the fitted beam (i.e., BMAJ and BMIN) " +
+                        "or the beam size specified by --beam-size.")
+    parser.add_argument("-b", "--beam-size", dest="beam_size", type=float,
                         help="instrumental beam size [arcsec^2] " +
                         "(=pi*bmajor*bminor/4/ln(2)) (default: obtain " +
-                        "from the header BMAJ and BMIN keywords)")
+                        "from the header BMAJ and BMIN keywords); this " +
+                        "argument also implies --use-fitted-beam")
     parser.add_argument("-f", "--frequency", dest="frequency",
                         help="frequency [MHz] of the input image (NOTE: " +
                         "required if failed to obtain from the header)")
@@ -85,16 +118,19 @@ def main():
     print("Frequency: %.2f [MHz]" % freq)
 
     # Elliptical Gaussian beam (full width at half power; FWHP)
-    if args.beam:
-        beam = args.beam
-    else:
+    if args.beam_size:
+        beam_size = args.beam_size
+    elif args.use_fitted_beam:
         bmajor = header["BMAJ"] * 3600  # [arcsec]
         bminor = header["BMIN"] * 3600  # [arcsec]
-        beam = np.pi * bmajor*bminor / (4*np.log(2))  # [arcsec^2]
+        beam_size = np.pi * bmajor*bminor / (4*np.log(2))  # [arcsec^2]
         print("Beam: (%.2f, %.2f) [arcsec]" % (bmajor, bminor))
-    print("Beam size: %.2f [arcsec^2]" % beam)
+    else:
+        # Derive beam size using 'WSCNORMF' keyword
+        beam_size = calc_beam_size(header)
+    print("Beam size: %.2f [arcsec^2]" % beam_size)
 
-    equiv = au.brightness_temperature(beam*au.arcsec**2, freq*au.MHz)
+    equiv = au.brightness_temperature(beam_size*au.arcsec**2, freq*au.MHz)
     jybeam2k = au.Unit(unit).to(au.K, equivalencies=equiv)
     print("Conversion factor [%s/beam] -> [K]: %g" % (unit, jybeam2k))
 
