@@ -54,13 +54,17 @@ def main():
                         action="store_true",
                         help="save gridded uv plane (i.e., FFT of the " +
                         "residual image) in <name>-uv-{real,imag}.fits")
+    parser.add_argument("--circular-beam", dest="circular_beam",
+                        action="store_true",
+                        help="force the fitted beam to be circular, i.e., " +
+                        "BMIN == BMAJ")
     parser.add_argument("--uv-range", dest="uv_range", default=":",
                         help="uv range [lambda] (i.e., baseline lengths) " +
                         "used for imaging; syntax: '<min>:<max>' " +
                         "(default: ':', i.e., all uv/baselines)")
     parser.add_argument("-w", "--weight", dest="weight", default="uniform",
                         choices=["uniform", "natural", "briggs"],
-                        help="weighting method (default: 'briggs')")
+                        help="weighting method (default: 'uniform')")
     parser.add_argument("-B", "--briggs", dest="briggs",
                         type=float, default=0.0,
                         help="Briggs robustness parameter (default: 0); " +
@@ -142,6 +146,8 @@ def main():
         cmdargs += ["-saveweights"]
     if args.save_uv:
         cmdargs += ["-saveuv"]
+    if args.circular_beam:
+        cmdargs += ["-circularbeam"]
 
     # uv/baseline range
     uvmin, uvmax = args.uv_range.strip().split(":")
