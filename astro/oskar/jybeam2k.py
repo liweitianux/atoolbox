@@ -48,9 +48,13 @@ def main():
     parser.add_argument("-C", "--clobber", dest="clobber",
                         action="store_true",
                         help="overwrite existing output file")
+    parser.add_argument("-b", "--beam", dest="beam", type=float,
+                        help="instrumental beam size [arcsec^2] " +
+                        "(=pi*bmajor*bminor/4/ln(2)) (default: obtain " +
+                        "from the header BMAJ and BMIN keywords)")
     parser.add_argument("-f", "--frequency", dest="frequency",
                         help="frequency [MHz] of the input image (NOTE: " +
-                        "required if cannot get frequency from file header)")
+                        "required if failed to obtain from the header)")
     parser.add_argument("infile",
                         help="input FITS image file (NOTE: only single " +
                         "frequency supported)")
@@ -81,11 +85,14 @@ def main():
     print("Frequency: %.2f [MHz]" % freq)
 
     # Elliptical Gaussian beam (full width at half power; FWHP)
-    bmajor = header["BMAJ"] * 3600  # [arcsec]
-    bminor = header["BMIN"] * 3600  # [arcsec]
-    beam = np.pi * bmajor*bminor / (4*np.log(2))  # [arcsec^2]
-    print("Beam area: %.2f [arcsec^2] (major: %.2f, minor: %.2f)" %
-          (beam, bmajor, bminor))
+    if args.beam:
+        beam = args.beam
+    else:
+        bmajor = header["BMAJ"] * 3600  # [arcsec]
+        bminor = header["BMIN"] * 3600  # [arcsec]
+        beam = np.pi * bmajor*bminor / (4*np.log(2))  # [arcsec^2]
+        print("Beam: (%.2f, %.2f) [arcsec]" % (bmajor, bminor))
+    print("Beam size: %.2f [arcsec^2]" % beam)
 
     equiv = au.brightness_temperature(beam*au.arcsec**2, freq*au.MHz)
     jybeam2k = au.Unit(unit).to(au.K, equivalencies=equiv)
