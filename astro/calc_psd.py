@@ -57,6 +57,8 @@ class PSD:
     def __init__(self, image, pixel=(1.0, "pixel"), step=1.1,
                  meanstd=False, bunit=None):
         self.image = np.array(image, dtype=float)
+        if image.ndim != 2:
+            raise ValueError("input image is not 2D!")
         self.shape = self.image.shape
         if self.shape[0] != self.shape[1]:
             raise ValueError("input image is not square!")
@@ -338,6 +340,9 @@ def main():
             description="Calculate radial power spectral density")
     parser.add_argument("-C", "--clobber", dest="clobber", action="store_true",
                         help="overwrite the output files if already exist")
+    parser.add_argument("-c", "--center", dest="center", type=int,
+                        help="crop the central box region of specified " +
+                        "size before calculating the power spectrum")
     parser.add_argument("-s", "--step", dest="step", type=float, default=1.1,
                         help="step ratio (>1; default: 1.1) between 2 " +
                         "consecutive radial frequency points, " +
@@ -392,6 +397,16 @@ def main():
             image += image2
         else:
             raise ValueError("image has different unit: %s" % bunit2)
+
+    if args.center:
+        csize = args.center
+        if csize >= min(image.shape):
+            raise ValueError("--center %d exceeds image size" % csize)
+        rows, cols = image.shape
+        rc, cc = rows//2, cols//2
+        cs1, cs2 = csize//2, (csize+1)//2
+        image = image[(rc-cs1):(rc+cs2), (cc-cs1):(cc+cs2)]
+        print("Cropped image with central box of size: %dx%d" % image.shape)
 
     psd = PSD(image=image, pixel=pixel, step=args.step,
               meanstd=args.meanstd, bunit=bunit)
