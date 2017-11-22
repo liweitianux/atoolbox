@@ -314,6 +314,13 @@ def main():
         lightcone.set_slice(idx, data)
     lightcone.write()
 
+    logger.warning("*******************************************************")
+    logger.warning("The implemented method to make the lightcone cube seems")
+    logger.warning("WRONG!  The derived results is VERY DIFFERENT to")
+    logger.warning("Mesinger et al. (2016, MNRAS, 459, 2342)!  A careful")
+    logger.warning("examination and rewrite is necessary!")
+    logger.warning("*******************************************************")
+
 
 if __name__ == "__main__":
     main()
