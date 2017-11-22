@@ -161,7 +161,7 @@ class SkyModel:
         flux : source (Stokes I) flux density (Jy)
         """
         if self.mask is None:
-            self.mask = self.image >= self.minvalue
+            self.mask = np.abs(self.image) >= self.minvalue
             logger.info("Use minimum threshold to determine output sky")
         else:
             logger.info("Use provided mask to determine output sky")
