@@ -78,7 +78,8 @@ def main():
     Nside2 = round(Nside * args.fov / fov_in)
     img2 = img_tiled[:Nside2, :Nside2]
     # Rescale to the output size
-    img_out = scipy.ndimage.zoom(img2, zoom=args.Nside/Nside2, order=1)
+    zoom = (args.Nside + 0.1) / Nside2  # +0.1 to workaround the scipy warning
+    img_out = scipy.ndimage.zoom(img2, zoom=zoom, order=1)
     # Record information to header
     header["Z_C"] = (zc, "Central redshift")
     header["FREQ_C"] = (fc, "[MHz] Frequency w.r.t. to central redshift")
