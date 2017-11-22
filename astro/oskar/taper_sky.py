@@ -23,8 +23,9 @@ from scipy import interpolate
 import astropy.io.fits as fits
 
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(os.path.basename(sys.argv[0]))
+logging.basicConfig(level=logging.INFO,
+                    format="[%(levelname)s:%(lineno)d] %(message)s")
+logger = logging.getLogger()
 
 
 def make2d(w1d, x=None):

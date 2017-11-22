@@ -21,7 +21,7 @@ def main():
     parser.add_argument("infiles", nargs="+", help="input data cubes")
     args = parser.parse_args()
 
-    print("# filename: mean side_length")
+    print("# filename:\t\t mean\t Nside(cubic)")
     for f in args.infiles:
         cube = np.fromfile(open(f, "rb"), dtype=args.dtype)
         sidelen = round(cube.shape[0] ** (1.0/3))
