@@ -37,8 +37,7 @@ from astropy.wcs import WCS
 
 
 logging.basicConfig(level=logging.INFO,
-                    format="%(asctime)s [%(levelname)s] %(message)s",
-                    datefmt="%H:%M:%S")
+                    format="[%(levelname)s:%(lineno)d] %(message)s")
 logger = logging.getLogger(os.path.basename(sys.argv[0]))
 
 

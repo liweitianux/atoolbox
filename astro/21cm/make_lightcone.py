@@ -76,7 +76,8 @@ from astropy.cosmology import FlatLambdaCDM
 from astropy.wcs import WCS
 
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO,
+                    format="[%(levelname)s:%(lineno)d] %(message)s")
 logger = logging.getLogger()
 
 
