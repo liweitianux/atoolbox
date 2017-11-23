@@ -125,6 +125,9 @@ class SkyModel:
         header["RA0"] = (self.ra0, "Center R.A. [deg]")
         header["DEC0"] = (self.dec0, "Center Dec. [deg]")
         header["PixSize"] = (self.pixelsize, "Pixel size [arcsec]")
+        header["K2JyPix"] = (self.factor_K2JyPixel, "[K] -> [Jy/pixel]")
+        header["MINVALUE"] = (self.minvalue, "[K] minimum threshold")
+        header["MAXVALUE"] = (self.maxvalue, "[K] maximum threshold")
         return header
 
     @property
@@ -155,6 +158,21 @@ class SkyModel:
         return (ra, dec)
 
     @property
+    def mask(self):
+        if self._mask is None:
+            self._mask = ((np.abs(self.image) >= self.minvalue) &
+                          (np.abs(self.image) <= self.maxvalue))
+            logger.info("Use minimum and maximum thresholds: [%.4e, %.4e]" %
+                        (self.minvalue, self.maxvalue))
+        return self._mask
+
+    @mask.setter
+    def mask(self, value):
+        if (value is not None) and (value.shape != self.image.shape):
+            raise ValueError("mask shape does match image!")
+        self._mask = value
+
+    @property
     def sky(self):
         """
         OSKAR sky model array converted from the input image.
@@ -165,13 +183,6 @@ class SkyModel:
         dec : (J2000) declination (deg)
         flux : source (Stokes I) flux density (Jy)
         """
-        if self.mask is None:
-            self.mask = ((np.abs(self.image) >= self.minvalue) &
-                         (np.abs(self.image) <= self.maxvalue))
-            logger.info("Use minimum and maximum thresholds: [%.4e, %.4e]" %
-                        (self.minvalue, self.maxvalue))
-        else:
-            logger.info("Use provided mask to determine output sky")
         idx = self.mask.flatten()
         ra, dec = self.ra_dec
         ra = ra.flatten()[idx]
@@ -192,6 +203,7 @@ class SkyModel:
         logger.info("Source counts: %d (%.1f%%)" % (counts, percent))
         header = ("Frequency = %.3f [MHz]\n" % self.freq +
                   "Pixel size = %.2f [arcsec]\n" % self.pixelsize +
+                  "K2JyPixel = %.2f\n" % self.factor_K2JyPixel +
                   "RA0 = %.4f [deg]\n" % self.ra0 +
                   "Dec0 = %.4f [deg]\n" % self.dec0 +
                   "Minimum value = %.4e [K]\n" % self.minvalue +
@@ -213,7 +225,7 @@ class SkyModel:
         header.add_history(datetime.now().isoformat())
         header.add_history(" ".join(sys.argv))
         image = self.image
-        image[image < self.minvalue] = np.nan
+        image[~self.mask] = np.nan
         image *= self.factor_K2JyPixel
         hdu = fits.PrimaryHDU(data=image, header=header)
         try:
