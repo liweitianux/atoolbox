@@ -9,10 +9,11 @@ Convert a FITS image to OSKAR sky model for simulation usage.
 
 NOTE
 ----
-The OSKAR sky model consists of all the valid (>threshold) pixels
-from the given image (slice), and fluxes are given in unit [Jy],
-therefore, the input image should be converted from brightness
-temperature [K] to unit [Jy/pixel].
+The OSKAR sky model consists of all the valid pixels (with absolute
+values within the specified minimum and maximum thresholds) from
+the given image (i.e., slice at a frequency channel), and fluxes
+are given in unit [Jy], therefore, the input image should be converted
+from brightness temperature [K] to unit [Jy/pixel].
 
 References
 ----------
@@ -57,24 +58,28 @@ class SkyModel:
     ra0, dec0 : float
         The coordinate of the image center; unit [deg]
     minvalue : float, optional
-        The minimum threshold for the image values
+        The minimum threshold for the image absolute values
+    maxvalue : float, optional
+        The maximum threshold for the image absolute values
     mask : 2D bool `~numpy.ndarray`, optional
         Use this mask to select the sources of the output sky model,
-        instead of the above ``minvalue``.
-        NOTE: this overwrite the above ``minvalue`` if provided.
+        instead of the above ``minvalue`` and ``maxvalue``.
+        NOTE: Will overwrite the above ``minvalue`` and ``maxvalue``.
     projection : str, optional
         The WCS projection for the image;
         Default: "CAR" (Cartesian)
         TODO: support "SIN" etc.
     """
     def __init__(self, image, freq, pixelsize, ra0, dec0,
-                 minvalue=1e-4, mask=None, projection="CAR"):
+                 minvalue=1e-4, maxvalue=np.inf, mask=None,
+                 projection="CAR"):
         self.image = image  # [K] (brightness temperature)
         self.freq = freq  # [MHz]
         self.pixelsize = pixelsize  # [arcsec]
         self.ra0 = ra0  # [deg]
         self.dec0 = dec0  # [deg]
         self.minvalue = minvalue
+        self.maxvalue = maxvalue
         self.mask = mask
         self.projection = projection
         logger.info("SkyModel: Loaded image @ %.2f [MHz], " % freq +
@@ -125,7 +130,7 @@ class SkyModel:
     @property
     def factor_K2JyPixel(self):
         """
-        Conversion factor to convert brightness unit from 'K' to 'Jy/pixel'
+        Conversion factor from [K] to [Jy/pixel]
         """
         pixarea = (self.pixelsize * au.arcsec) ** 2
         freq = self.freq * au.MHz
@@ -161,8 +166,10 @@ class SkyModel:
         flux : source (Stokes I) flux density (Jy)
         """
         if self.mask is None:
-            self.mask = np.abs(self.image) >= self.minvalue
-            logger.info("Use minimum threshold to determine output sky")
+            self.mask = ((np.abs(self.image) >= self.minvalue) &
+                         (np.abs(self.image) <= self.maxvalue))
+            logger.info("Use minimum and maximum thresholds: [%.4e, %.4e]" %
+                        (self.minvalue, self.maxvalue))
         else:
             logger.info("Use provided mask to determine output sky")
         idx = self.mask.flatten()
@@ -188,8 +195,10 @@ class SkyModel:
                   "RA0 = %.4f [deg]\n" % self.ra0 +
                   "Dec0 = %.4f [deg]\n" % self.dec0 +
                   "Minimum value = %.4e [K]\n" % self.minvalue +
+                  "Maximum value = %.4e [K]\n" % self.maxvalue +
                   "Source counts = %d (%.1f%%)\n\n" % (counts, percent) +
                   "R.A.[deg]    Dec.[deg]    flux[Jy]")
+        logger.info("Writing sky model ...")
         np.savetxt(outfile, sky, fmt='%.10e, %.10e, %.10e', header=header)
         logger.info("Wrote OSKAR sky model to file: %s" % outfile)
 
@@ -246,17 +255,17 @@ def main():
     parser.add_argument("-f", "--freq", dest="freq", type=float,
                         help="frequency [MHz] the image measured; " +
                         "(default: obtain from the FITS header 'FREQ')")
-    exgrp = parser.add_mutually_exclusive_group()
-    exgrp.add_argument("-m", "--min-value", dest="minvalue", type=float,
-                       help="minimum threshold to the output sky model; " +
-                       "unit: [K]; (default: 1e-4, i.e., 0.1 mK)")
-    exgrp.add_argument("-M", "--min-peak-fraction", dest="minpfrac",
-                       type=float,
-                       help="minimum threshold determined as the fraction " +
-                       "the peak value to the output sky model")
-    exgrp.add_argument("--mask", dest="mask",
-                       help="use a mask to determine the output sky model")
-    #
+    parser.add_argument("-m", "--min-value", dest="minvalue",
+                        type=float, default=1e-4,
+                        help="[K] minimum threshold to the output sky model " +
+                        "(default: 1e-4, i.e., 0.1 mK)")
+    parser.add_argument("-M", "--max-value", dest="maxvalue",
+                        type=float, default=np.inf,
+                        help="[K] maximum threshold to the output sky model " +
+                        "(default: inf)")
+    parser.add_argument("--mask", dest="mask",
+                        help="use a mask to determine the output sky model " +
+                        "(NOTE: will override --min-value and --max-value)")
     parser.add_argument("-F", "--osm-fits", dest="osmfits",
                         action="store_true",
                         help="save a FITS version of the converted sky model")
@@ -300,17 +309,15 @@ def main():
         pixelsize = header["PixSize"]  # [arcsec]
     logger.info("Frequency: %.2f [MHz]" % freq)
     logger.info("Pixel size: %.2f [arcsec]" % pixelsize)
-    minvalue = 1e-4  # i.e., 0.1 [mK]
-    mask = None
-    if args.minvalue:
-        minvalue = args.minvalue
-    if args.minpfrac:
-        minvalue = args.minpfrac * image.max()
     if args.mask:
         mask = fits.open(args.mask)[0].data.astype(np.bool)
-    logger.info("Minimum threshold: %g [K]" % minvalue)
+        logger.info("Loaded sky mask from file: %s" % args.mask)
+    else:
+        mask = None
+        logger.info("Threshold: %g - %g [K]" % (args.minvalue, args.maxvalue))
     skymodel = SkyModel(image=image, freq=freq, ra0=args.ra0, dec0=args.dec0,
-                        pixelsize=pixelsize, minvalue=minvalue, mask=mask)
+                        pixelsize=pixelsize, minvalue=args.minvalue,
+                        maxvalue=args.maxvalue, mask=mask)
     logger.info("Conversion [K] -> [Jy/pixel]: %g" % skymodel.factor_K2JyPixel)
     skymodel.write_sky_model(outfile, clobber=args.clobber)
     if args.osmfits:
