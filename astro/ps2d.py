@@ -126,11 +126,9 @@ class PS2D:
     window_name : str, optional
         if specified, taper the cube along the frequency axis using the
         specified window.
-    window_width : str, optional
-        if ``extended`` then use the extended window instead.
     """
     def __init__(self, cube, pixelsize, frequencies, meanstd=False,
-                 unit="???", window_name=None, window_width=None):
+                 unit="???", window_name=None):
         logger.info("Initializing PS2D instance ...")
         self.cube = np.array(cube, dtype=float)
         self.pixelsize = pixelsize  # [arcsec]
@@ -160,10 +158,9 @@ class PS2D:
         self.DMz = cosmo.comoving_transverse_distance(self.zc).value
         self.meanstd = meanstd
         self.window_name = window_name
-        self.window_width = window_width
-        self.window = self.gen_window(name=window_name, width=window_width)
+        self.window = self.gen_window(name=window_name)
 
-    def gen_window(self, name=None, width=None):
+    def gen_window(self, name=None):
         if name is None:
             return None
 
@@ -171,17 +168,7 @@ class PS2D:
         nfreq = self.nfreq
         window = window_func(nfreq, sym=False)
         width_pix = self.nfreq
-        if width == "extended":
-            ex = 1.0 / (window.sum() / nfreq)
-            width_pix = int(ex * nfreq)
-            window = window_func(width_pix, sym=False)
-            # cut the filter
-            midx = int(len(window) / 2)  # index of the peak element
-            nleft = int(nfreq / 2)  # number of element on the left
-            nright = int((nfreq-1) / 2)  # number of element on the right
-            window = window[(midx-nleft):(midx+nright+1)]
-
-        logger.info("Generated window: %s (%s/%d)" % (name, width, width_pix))
+        logger.info("Generated window: %s (%d pixels)" % (name, width_pix))
         return window
 
     def calc_ps3d(self):
@@ -477,7 +464,6 @@ class PS2D:
             hdr["AvgType"] = ("median + 68% percentile range", "average type")
 
         hdr["WINDOW"] = (self.window_name, "window applied along LoS")
-        hdr["WinWidth"] = (self.window_width, "window width")
 
         # Physical coordinates: IRAF LTM/LTV
         # Li{Image} = LTMi_i * Pi{Physical} + LTVi
@@ -534,10 +520,6 @@ def main():
                         choices=["nuttall"],
                         help="apply window along frequency axis " +
                         "(default: None)")
-    parser.add_argument("--window-width", dest="window_width",
-                        choices=["extended"],
-                        help="width of the window to adjust its shape " +
-                        "(default: None, i.e., standard)")
     parser.add_argument("-i", "--infile", dest="infile", nargs="+",
                         help="input FITS image cube(s); if multiple cubes " +
                         "are provided, they are added first.")
@@ -573,8 +555,7 @@ def main():
         raise RuntimeError("--pixelsize required")
 
     ps2d = PS2D(cube=cube, pixelsize=pixelsize, frequencies=frequencies,
-                meanstd=args.meanstd, unit=bunit,
-                window_name=args.window, window_width=args.window_width)
+                meanstd=args.meanstd, unit=bunit, window_name=args.window)
     ps2d.calc_ps3d()
     ps2d.calc_ps2d()
     ps2d.save(outfile=args.outfile, clobber=args.clobber)
