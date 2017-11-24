@@ -206,6 +206,9 @@ def main():
         # Remove the output "-image" since it is identical to "-dirty"
         os.remove(nameprefix+"-image.fits")
 
+    if logfile:
+        logfile.close()
+
 
 if __name__ == "__main__":
     main()

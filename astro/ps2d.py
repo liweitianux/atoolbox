@@ -50,9 +50,8 @@ from matplotlib.figure import Figure
 plt.style.use("ggplot")
 
 logging.basicConfig(level=logging.INFO,
-                    format="%(asctime)s [%(levelname)s] %(message)s",
-                    datefmt="%H:%M:%S")
-logger = logging.getLogger(os.path.basename(sys.argv[0]))
+                    format="[%(levelname)s:%(lineno)d] %(message)s")
+logger = logging.getLogger()
 
 
 # HI line frequency
