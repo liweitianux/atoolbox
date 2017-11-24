@@ -507,6 +507,11 @@ def main():
     parser.add_argument("-C", "--clobber", dest="clobber",
                         action="store_true",
                         help="overwrite existing file")
+    parser.add_argument("-c", "--center", dest="center", type=int,
+                        help="crop the central box region of specified " +
+                        "size before calculating the power spectrum; " +
+                        "only crop the spatial dimensions, while " +
+                        "the frequency axis is unmodified.")
     parser.add_argument("-m", "--mean-std", dest="meanstd",
                         action="store_true",
                         help="calculate the mean and standard deviation " +
@@ -531,6 +536,7 @@ def main():
     with fits.open(args.infile[0]) as f:
         cube = f[0].data
         header = f[0].header
+    logger.info("Cube shape: %dx%dx%d" % cube.shape)
     bunit = header.get("BUNIT", "???")
     logger.info("Cube data unit: %s" % bunit)
     if bunit.upper() not in ["K", "KELVIN", "MK"]:
@@ -546,6 +552,17 @@ def main():
             cube += cube2
         else:
             raise ValueError("cube has different unit: %s" % bunit2)
+
+    if args.center:
+        csize = args.center
+        if csize >= min(cube.shape[1:]):
+            raise ValueError("--center %d exceeds image size" % csize)
+        logger.info("Central spatial crop box size: %dx%d" % (csize, csize))
+        rows, cols = cube.shape[1:]
+        rc, cc = rows//2, cols//2
+        cs1, cs2 = csize//2, (csize+1)//2
+        cube = cube[:, (rc-cs1):(rc+cs2), (cc-cs1):(cc+cs2)]
+        logger.info("Cropped cube shape: %dx%dx%d" % cube.shape)
 
     frequencies = get_frequencies(header)
     if args.pixelsize:
