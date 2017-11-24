@@ -274,6 +274,7 @@ class PS2D:
         mappable = ax.pcolormesh(x[1:], y[1:],
                                  np.log10(self.ps2d[0, 1:, 1:]),
                                  cmap=colormap)
+        vmin, vmax = mappable.get_clim()
         ax.set(xscale="log", yscale="log",
                xlim=(x[1], x[-1]), ylim=(y[1], y[-1]),
                xlabel=r"k$_{\perp}$ [Mpc$^{-1}$]",
@@ -287,6 +288,7 @@ class PS2D:
         mappable = ax_err.pcolormesh(x[1:], y[1:],
                                      np.log10(error[1:, 1:]),
                                      cmap=colormap)
+        mappable.set_clim(vmin, vmax)
         ax_err.set(xscale="log", yscale="log",
                    xlim=(x[1], x[-1]), ylim=(y[1], y[-1]),
                    xlabel=r"k$_{\perp}$ [Mpc$^{-1}$]",
