@@ -11,26 +11,46 @@
 
 
 import os
+import sys
 import re
 import argparse
 import subprocess
 import time
 
 
-def wsclean(args, dryrun=False):
+def printlog(msg, logfile=None, **kwargs):
+    if logfile:
+        files = [sys.stdout, logfile]
+    else:
+        files = [sys.stdout]
+    for f in files:
+        print(msg, file=f, **kwargs)
+
+
+def wsclean(args, dryrun=False, logfile=None):
     # NOTE: Convert all arguments to strings
     cmd = ["wsclean"] + [str(arg) for arg in args]
-    print("CMD: %s" % " ".join(cmd))
+    printlog("CMD: %s" % " ".join(cmd), logfile=logfile)
     if dryrun:
         print(">>> DRY RUN MODE <<<")
         return
 
     t1 = time.perf_counter()
-    subprocess.check_call(cmd)
+    with subprocess.Popen(cmd, stdout=subprocess.PIPE,
+                          stderr=subprocess.STDOUT,
+                          universal_newlines=True) as proc:
+        for line in proc.stdout:
+            printlog(line.strip(), logfile=logfile)
+        retcode = proc.wait()
+        if retcode:
+            raise subprocess.CalledProcessError(retcode, cmd)
     t2 = time.perf_counter()
-    print("-----------------------------------------------------------")
-    print("WSClean Elapsed time: %.1f [min]" % ((t2-t1)/60))
-    print("-----------------------------------------------------------")
+    printlog("-----------------------------------------------------------",
+             logfile=logfile)
+    printlog("WSClean Elapsed time: %.1f [min]" % ((t2-t1)/60),
+             logfile=logfile)
+    printlog("-----------------------------------------------------------",
+             logfile=logfile)
 
 
 def main():
@@ -174,7 +194,13 @@ def main():
     cmdargs += ["-name", nameprefix]
     cmdargs += args.ms
 
-    wsclean(cmdargs, dryrun=args.dryrun)
+    if args.dryrun:
+        logfile = None
+    else:
+        logfilename = nameprefix + "-wsclean.log"
+        logfile = open(logfilename, "w")
+        logfile.write(" ".join(sys.argv) + "\n")
+    wsclean(cmdargs, dryrun=args.dryrun, logfile=logfile)
 
     if args.dirty and not args.dryrun:
         # Remove the output "-image" since it is identical to "-dirty"
