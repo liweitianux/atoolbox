@@ -16,6 +16,7 @@ import re
 import argparse
 import subprocess
 import time
+import tempfile
 
 
 def printlog(msg, logfile=None, **kwargs):
@@ -28,11 +29,24 @@ def printlog(msg, logfile=None, **kwargs):
 
 
 def wsclean(args, dryrun=False, logfile=None):
-    # NOTE: Convert all arguments to strings
-    cmd = ["wsclean"] + [str(arg) for arg in args]
+    """
+    Run the WSClean imager with the provided arguments.
+
+    All the WSClean output is also captured and tee'd into a log file if
+    specified. However, the finer progress report of WSClean does not work
+    due to the buffered I/O ...
+
+    A randomly generated temporary directory is specified, to avoid the
+    conflict when running multiple WSClean's on the same MeasurementSet.
+    """
+    tmpdir = tempfile.TemporaryDirectory()
+    cmd = [
+        "wsclean", "-tempdir", tmpdir.name,
+    ] + [str(arg) for arg in args]  # NOTE: Convert all arguments to strings
     printlog("CMD: %s" % " ".join(cmd), logfile=logfile)
     if dryrun:
         print(">>> DRY RUN MODE <<<")
+        tmpdir.cleanup()
         return
 
     t1 = time.perf_counter()
@@ -51,6 +65,7 @@ def wsclean(args, dryrun=False, logfile=None):
              logfile=logfile)
     printlog("-----------------------------------------------------------",
              logfile=logfile)
+    tmpdir.cleanup()
 
 
 def main():
@@ -133,7 +148,6 @@ def main():
         "-log-time",
         "-pol", "XX",  # OSKAR "Scalar" simulation only give "XX" component
         "-make-psf",  # always make the PSF, even no cleaning performed
-        "-tempdir", "/tmp",
     ]
 
     if args.dirty:
