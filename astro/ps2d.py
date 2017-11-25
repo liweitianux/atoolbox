@@ -533,6 +533,9 @@ def main():
                         help="output 2D power spectrum FITS file")
     args = parser.parse_args()
 
+    if (not args.clobber) and os.path.exists(args.outfile):
+        raise OSError("outfile '%s' already exists" % args.outfile)
+
     with fits.open(args.infile[0]) as f:
         cube = f[0].data
         header = f[0].header
