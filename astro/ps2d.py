@@ -339,9 +339,8 @@ class PS2D:
         Reference: Ref.[liu2014].Eq.(A9)
         """
         dfreq = self.dfreq  # [MHz]
-        c = ac.c.si.value  # [m/s]
-        Ez = cosmo.efunc(self.zc)
-        Hz = Ez * H0 * 1000.0  # [m/s/Mpc]
+        c = ac.c.to("km/s").value  # [km/s]
+        Hz = cosmo.H(self.zc).value  # [km/s/Mpc]
         d_z = c * (1+self.zc)**2 * dfreq / Hz / freq21cm
         return d_z
 
