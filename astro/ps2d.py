@@ -42,12 +42,25 @@ from astropy.io import fits
 from astropy.cosmology import FlatLambdaCDM
 import astropy.constants as ac
 
-import matplotlib.pyplot as plt
+import matplotlib
+import matplotlib.style
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 from matplotlib.figure import Figure
 
 
-plt.style.use("ggplot")
+# Matplotlib settings
+matplotlib.style.use("ggplot")
+for k, v in [("font.family",       "monospace"),
+             ("image.cmap",        "jet"),
+             ("xtick.major.size",  7.0),
+             ("xtick.major.width", 2.0),
+             ("xtick.minor.size",  4.0),
+             ("xtick.minor.width", 1.5),
+             ("ytick.major.size",  7.0),
+             ("ytick.major.width", 2.0),
+             ("ytick.minor.size",  4.0),
+             ("ytick.minor.width", 1.5)]:
+    matplotlib.rcParams[k] = v
 
 logging.basicConfig(level=logging.INFO,
                     format="[%(levelname)s:%(lineno)d] %(message)s")
