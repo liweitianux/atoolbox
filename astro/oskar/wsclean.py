@@ -76,7 +76,8 @@ def main():
                         "in a quoted string separated by space, e.g.," +
                         "' -simulate-noise 0.001' (NOTE the beginning space!)")
     parser.add_argument("-d", "--dirty", dest="dirty", action="store_true",
-                        help="only create dirty images (by setting niter=0)")
+                        help="only create the dirty image by overriding " +
+                        "--niter to 0")
     parser.add_argument("-n", "--dry-run", dest="dryrun", action="store_true",
                         help="do not actually run WSClean")
     parser.add_argument("--update-model", dest="update_model",

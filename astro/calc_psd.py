@@ -25,17 +25,29 @@ from functools import lru_cache
 import numpy as np
 from astropy.io import fits
 
-import matplotlib.pyplot as plt
+import matplotlib
+import matplotlib.style
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 from matplotlib.figure import Figure
 
-plt.style.use("ggplot")
+# Matplotlib settings
+matplotlib.style.use("ggplot")
+for k, v in [("font.family",       "monospace"),
+             ("xtick.major.size",  7.0),
+             ("xtick.major.width", 2.0),
+             ("xtick.minor.size",  4.0),
+             ("xtick.minor.width", 1.5),
+             ("ytick.major.size",  7.0),
+             ("ytick.major.width", 2.0),
+             ("ytick.minor.size",  4.0),
+             ("ytick.minor.width", 1.5)]:
+    matplotlib.rcParams[k] = v
 
 
 class PSD:
     """
-    Computes the 2D power spectral density and the azimuthally averaged power
-    spectral density (i.e., 1D radial power spectrum).
+    Calculate the 2D power spectral density and then apply azimuthal
+    averaging to obtain the 1D radial power spectrum.
 
     Parameters
     ----------
@@ -124,9 +136,8 @@ class PSD:
         """
         print("Calculating 2D power spectral density ... ", end="", flush=True)
         rows, cols = self.shape
-        # Compute the power spectral density (i.e., power spectrum)
         imgf = np.fft.fftshift(np.fft.fft2(self.image))
-        # Normalization w.r.t. image size
+        # NOTE: normalize w.r.t. image size
         norm = rows * cols * self.pixel[0]**2
         self.psd2d = (np.abs(imgf) ** 2) / norm
         print("DONE", flush=True)
@@ -134,7 +145,7 @@ class PSD:
 
     def calc_psd(self):
         """
-        Azimuthally average the above 2D power spectral density to generate
+        Azimuthally average the above 2D power spectral density to obtain
         the 1D radial power spectral density.
 
         Returns
@@ -211,15 +222,6 @@ class PSD:
         rho = np.sqrt(x**2 + y**2)
         phi = np.arctan2(y, x)
         return (rho, phi)
-
-    @staticmethod
-    def pol2cart(rho, phi):
-        """
-        Convert polar coordinates to Cartesian coordinates.
-        """
-        x = rho * np.cos(phi)
-        y = rho * np.sin(phi)
-        return (x, y)
 
     def save(self, outfile):
         data = np.column_stack((self.frequencies, self.psd1d,
