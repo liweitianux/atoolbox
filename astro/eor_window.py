@@ -21,12 +21,25 @@ from astropy.io import fits
 from astropy.cosmology import FlatLambdaCDM
 import astropy.constants as ac
 
-import matplotlib.pyplot as plt
+import matplotlib
+import matplotlib.style
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 from matplotlib.figure import Figure
 
 
-plt.style.use("ggplot")
+# Matplotlib settings
+matplotlib.style.use("ggplot")
+for k, v in [("font.family",       "monospace"),
+             ("image.cmap",        "jet"),
+             ("xtick.major.size",  7.0),
+             ("xtick.major.width", 2.0),
+             ("xtick.minor.size",  4.0),
+             ("xtick.minor.width", 1.5),
+             ("ytick.major.size",  7.0),
+             ("ytick.major.width", 2.0),
+             ("ytick.minor.size",  4.0),
+             ("ytick.minor.width", 1.5)]:
+    matplotlib.rcParams[k] = v
 
 # HI line frequency
 freq21cm = 1420.405751  # [MHz]
@@ -46,12 +59,23 @@ class PS2D:
     """
     2D cylindrically averaged power spectrum; calculated by ``ps2d.py``.
 
+    Parameters
+    ----------
+    fov : float
+        instrumental field of view (FoV)
+        Unit: [deg]
+    e : float, optional
+        Thyagarajan proposed characteristic convolution width factor,
+        generally 0-2; default: 2.0
+
     Attributes
     ----------
     ps2d : 2D `~numpy.ndarray`
         Shape: [n_k_los, n_k_perp]
     """
-    def __init__(self, infile):
+    def __init__(self, infile, fov, e=2.0,
+                 k_perp_min=None, k_perp_max=None,
+                 k_los_min=None, k_los_max=None):
         self.infile = infile
         with fits.open(infile) as f:
             self.header = f[0].header
@@ -63,6 +87,21 @@ class PS2D:
         self.zc = self.header["Z_C"]
         self.pixelsize = self.header["PixSize"]
         self.unit = self.header["BUNIT"]
+        self.set(fov=fov, e=e, k_perp_min=k_perp_min, k_perp_max=k_perp_max,
+                 k_los_min=k_los_min, k_los_max=k_los_max)
+
+    def set(self, **kwargs):
+        for key, value in kwargs.items():
+            if key in ["fov", "e", "k_perp_min", "k_perp_max",
+                       "k_los_min", "k_los_max"]:
+                if value is not None:
+                    setattr(self, key, value)
+            else:
+                raise ValueError("invalid item: %s" % key)
+
+    @property
+    def power_unit(self):
+        return self.unit.split(" ")[0]  # [K^2] or [mK^2]
 
     @property
     def k_perp(self):
@@ -78,19 +117,47 @@ class PS2D:
 
     @property
     def k_perp_min(self):
-        return self.k_perp[1]  # ignore the first 0
+        try:
+            return self._k_perp_min
+        except AttributeError:
+            return self.k_perp[1]  # ignore the first 0
+
+    @k_perp_min.setter
+    def k_perp_min(self, value):
+        self._k_perp_min = value
 
     @property
     def k_perp_max(self):
-        return self.k_perp[-1]
+        try:
+            return self._k_perp_max
+        except AttributeError:
+            return self.k_perp[-1]
+
+    @k_perp_max.setter
+    def k_perp_max(self, value):
+        self._k_perp_max = value
 
     @property
     def k_los_min(self):
-        return self.k_los[1]  # ignore the first 0
+        try:
+            return self._k_los_min
+        except AttributeError:
+            return self.k_los[1]  # ignore the first 0
+
+    @k_los_min.setter
+    def k_los_min(self, value):
+        self._k_los_min = value
 
     @property
     def k_los_max(self):
-        return self.k_los[-1]
+        try:
+            return self._k_los_max
+        except AttributeError:
+            return self.k_los[-1]
+
+    @k_los_max.setter
+    def k_los_max(self, value):
+        self._k_los_max = value
 
     def sum_power(self, window):
         """
@@ -111,68 +178,49 @@ class PS2D:
         power = np.sum(self.ps2d * window * volume)
         return power
 
-    def eor_window(self, fov, e,
-                   k_perp_min=None, k_perp_max=None,
-                   k_los_min=None, k_los_max=None):
+    def eor_window(self):
         """
         Determine the EoR window region.
 
-        Parameters
+        Attributes
         ----------
-        fov : float
-            instrumental field of view (FoV)
-            Unit: [deg]
-        e : float
-            Thyagarajan proposed characteristic convolution width factor,
-            generally 0-3
-
-        Returns
-        -------
         window : 2D bool `~numpy.ndarray`
             2D array mask of the same size of the power spectrum indicating
             the defined EoR window region.
-        header : fits.Header
-            FITS header with the keywords recording the EoR window variables
-        """
-        if k_perp_min is None:
-            k_perp_min = self.k_perp_min
-        if k_perp_max is None:
-            k_perp_max = self.k_perp_max
-        if k_los_min is None:
-            k_los_min = self.k_los_min
-        if k_los_max is None:
-            k_los_max = self.k_los_max
 
+        Returns
+        -------
+        window
+        """
+        print("k_perp: [%g, %g] [Mpc^-1]" % (self.k_perp_min, self.k_perp_max))
+        print("k_los: [%g, %g] [Mpc^-1]" % (self.k_los_min, self.k_los_max))
+        print("FoV: %.1f [deg]" % self.fov)
+        print("e_ConvWidth: %.1f" % self.e)
         window = np.ones_like(self.ps2d, dtype=bool)
         k_perp = self.k_perp
         k_los = self.k_los
-        k_wedge = self.wedge_edge(k_perp, fov=fov, e=e)
-        window[k_los < k_los_min, :] = False
-        window[k_los > k_los_max, :] = False
-        window[:, k_perp < k_perp_min] = False
-        window[:, k_perp > k_perp_max] = False
+        k_wedge = self.wedge_edge()
+        window[k_los < self.k_los_min, :] = False
+        window[k_los > self.k_los_max, :] = False
+        window[:, k_perp < self.k_perp_min] = False
+        window[:, k_perp > self.k_perp_max] = False
         for i, k in enumerate(k_wedge):
             window[k_los < k, i] = False
+        self.window = window
+        return window
 
-        header = self.eor_window_header(fov=fov, e=e,
-                                        k_perp_min=k_perp_min,
-                                        k_perp_max=k_perp_max,
-                                        k_los_min=k_los_min,
-                                        k_los_max=k_los_max)
-        return (window, header)
-
-    def eor_window_header(self, fov, e, k_perp_min, k_perp_max,
-                          k_los_min, k_los_max):
+    def header_eor_windowr(self):
         header = self.header.copy(strip=True)
-        header["FoV"] = (fov, "[deg] Field of view to determine EoR window")
-        header["e_ConvW"] = (e, "characteristic convolution width")
-        header["kper_min"] = (k_perp_min, "[Mpc^-1] minimum k_perp")
-        header["kper_max"] = (k_perp_max, "[Mpc^-1] maximum k_perp")
-        header["klos_min"] = (k_los_min, "[Mpc^-1] minimum k_los")
-        header["klos_max"] = (k_los_max, "[Mpc^-1] maximum k_los")
+        header["FoV"] = (self.fov,
+                         "[deg] Field of view to determine EoR window")
+        header["e_ConvW"] = (self.e, "characteristic convolution width")
+        header["kper_min"] = (self.k_perp_min, "[Mpc^-1] minimum k_perp")
+        header["kper_max"] = (self.k_perp_max, "[Mpc^-1] maximum k_perp")
+        header["klos_min"] = (self.k_los_min, "[Mpc^-1] minimum k_los")
+        header["klos_max"] = (self.k_los_max, "[Mpc^-1] maximum k_los")
         return header
 
-    def wedge_edge(self, k_perp, fov, e):
+    def wedge_edge(self):
         """
         The boundary/edge between the EoR window (top-left) and the
         foreground wedge (bottom-right).
@@ -181,42 +229,46 @@ class PS2D:
         Dc = cosmo.comoving_distance(self.zc).value  # [Mpc]
         c = ac.c.to("km/s").value  # [km/s]
         coef = Hz * Dc / (c * (1+self.zc))
-        term1 = np.sin(np.deg2rad(fov)) * k_perp  # [Mpc^-1]
-        term2 = ((2*np.pi * e * freq21cm / self.bandwidth) /
+        term1 = np.sin(np.deg2rad(self.fov)) * self.k_perp  # [Mpc^-1]
+        term2 = ((2*np.pi * self.e * freq21cm / self.bandwidth) /
                  ((1 + self.zc) * Dc))  # [Mpc^-1]
         k_los = coef * (term1 + term2)
         return k_los
 
-    def plot(self, ax, fov, e,
-             k_perp_min=None, k_perp_max=None,
-             k_los_min=None, k_los_max=None,
-             colormap="jet"):
+    def save_eor_window(self, outfile, clobber=False):
+        header = self.header_eor_windowr()
+        hdu = fits.PrimaryHDU(data=self.window.astype(np.int16), header=header)
+        try:
+            hdu.writeto(outfile, overwrite=clobber)
+        except TypeError:
+            hdu.writeto(outfile, clobber=clobber)
+
+    def plot(self, ax, power=None, colormap="jet"):
         """
         Plot the 2D power spectrum with EoR window marked on.
         """
-        if k_perp_min is None:
-            k_perp_min = self.k_perp_min
-        if k_perp_max is None:
-            k_perp_max = self.k_perp_max
-        if k_los_min is None:
-            k_los_min = self.k_los_min
-        if k_los_max is None:
-            k_los_max = self.k_los_max
-
         x = self.k_perp
         y = self.k_los
-        y_wedge = self.wedge_edge(x, fov=fov, e=e)
-        title = "EoR Window (fov=%.1f[deg], e=%.1f)" % (fov, e)
+        y_wedge = self.wedge_edge()
+        if power is None:
+            title = "EoR Window (fov=%.1f[deg], e=%.1f)" % (self.fov, self.e)
+        else:
+            title = ("EoR Window (fov=%.1f[deg], e=%.1f, power=%g[%s])" %
+                     (self.fov, self.e, power, self.power_unit))
 
         # data
         mappable = ax.pcolormesh(x[1:], y[1:],
                                  np.log10(self.ps2d[1:, 1:]),
                                  cmap=colormap)
         # EoR window
-        ax.axvline(x=k_perp_min, color="black", linewidth=2, linestyle="--")
-        ax.axvline(x=k_perp_max, color="black", linewidth=2, linestyle="--")
-        ax.axhline(y=k_los_min, color="black", linewidth=2, linestyle="--")
-        ax.axhline(y=k_los_max, color="black", linewidth=2, linestyle="--")
+        ax.axvline(x=self.k_perp_min, color="black",
+                   linewidth=2, linestyle="--")
+        ax.axvline(x=self.k_perp_max, color="black",
+                   linewidth=2, linestyle="--")
+        ax.axhline(y=self.k_los_min, color="black",
+                   linewidth=2, linestyle="--")
+        ax.axhline(y=self.k_los_max, color="black",
+                   linewidth=2, linestyle="--")
         ax.plot(x, y_wedge, color="black", linewidth=2, linestyle="--")
         #
         ax.set(xscale="log", yscale="log",
@@ -225,7 +277,7 @@ class PS2D:
                ylabel=r"k$_{||}$ [Mpc$^{-1}$]",
                title=title)
         cb = ax.figure.colorbar(mappable, ax=ax, pad=0.01, aspect=30)
-        cb.ax.set_xlabel(r"[%s$^2$ Mpc$^3$]" % self.unit)
+        cb.ax.set_xlabel("[%s]" % self.unit)
         return ax
 
 
@@ -236,7 +288,7 @@ def main():
                         type=float, required=True,
                         help="instrumental FoV to determine the EoR window")
     parser.add_argument("-e", "--conv-width", dest="conv_width",
-                        type=float, default=3.0,
+                        type=float, default=2.0,
                         help="characteristic convolution width (default: 3.0)")
     parser.add_argument("-p", "--k-perp-min", dest="k_perp_min", type=float,
                         help="minimum k wavenumber perpendicular to LoS; " +
@@ -257,27 +309,22 @@ def main():
     parser.add_argument("infile", help="2D power spectrum FITS file")
     args = parser.parse_args()
 
-    ps2d = PS2D(args.infile)
-    window, header = ps2d.eor_window(fov=args.fov, e=args.conv_width,
-                                     k_perp_min=args.k_perp_min,
-                                     k_perp_max=args.k_perp_max,
-                                     k_los_min=args.k_los_min,
-                                     k_los_max=args.k_los_max)
+    ps2d = PS2D(args.infile, fov=args.fov, e=args.conv_width,
+                k_perp_min=args.k_perp_min, k_perp_max=args.k_perp_max,
+                k_los_min=args.k_los_min, k_los_max=args.k_los_max)
+    window = ps2d.eor_window()
     power = ps2d.sum_power(window)
-    print("Total power within EoR window: %g [%s]" % (power, ps2d.unit))
+    print("Total power within EoR window: %g [%s]" % (power, ps2d.power_unit))
 
     if args.save_window:
-        hdu = fits.PrimaryHDU(data=window.astype(np.int16), header=header)
-        hdu.writeto(args.save_window)
+        ps2d.save_eor_window(outfile=args.save_window)
         print("Saved EoR window into file: %s" % args.save_window)
 
     if args.plot:
         fig = Figure(figsize=(8, 8), dpi=150)
         FigureCanvas(fig)
         ax = fig.add_subplot(1, 1, 1)
-        ps2d.plot(ax=ax, fov=args.fov, e=args.conv_width,
-                  k_perp_min=args.k_perp_min, k_perp_max=args.k_perp_max,
-                  k_los_min=args.k_los_min, k_los_max=args.k_los_max)
+        ps2d.plot(ax=ax, power=power)
         fig.tight_layout()
         fig.savefig(args.plot)
         print("Plotted 2D PSD with EoR window and saved to: %s" % args.plot)
