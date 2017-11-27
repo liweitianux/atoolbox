@@ -286,9 +286,11 @@ def main():
         description="Determine EoR window region and calculate total power")
     parser.add_argument("-F", "--fov", dest="fov",
                         type=float, required=True,
-                        help="instrumental FoV to determine the EoR window")
+                        help="instrumental FoV to determine the EoR window; " +
+                        "SKA1-Low has FoV ~ 3.12 / (nu/200MHz) [deg], i.e., " +
+                        "~5.03 @ 124, ~3.95 @ 158, ~3.18 @ 196")
     parser.add_argument("-e", "--conv-width", dest="conv_width",
-                        type=float, default=2.0,
+                        type=float, default=3.0,
                         help="characteristic convolution width (default: 3.0)")
     parser.add_argument("-p", "--k-perp-min", dest="k_perp_min", type=float,
                         help="minimum k wavenumber perpendicular to LoS; " +
