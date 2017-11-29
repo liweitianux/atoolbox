@@ -32,12 +32,13 @@ def wsclean(args, dryrun=False, logfile=None):
     """
     Run the WSClean imager with the provided arguments.
 
-    All the WSClean output is also captured and tee'd into a log file if
-    specified. However, the finer progress report of WSClean does not work
-    due to the buffered I/O ...
-
-    A randomly generated temporary directory is specified, to avoid the
-    conflict when running multiple WSClean's on the same MeasurementSet.
+    NOTE
+    ----
+    * All the WSClean output is also captured and tee'd into a log file
+      if specified.  However, the WSClean's fine progress report doesn't
+      work due to the buffered I/O...
+    * A randomly generated temporary directory is specified, to avoid the
+      conflict when running multiple WSClean's on the same MeasurementSet.
     """
     tmpdir = tempfile.TemporaryDirectory()
     cmd = [
@@ -50,18 +51,18 @@ def wsclean(args, dryrun=False, logfile=None):
         return
 
     t1 = time.perf_counter()
-    with subprocess.Popen(cmd, stdout=subprocess.PIPE,
-                          stderr=subprocess.STDOUT,
-                          universal_newlines=True) as proc:
-        for line in proc.stdout:
-            printlog(line.strip(), logfile=logfile)
+    with subprocess.Popen(cmd, bufsize=0,  # unbuffered
+                          stdout=subprocess.PIPE,
+                          stderr=subprocess.STDOUT) as proc:
+        for out in proc.stdout:
+            printlog(out.decode("utf-8"), logfile=logfile, end="", flush=True)
         retcode = proc.wait()
         if retcode:
             raise subprocess.CalledProcessError(retcode, cmd)
     t2 = time.perf_counter()
     printlog("-----------------------------------------------------------",
              logfile=logfile)
-    printlog("WSClean Elapsed time: %.1f [min]" % ((t2-t1)/60),
+    printlog("WSClean running time: %.1f [min]" % ((t2-t1)/60),
              logfile=logfile)
     printlog("-----------------------------------------------------------",
              logfile=logfile)
@@ -145,7 +146,7 @@ def main():
     #
     parser.add_argument("-N", "--name", dest="name", required=True,
                         help="filename prefix for the output files")
-    parser.add_argument("-m", "--ms", nargs="+", help="input visibility MSs")
+    parser.add_argument("-m", "--ms", nargs="+", help="input visibility MSes")
     args = parser.parse_args()
 
     nms = len(args.ms)  # i.e., number of MS == number of channels
