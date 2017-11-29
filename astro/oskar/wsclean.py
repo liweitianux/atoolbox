@@ -94,6 +94,12 @@ def main():
                         action="store_true",
                         help="force the fitted beam to be circular, i.e., " +
                         "BMIN == BMAJ")
+    parser.add_argument("--beam-size", dest="beam_size", type=float,
+                        help="specify the circular beam size (FWHM) in " +
+                        "[arcsec] for restoring the clean components; " +
+                        "implies --circular-beam")
+    parser.add_argument("--wlayers", dest="wlayers", type=int,
+                        help="specify the number of w-layers to use")
     parser.add_argument("--uv-range", dest="uv_range", default=":",
                         help="uv range [lambda] (i.e., baseline lengths) " +
                         "used for imaging; syntax: '<min>:<max>' " +
@@ -106,9 +112,9 @@ def main():
                         help="Briggs robustness parameter (default: 0); " +
                         "-1 (uniform) -> 1 (natural)")
     parser.add_argument("-#", "--niter", dest="niter",
-                        type=int, default=200000,
+                        type=float, default=5e5,
                         help="maximum number of CLEAN iterations " +
-                        "(default: 200,000)")
+                        "(default: 500,000)")
     parser.add_argument("--gain", dest="gain", type=float, default=0.1,
                         help="CLEAN gain for each minor iteration " +
                         "(default: 0.1)")
@@ -147,14 +153,14 @@ def main():
     cmdargs = [
         "-verbose",
         "-log-time",
-        "-pol", "XX",  # OSKAR "Scalar" simulation only give "XX" component
+        "-pol", "XX",  # OSKAR "Scalar" simulation only gives "XX" component
         "-make-psf",  # always make the PSF, even no cleaning performed
     ]
 
     if args.dirty:
         cmdargs += ["-niter", 0]  # make dirty image only
     else:
-        cmdargs += ["-niter", args.niter]
+        cmdargs += ["-niter", int(args.niter)]
 
     if args.weight == "uniform":
         cmdargs += ["-weight", "uniform",
@@ -183,6 +189,10 @@ def main():
         cmdargs += ["-saveuv"]
     if args.circular_beam:
         cmdargs += ["-circularbeam"]
+    if args.beam_size:
+        cmdargs += ["-beamsize", args.beam_size]
+    if args.wlayers:
+        cmdargs += ["-nwlayers", args.wlayers]
 
     # uv/baseline range
     uvmin, uvmax = args.uv_range.strip().split(":")
