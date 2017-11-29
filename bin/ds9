@@ -1,0 +1,39 @@
+#!/bin/sh
+#
+# Copyright (c) 2017 Aaron LI
+# MIT License
+#
+# A simple shell wrapper on SAOImage DS9 using the "-title" option
+# to display the filename on the title bar by default.
+#
+# XXX/limitations:
+# * Simply take the last argument as the filename
+# * Does not work well with multiple frames
+#
+# 2017-11-29
+#
+
+for _ds9 in ${HOME}/local/ds9/ds9 \
+            ${HOME}/local/bin/ds9 \
+            /usr/local/bin/ds9 \
+            /usr/bin/ds9; do
+    if [ -x "${_ds9}" ]; then
+        DS9="${_ds9}"
+        break
+    fi
+done
+
+case "$1" in
+    ""|-h|--help)
+        echo "usage: ${0##*/} [options] filename ..."
+        echo "DS9: ${DS9}"
+        exit 1
+        ;;
+esac
+
+# Get the last argument as the filename shown on the title bar
+# Credit: http://www.faqs.org/faqs/unix-faq/faq/part2/section-12.html
+for _last; do true; done
+filename="${_last}"
+
+exec ${DS9} -title ${filename} "$@"
