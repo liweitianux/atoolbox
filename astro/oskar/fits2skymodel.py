@@ -127,7 +127,8 @@ class SkyModel:
         header["PixSize"] = (self.pixelsize, "Pixel size [arcsec]")
         header["K2JyPix"] = (self.factor_K2JyPixel, "[K] -> [Jy/pixel]")
         header["MINVALUE"] = (self.minvalue, "[K] minimum threshold")
-        header["MAXVALUE"] = (self.maxvalue, "[K] maximum threshold")
+        if np.isfinite(self.maxvalue):
+            header["MAXVALUE"] = (self.maxvalue, "[K] maximum threshold")
         return header
 
     @property
