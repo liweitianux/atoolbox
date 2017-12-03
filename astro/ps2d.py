@@ -173,7 +173,7 @@ class PS2D:
         self.window = self.gen_window(name=window_name)
 
     def gen_window(self, name=None):
-        if name is None:
+        if (name is None) or (name.upper() == "NONE"):
             return None
 
         window_func = getattr(signal.windows, name)
@@ -527,17 +527,17 @@ def main():
     parser.add_argument("-m", "--mean-std", dest="meanstd",
                         action="store_true",
                         help="calculate the mean and standard deviation " +
-                        "for each averaged annulus instead of the median " +
+                        "for each averaged annulus instead of the median, " +
                         "16%% and 84%% percentiles (i.e., 68%% error)")
     parser.add_argument("-P", "--no-plot", dest="noplot", action="store_true",
-                        help="do NOT plot the 2D power spectrum and save")
+                        help="do NOT plot the 2D power spectrum")
     parser.add_argument("-p", "--pixelsize", dest="pixelsize", type=float,
                         help="spatial pixel size [arcsec] (required " +
                         "if cannot obtain from FITS header)")
     parser.add_argument("-w", "--window", dest="window",
-                        choices=["nuttall"],
-                        help="apply window along frequency axis " +
-                        "(default: None)")
+                        choices=["nuttall", "none"], default="nuttall",
+                        help="window to be applied along frequency axis " +
+                        "(default: nuttall)")
     parser.add_argument("-i", "--infile", dest="infile", nargs="+",
                         help="input FITS image cube(s); if multiple cubes " +
                         "are provided, they are added first.")
