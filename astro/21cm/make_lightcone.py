@@ -57,8 +57,8 @@ Lside:
 Nside:
 # Filename pattern of the input coeval cubes
 infiles_pattern: "deltaTb_z{z:05.3f}_N{Nside:d}_L{Lside:.1f}.dat"
-# Filename of output light-cone cube (required)
-outfile: deltaTb_lightcone.fits
+# Filename of output light-cone cube
+outfile: "deltaTb_z{zmin:.1f}-{zmax:.1f}_lightcone.fits"
 ---------------------------------------------------------------------------
 """
 
@@ -119,6 +119,12 @@ class Configs:
             return filename
         else:
             raise OSError("requested file does not exists: %s" % filename)
+
+    def get_outfile(self):
+        data = {"zmin": self.zmin, "zmax": self.zmax, "dz": self.dz,
+                "Nside": self.Nside, "Lside": self.Lside}
+        filename = self.outfile.format(**data)
+        return filename
 
     def get_cubepair(self, z):
         """
@@ -281,7 +287,7 @@ class LightCone:
 
     def write(self, outfile=None, clobber=None):
         if outfile is None:
-            outfile = self.configs.outfile
+            outfile = self.get_outfile()
         if clobber is None:
             clobber = self.configs.clobber
 
@@ -300,7 +306,7 @@ def main():
     args = parser.parse_args()
     configs = Configs(args.config)
 
-    if os.path.exists(configs.outfile) and (not configs.clobber):
+    if os.path.exists(configs.get_outfile()) and (not configs.clobber):
         raise OSError("output file already exists: %s" % configs.outfile)
 
     cubepair = CubePair(Nside=configs.Nside, dtype=configs.dtype)
