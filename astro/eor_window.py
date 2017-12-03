@@ -79,7 +79,8 @@ class PS2D:
         self.infile = infile
         with fits.open(infile) as f:
             self.header = f[0].header
-            self.ps2d = f[0].data[0, :, :]  # errors ignored
+            self.ps2d = f[0].data[0, :, :]
+            self.ps2d_err = (f[0].data[1, :, :] + f[0].data[2, :, :]) / 2
         self.freqc = self.header["Freq_C"]
         self.freqmin = self.header["Freq_Min"]
         self.freqmax = self.header["Freq_Max"]

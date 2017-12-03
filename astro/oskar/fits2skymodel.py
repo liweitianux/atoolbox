@@ -39,7 +39,7 @@ from astropy.wcs import WCS
 
 logging.basicConfig(level=logging.INFO,
                     format="[%(levelname)s:%(lineno)d] %(message)s")
-logger = logging.getLogger(os.path.basename(sys.argv[0]))
+logger = logging.getLogger()
 
 
 class SkyModel:
