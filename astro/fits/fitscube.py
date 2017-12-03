@@ -217,9 +217,28 @@ def cmd_info(args):
     print("Slice positions: %s <-> %s%s" %
           (zvalues.min(), zvalues.max(), pzunit))
     if args.meanstd:
-        print("Slice <z>  <mean> +/- <std>:")
-        for z, image in zip(zvalues, cube.slices):
-            print("* %s  %s  %s" % (z, np.mean(image), np.std(image)))
+        mean = np.zeros(cube.nslice)
+        std = np.zeros(cube.nslice)
+        if args.center:
+            print("Central spatial box size: %d" % args.center)
+            rows, cols = cube.height, cube.width
+            rc, cc = rows//2, cols//2
+            cs1, cs2 = args.center//2, (args.center+1)//2
+            for i, image in enumerate(cube.slices):
+                data = image[(rc-cs1):(rc+cs2), (cc-cs1):(cc+cs2)]
+                mean[i] = np.mean(data)
+                std[i] = np.std(data)
+        else:
+            for i, image in enumerate(cube.slices):
+                mean[i] = np.mean(image)
+                std[i] = np.std(image)
+        print("Slice <z>         <mean> +/- <std>:")
+        for i, z in enumerate(zvalues):
+            print("* %12.4e:  %-12.4e  %-12.4e" % (z, mean[i], std[i]))
+        if args.outfile:
+            data = np.column_stack([zvalues, mean, std])
+            np.savetxt(args.outfile, data, header="z   mean   std")
+            print("Saved mean/std data to file: %s" % args.outfile)
 
 
 def cmd_create(args):
@@ -245,9 +264,14 @@ def main():
                                        help="additional help")
     # sub-command: "info"
     parser_info = subparsers.add_parser("info", help="show FITS cube info")
+    parser_info.add_argument("-c", "--center", dest="center", type=int,
+                             help="crop the central box region of specified " +
+                             "size to calculate the mean/std.")
     parser_info.add_argument("-m", "--mean-std", dest="meanstd",
                              action="store_true",
                              help="calculate mean+/-std for each slice")
+    parser_info.add_argument("-o", "--outfile", dest="outfile",
+                             help="outfile to save mean/std values")
     parser_info.add_argument("infile", help="FITS cube filename")
     parser_info.set_defaults(func=cmd_info)
     # sub-command: "create"
