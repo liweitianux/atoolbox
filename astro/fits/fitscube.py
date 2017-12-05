@@ -234,6 +234,8 @@ def cmd_info(args):
         std = np.zeros(cube.nslice)
         for i in range(cube.nslice):
             image = cube.get_slice(i, csize=args.center)
+            if args.abs:
+                image = np.abs(image)
             mean[i] = np.mean(image)
             std[i] = np.std(image)
         print("Slice <z>         <mean> +/- <std>:")
@@ -274,6 +276,8 @@ def main():
     parser_info.add_argument("-m", "--mean-std", dest="meanstd",
                              action="store_true",
                              help="calculate mean+/-std for each slice")
+    parser_info.add_argument("-a", "--abs", dest="abs", action="store_true",
+                             help="take absolute values for image pixels")
     parser_info.add_argument("-o", "--outfile", dest="outfile",
                              help="outfile to save mean/std values")
     parser_info.add_argument("infile", help="FITS cube filename")
