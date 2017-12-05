@@ -339,6 +339,51 @@ def cmd_calibrate(args):
         print("Saved calibration information to file: %s" % infofile)
 
 
+def cmd_corrupt(args):
+    """
+    Sub-command: "corrupt", corrupt z-axis slice/channel responses by
+    applying random gain coefficients.
+    """
+    if not args.clobber and os.path.exists(args.outfile):
+        raise OSError("output file already exists: %s" % args.outfile)
+
+    cube = FITSCube(args.infile)
+    zvalues = cube.zvalues
+    print("Data cube unit: %s" % cube.unit)
+    print("Image/slice size: %dx%d" % (cube.width, cube.height))
+    print("Number of slices: %d" % cube.nslice)
+
+    print("Gaussian sigma: %.1f%%" % args.gaus_sigma)
+    sigma = args.gaus_sigma * 0.01
+    gains = np.random.normal(loc=0.0, scale=sigma, size=cube.nslice)
+    idx_outliers = np.abs(gains) > 3*sigma
+    gains[idx_outliers] = np.sign(gains[idx_outliers]) * (3*sigma)
+    gains += 1.0
+    print("Applying slice/channel corruptions ...")
+    cube.apply_gain(gains)
+    print("Saving corrupted FITS cube ...")
+    cube.write(args.outfile, clobber=args.clobber)
+    print("Corrupted FITS cube wrote to: %s" % args.outfile)
+
+    print("Slice <z>    <gain.corruption>")
+    for z, g in zip(zvalues, gains):
+        print("* %12.4e:  %.6f" % (z, g))
+    if args.save_info:
+        data = np.column_stack([zvalues, gains])
+        header = [
+            "Arguments:",
+            "+ gaus_sigma: %.1f%%" % args.gaus_sigma,
+            "",
+            "Columns:",
+            "1. z/frequency: z-axis position / frequency [%s]" % cube.zunit,
+            "2. gain_corruption: corruption coefficient",
+            "",
+        ]
+        infofile = os.path.splitext(args.outfile)[0] + ".txt"
+        np.savetxt(infofile, data, header="\n".join(header))
+        print("Saved corruption information to file: %s" % infofile)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Create FITS cube from a series of image slices.")
@@ -418,6 +463,28 @@ def main():
                             help="save the calibration information of echo " +
                             "channel/slice to a text file")
     parser_cal.set_defaults(func=cmd_calibrate)
+    # sub-command: "corrupt"
+    parser_crp = subparsers.add_parser(
+        "corrupt",
+        help="corrupt z-axis slice/channel responses by applying " +
+        "random gain coefficients")
+    parser_crp.add_argument("-C", "--clobber", dest="clobber",
+                            action="store_true",
+                            help="overwrite existing output file")
+    parser_crp.add_argument("-g", "--gaus-sigma", dest="gaus_sigma",
+                            type=float, required=True,
+                            help="Gaussian sigma in percent from which " +
+                            "random gain coefficients are sampled; " +
+                            "specified in percent (e.g., 1 for 1%%)")
+    parser_crp.add_argument("-i", "--infile", dest="infile", required=True,
+                            help="input FITS cube filename")
+    parser_crp.add_argument("-o", "--outfile", dest="outfile", required=True,
+                            help="output corrupted FITS cube")
+    parser_cal.add_argument("--save-info", dest="save_info",
+                            action="store_true",
+                            help="save the calibration information of echo " +
+                            "channel/slice to a text file")
+    parser_crp.set_defaults(func=cmd_corrupt)
     #
     args = parser.parse_args()
     args.func(args)
