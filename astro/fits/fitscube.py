@@ -375,12 +375,19 @@ def cmd_corrupt(args):
     print("Image/slice size: %dx%d" % (cube.width, cube.height))
     print("Number of slices: %d" % cube.nslice)
 
-    print("Gaussian sigma: %.1f%%" % args.gaus_sigma)
-    sigma = args.gaus_sigma * 0.01
-    gains = np.random.normal(loc=0.0, scale=sigma, size=cube.nslice)
-    idx_outliers = np.abs(gains) > 3*sigma
-    gains[idx_outliers] = np.sign(gains[idx_outliers]) * (3*sigma)
-    gains += 1.0
+    if args.gaus_sigma is not None:
+        print("Gaussian sigma: %.1f%%" % args.gaus_sigma)
+        sigma = args.gaus_sigma * 0.01
+        gains = np.random.normal(loc=0.0, scale=sigma, size=cube.nslice)
+        idx_outliers = np.abs(gains) > 3*sigma
+        gains[idx_outliers] = np.sign(gains[idx_outliers]) * (3*sigma)
+        gains += 1.0
+    else:
+        print("Use corruption information from file: %s" % args.infofile)
+        args.save_info = False  # ``--info-file`` discards ``--save-info``
+        crpdata = np.loadtxt(args.infofile)
+        gains = crpdata[:, 1]
+
     print("Applying slice/channel corruptions ...")
     cube.apply_gain(gains)
     print("Saving corrupted FITS cube ...")
@@ -412,6 +419,7 @@ def main():
     subparsers = parser.add_subparsers(dest="subparser_name",
                                        title="sub-commands",
                                        help="additional help")
+
     # sub-command: "info"
     parser_info = subparsers.add_parser("info", help="show FITS cube info")
     parser_info.add_argument("-c", "--center", dest="center", type=int,
@@ -426,6 +434,7 @@ def main():
                              help="outfile to save mean/std values")
     parser_info.add_argument("infile", help="FITS cube filename")
     parser_info.set_defaults(func=cmd_info)
+
     # sub-command: "create"
     parser_create = subparsers.add_parser("create", help="create a FITS cube")
     parser_create.add_argument("-C", "--clobber", dest="clobber",
@@ -449,6 +458,7 @@ def main():
                                nargs="+", required=True,
                                help="input image slices (in order)")
     parser_create.set_defaults(func=cmd_create)
+
     # sub-command: "calibrate"
     parser_cal = subparsers.add_parser(
         "calibrate",
@@ -482,32 +492,37 @@ def main():
                             "for dry-run model)")
     parser_cal.add_argument("--save-info", dest="save_info",
                             action="store_true",
-                            help="save the calibration information of echo " +
+                            help="save the calibration information of each " +
                             "channel/slice to a text file")
     parser_cal.set_defaults(func=cmd_calibrate)
+
     # sub-command: "corrupt"
     parser_crp = subparsers.add_parser(
         "corrupt",
         help="corrupt z-axis slice/channel responses by applying " +
         "random gain coefficients")
+    exgrp_crp = parser_crp.add_mutually_exclusive_group(required=True)
+    exgrp_crp.add_argument("-G", "--gaus-sigma", dest="gaus_sigma", type=float,
+                           help="Gaussian sigma in percent from which " +
+                           "random gain coefficients are sampled; " +
+                           "specified in percent (e.g., 1 for 1%%)")
+    exgrp_crp.add_argument("-I", "--info-file", dest="infofile",
+                           help="use the gain coefficients from a " +
+                           "(previously saved) corruption information " +
+                           "file; will also discard argument --save-info")
     parser_crp.add_argument("-C", "--clobber", dest="clobber",
                             action="store_true",
                             help="overwrite existing output file")
-    parser_crp.add_argument("-g", "--gaus-sigma", dest="gaus_sigma",
-                            type=float, required=True,
-                            help="Gaussian sigma in percent from which " +
-                            "random gain coefficients are sampled; " +
-                            "specified in percent (e.g., 1 for 1%%)")
     parser_crp.add_argument("-i", "--infile", dest="infile", required=True,
                             help="input FITS cube filename")
     parser_crp.add_argument("-o", "--outfile", dest="outfile", required=True,
                             help="output corrupted FITS cube")
     parser_crp.add_argument("--save-info", dest="save_info",
                             action="store_true",
-                            help="save the calibration information of echo " +
+                            help="save the corruption information of each " +
                             "channel/slice to a text file")
     parser_crp.set_defaults(func=cmd_corrupt)
-    #
+
     args = parser.parse_args()
     args.func(args)
 
