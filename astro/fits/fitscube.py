@@ -317,25 +317,26 @@ def cmd_calibrate(args):
         print("* %12.4e:  %-12.4e  %-12.4e   %-12.4e   %.6f" %
               (z, mean[i], std[i], mean_new[i], coef[i]))
 
-    if args.cal_out:
+    if args.save_info:
         data = np.column_stack([zvalues, mean, std, mean_new, coef])
         header = [
-            "Parameters:",
+            "Arguments:",
             "+ center: %s" % args.center,
             "+ abs: %s" % args.abs,
             "+ threshold (percentile): %.2f" % args.threshold,
             "+ polynomial_order: %d" % args.poly_order,
             "",
             "Columns:",
-            "+ z/frequency: z-axis position / frequency [%s]" % cube.zunit,
-            "+ mean.old: mean before calibration [%s]" % cube.unit,
-            "+ std.old: standard deviation before calibration",
-            "+ mean.new: mean after calibration",
-            "+ gain_coef: calibration coefficient",
+            "1. z/frequency: z-axis position / frequency [%s]" % cube.zunit,
+            "2. mean.old: mean before calibration [%s]" % cube.unit,
+            "3. std.old: standard deviation before calibration",
+            "4. mean.new: mean after calibration",
+            "5. gain_coef: calibration coefficient",
             "",
         ]
-        np.savetxt(args.cal_out, data, header="\n".join(header))
-        print("Saved calibration data to file: %s" % args.cal_out)
+        infofile = os.path.splitext(args.outfile)[0] + ".txt"
+        np.savetxt(infofile, data, header="\n".join(header))
+        print("Saved calibration information to file: %s" % infofile)
 
 
 def main():
@@ -412,9 +413,10 @@ def main():
     parser_cal.add_argument("-o", "--outfile", dest="outfile",
                             help="output calibrated FITS cube (optional " +
                             "for dry-run model)")
-    parser_cal.add_argument("-O", "--cal-out", dest="cal_out",
-                            help="output TXT file to save the calibration " +
-                            "coefficients for each channel/slice")
+    parser_cal.add_argument("--save-info", dest="save_info",
+                            action="store_true",
+                            help="save the calibration information of echo " +
+                            "channel/slice to a text file")
     parser_cal.set_defaults(func=cmd_calibrate)
     #
     args = parser.parse_args()
