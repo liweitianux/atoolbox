@@ -101,6 +101,10 @@ def main():
                         "implies --circular-beam")
     parser.add_argument("--wlayers", dest="wlayers", type=int,
                         help="specify the number of w-layers to use")
+    parser.add_argument("--simulate-noise", dest="simu_noise", type=float,
+                        help="[mJy] replace the given MS with visibilities " +
+                        "sampling from a Gaussian distribution of specified " +
+                        "sigma to simulate the thermal noise images")
     parser.add_argument("--uv-range", dest="uv_range", default=":",
                         help="uv range [lambda] (i.e., baseline lengths) " +
                         "used for imaging; syntax: '<min>:<max>' " +
@@ -194,6 +198,8 @@ def main():
         cmdargs += ["-beamsize", args.beam_size]
     if args.wlayers:
         cmdargs += ["-nwlayers", args.wlayers]
+    if args.simu_noise:
+        cmdargs += ["-simulate-noise", args.simu_noise*1e-3]  # [mJy] -> [Jy]
 
     # uv/baseline range
     uvmin, uvmax = args.uv_range.strip().split(":")
