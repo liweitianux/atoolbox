@@ -41,11 +41,27 @@ for k, v in [("font.family",       "monospace"),
 class PS1D:
     """
     Calculate the 1D spherically averaged power spectrum from 2D PS.
+
+    Parameters
+    ----------
+    ps2d : `~PS2D`
+        A `~PS2D` instance
+    step : float, optional
+        By default, a logarithmic grid with the specified step ratio
+        (default: 1.1) will be used to do the azimuthal averages.
+        If specified a value <=1 or None, then an equal-width pixel-by-pixel
+        (along radial direction) grid is adopted.
     """
-    def __init__(self, ps2d):
+    def __init__(self, ps2d, step=1.1):
         self.ps2d = ps2d
         self.data = ps2d.ps2d  # shape: [n_k_los, n_k_perp]
         self.data_err = ps2d.ps2d_err
+        self.eor_window = ps2d.eor_window()
+
+        if step is None or step <= 1:
+            self.step = None
+        else:
+            self.step = step
 
     @property
     def k_perp(self):
@@ -56,8 +72,40 @@ class PS1D:
         return self.ps2d.k_los
 
     @property
-    def eor_window(self):
-        return self.ps2d.eor_window()
+    def dk(self):
+        """
+        The wavenumber k bin size that will be used to determine the
+        averaging grid.  Considering that the angular and line-of-sight
+        wavenumber bin sizes are very different, their geometric mean
+        is used instead.
+        """
+        k_perp = self.k_perp
+        k_los = self.k_los
+        dk_perp = k_perp[1] - k_perp[0]
+        dk_los = k_los[1] - k_los[0]
+        return np.sqrt(dk_perp * dk_los)
+
+    @property
+    def k(self):
+        """
+        The radial k positions to determine the averaging bins to derive
+        the 1D power spectrum.
+        """
+        k_max = np.sqrt(self.k_perp[-1]**2 + self.k_los[-1]**2)
+        dk = self.dk
+        nk = int(k_max / dk) + 1
+        x = np.arange(nk)
+        if self.step is None:
+            return x * dk
+        else:
+            xmax = x.max()
+            x2 = list(x[x*(self.step-1) <= 1])
+            v1 = x[len(x2)]
+            while v1 < xmax:
+                x2.append(v1)
+                v1 *= self.step
+            x2.append(xmax)
+            return np.array(x2) * dk
 
     def calc_ps1d(self, normalize=True):
         """
@@ -68,8 +116,20 @@ class PS1D:
         ----------
         normalize : bool
             Whether to normalize the 1D power spectrum to obtain the
-            dimensionless power spectrum, i.e.,
+            dimensionless one, i.e.,
                 Δ^2(k) = (k^3 / (2*π^2)) P(k)
+
+        Attributes
+        ----------
+        ps1d : 2D `~numpy.ndarray`
+            3-column array storing the calculated 1D power spectrum,
+            ``[k, ps1d, ps1d_err]``
+        ps1d_normalized : bool
+            Whether the calculated 1D power spectrum is normalized?
+
+        Returns
+        -------
+        ps1d
         """
         eor_window = self.eor_window
         data = self.data.copy()
@@ -79,14 +139,9 @@ class PS1D:
 
         k_perp = self.k_perp
         k_los = self.k_los
-        dk_perp = k_perp[1] - k_perp[0]
-        dk_los = k_los[1] - k_los[0]
-        dk = np.sqrt(dk_perp * dk_los)
-        print("dk = %.6f [Mpc^-1]" % dk)
-        k_max = np.sqrt(k_perp[-1]**2 + k_los[-1]**2)
-        nk = int(k_max / dk) + 1
+        ps1d_k = self.k
+        nk = len(ps1d_k)
         print("Number of k points: %d" % nk)
-        ps1d_k = np.arange(nk) * dk
 
         # PS1D's 3 columns: [k, ps1d, ps1d_err]
         ps1d = np.zeros(shape=(nk, 3))
@@ -164,6 +219,11 @@ def main():
         description="Calculate 1D power spectrum within the EoR window")
     parser.add_argument("-C", "--clobber", dest="clobber", action="store_true",
                         help="overwrite the output files if already exist")
+    parser.add_argument("-s", "--step", dest="step", type=float, default=1.1,
+                        help="step ratio (>1; default: 1.1) between 2 " +
+                        "consecutive radial k bins, i.e., logarithmic grid. " +
+                        "if specified a value <=1, then an equal-width grid " +
+                        "of current k bin size will be used.")
     parser.add_argument("-F", "--fov", dest="fov",
                         type=float, required=True,
                         help="instrumental FoV to determine the EoR window; " +
@@ -196,7 +256,7 @@ def main():
     ps2d = PS2D(args.infile, fov=args.fov, e=args.conv_width,
                 k_perp_min=args.k_perp_min, k_perp_max=args.k_perp_max,
                 k_los_min=args.k_los_min, k_los_max=args.k_los_max)
-    ps1d = PS1D(ps2d)
+    ps1d = PS1D(ps2d, step=args.step)
     ps1d.calc_ps1d()
     ps1d.save(args.outfile)
 

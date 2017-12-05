@@ -59,8 +59,8 @@ class PSD:
     step : float, optional
         By default, a logarithmic grid with the specified step ratio
         (default: 1.1) will be used to do the azimuthal averages.
-        If specified a value <=1 or None, then a evenly pixel-by-pixel
-        (along radial direction) is adopted.
+        If specified a value <=1 or None, then an evenly pixel-by-pixel
+        (along radial direction) averaging scheme is adopted.
     meanstd : bool, optional
         By default, the median and 16% and 84% percentiles (i.e., 68% error)
         will be calculated for each averaged annulus.  If this option is
