@@ -155,7 +155,7 @@ class PS1D:
         ax.errorbar(x[1:], y[1:], yerr=yerr[1:], fmt="none")
         ax.plot(x[1:], y[1:], marker="o")
         ax.set(xscale="log", yscale="log",
-               xlabel=r"[Mpc$^{-1}$]", ylabel=ylabel,
+               xlabel=r"k [Mpc$^{-1}$]", ylabel=ylabel,
                title="1D Spherically Average Power Spectrum")
         return ax
 

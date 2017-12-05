@@ -502,7 +502,7 @@ def main():
                             help="input FITS cube filename")
     parser_crp.add_argument("-o", "--outfile", dest="outfile", required=True,
                             help="output corrupted FITS cube")
-    parser_cal.add_argument("--save-info", dest="save_info",
+    parser_crp.add_argument("--save-info", dest="save_info",
                             action="store_true",
                             help="save the calibration information of echo " +
                             "channel/slice to a text file")
