@@ -131,12 +131,8 @@ class PS1D:
         -------
         ps1d
         """
-        eor_window = self.eor_window
-        data = self.data.copy()
-        data_err = self.data_err.copy()
-        data[~eor_window] = np.nan
-        data_err[~eor_window] = np.nan
-
+        ps2d = self.data
+        ps2d_err = self.data_err
         k_perp = self.k_perp
         k_los = self.k_los
         ps1d_k = self.k
@@ -150,18 +146,20 @@ class PS1D:
         print("Averaging 2D power spectrum ...")
         mx, my = np.meshgrid(k_perp, k_los)
         mk = np.sqrt(mx**2 + my**2)
+        mk[~self.eor_window] = np.inf  # constrain within EoR window
+
         for i, k in enumerate(ps1d_k):
             ii, jj = (mk <= k).nonzero()
             mk[ii, jj] = np.inf
-            cells = data[ii, jj]
-            cells = cells[np.isfinite(cells)]
-            if len(cells) > 0:
-                ps1d[i, 1] = np.mean(cells)
-                cells = data_err[ii, jj]
-                cells = cells[np.isfinite(cells)]
-                ps1d[i, 2] = np.sqrt(np.sum((cells/len(cells))**2))
+            data = ps2d[ii, jj]
+            errors = ps2d_err[ii, jj]
+            ncell = len(data)
+            if ncell > 0:
+                ps1d[i, 1] = np.mean(data)
+                ps1d[i, 2] = np.sqrt(np.sum(errors ** 2)) / ncell
 
         if normalize:
+            # XXX is this normalization correct???
             coef = ps1d_k**3 / (2*np.pi**2)
             ps1d[:, 1] *= coef
             ps1d[:, 2] *= coef
