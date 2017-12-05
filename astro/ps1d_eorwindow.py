@@ -85,14 +85,14 @@ class PS1D:
         print("dk = %.6f [Mpc^-1]" % dk)
         k_max = np.sqrt(k_perp[-1]**2 + k_los[-1]**2)
         nk = int(k_max / dk) + 1
-        print("number of k points: %d" % nk)
+        print("Number of k points: %d" % nk)
         ps1d_k = np.arange(nk) * dk
 
         # PS1D's 3 columns: [k, ps1d, ps1d_err]
         ps1d = np.zeros(shape=(nk, 3))
         ps1d[:, 0] = ps1d_k
 
-        print("averaging 2D power spectrum ...")
+        print("Averaging 2D power spectrum ...")
         mx, my = np.meshgrid(k_perp, k_los)
         mk = np.sqrt(mx**2 + my**2)
         for i, k in enumerate(ps1d_k):
@@ -118,29 +118,28 @@ class PS1D:
         return ps1d
 
     def save(self, outfile):
-        ps1d = self.ps1d
-        header = [
-            "EoR window:",
-            "  FoV: %f [deg]" % self.ps2d.fov,
-            "  e_ConvWidth: %f" % self.ps2d.e,
-            "  k_perp_min: %f [Mpc^-1]" % self.ps2d.k_perp_min,
-            "  k_perp_max: %f [Mpc^-1]" % self.ps2d.k_perp_max,
-            "  k_los_min: %f [Mpc^-1]" % self.ps2d.k_los_min,
-            "  k_los_max: %f [Mpc^-1]" % self.ps2d.k_los_max,
-            "",
-            "k: wavenumber [Mpc^-1]",
-        ]
         if self.ps1d_normalized:
-            header += ["ps1d: normalized power [K^2]"]
+            ps1d_desc = "normalized power [K^2]"
         else:
-            header += ["ps1d: power [K^2 Mpc^3]"]
-        header += [
+            ps1d_desc = "power [K^2 Mpc^3]"
+        header = [
+            "EoR window definition:",
+            "+ FoV: %f [deg]" % self.ps2d.fov,
+            "+ e_ConvWidth: %f" % self.ps2d.e,
+            "+ k_perp_min: %f [Mpc^-1]" % self.ps2d.k_perp_min,
+            "+ k_perp_max: %f [Mpc^-1]" % self.ps2d.k_perp_max,
+            "+ k_los_min: %f [Mpc^-1]" % self.ps2d.k_los_min,
+            "+ k_los_max: %f [Mpc^-1]" % self.ps2d.k_los_max,
+            "",
+            "Columns:",
+            "1. k: wavenumber [Mpc^-1]",
+            "2. ps1d: %s" % ps1d_desc,
             "ps1d_err: power errors",
             "",
-            "k   ps1d   ps1d_err"
+            "k   ps1d   ps1d_err",
         ]
-        np.savetxt(outfile, ps1d, header="\n".join(header))
-        print("saved 1D power spectrum to file: %s" % outfile)
+        np.savetxt(outfile, self.ps1d, header="\n".join(header))
+        print("Saved 1D power spectrum to file: %s" % outfile)
 
     def plot(self, ax):
         ps1d = self.ps1d
@@ -156,7 +155,7 @@ class PS1D:
         ax.plot(x[1:], y[1:], marker="o")
         ax.set(xscale="log", yscale="log",
                xlabel=r"k [Mpc$^{-1}$]", ylabel=ylabel,
-               title="1D Spherically Average Power Spectrum")
+               title="1D Spherically Averaged Power Spectrum")
         return ax
 
 
