@@ -190,6 +190,14 @@ class FITSCube:
             cs1, cs2 = csize//2, (csize+1)//2
             return self.data[i, (rc-cs1):(rc+cs2), (cc-cs1):(cc+cs2)]
 
+    def apply_gain(self, gain):
+        """
+        Multiply the supplied ``gain`` to each slice, to achieve slice
+        or channel response calibration or corruption.
+        """
+        gain = np.asarray(gain)
+        self.data *= gain[:, np.newaxis, np.newaxis]
+
     @property
     def unit(self):
         """
@@ -262,6 +270,74 @@ def cmd_create(args):
     print("Created FITS cube: %s" % args.outfile)
 
 
+def cmd_calibrate(args):
+    """
+    Sub-command: "calibrate", calibrate the z-axis slice/channel responses
+    by fitting a polynomial.
+    """
+    if not args.dryrun:
+        if args.outfile is None:
+            raise ValueError("--outfile required")
+        elif not args.clobber and os.path.exists(args.outfile):
+            raise OSError("output file already exists: %s" % args.outfile)
+
+    cube = FITSCube(args.infile)
+    zvalues = cube.zvalues
+    print("Data cube unit: %s" % cube.unit)
+    print("Image/slice size: %dx%d" % (cube.width, cube.height))
+    print("Number of slices: %d" % cube.nslice)
+    mean = np.zeros(cube.nslice)
+    std = np.zeros(cube.nslice)
+    for i in range(cube.nslice):
+        image = cube.get_slice(i, csize=args.center)
+        if args.abs:
+            image = np.abs(image)
+        threshold = np.percentile(image, q=100*args.threshold)
+        data = image[image >= threshold]
+        mean[i] = np.mean(data)
+        std[i] = np.std(data)
+    print("Fitting polynomial order: %d" % args.poly_order)
+    weights = 1.0 / std
+    pfit = np.polyfit(zvalues, mean, w=weights, deg=args.poly_order)
+    mean_new = np.polyval(pfit, zvalues)
+    coef = mean_new / mean
+
+    if args.dryrun:
+        print("*** DRY RUN MODE ***")
+    else:
+        print("Applying slice/channel calibration gains ...")
+        cube.apply_gain(coef)
+        print("Saving calibrated FITS cube ...")
+        cube.write(args.outfile, clobber=args.clobber)
+        print("Calibrated FITS cube wrote to: %s" % args.outfile)
+
+    print("Slice <z>        <mean.old> +/- <std.old>     " +
+          "<mean.new>     <gain.coef>")
+    for i, z in enumerate(zvalues):
+        print("* %12.4e:  %-12.4e  %-12.4e   %-12.4e   %.6f" %
+              (z, mean[i], std[i], mean_new[i], coef[i]))
+
+    if args.cal_out:
+        data = np.column_stack([zvalues, mean, std, mean_new, coef])
+        header = [
+            "Parameters:",
+            "+ center: %s" % args.center,
+            "+ abs: %s" % args.abs,
+            "+ threshold (percentile): %.2f" % args.threshold,
+            "+ polynomial_order: %d" % args.poly_order,
+            "",
+            "Columns:",
+            "+ z/frequency: z-axis position / frequency [%s]" % cube.zunit,
+            "+ mean.old: mean before calibration [%s]" % cube.unit,
+            "+ std.old: standard deviation before calibration",
+            "+ mean.new: mean after calibration",
+            "+ gain_coef: calibration coefficient",
+            "",
+        ]
+        np.savetxt(args.cal_out, data, header="\n".join(header))
+        print("Saved calibration data to file: %s" % args.cal_out)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Create FITS cube from a series of image slices.")
@@ -305,6 +381,41 @@ def main():
                                nargs="+", required=True,
                                help="input image slices (in order)")
     parser_create.set_defaults(func=cmd_create)
+    # sub-command: "calibrate"
+    parser_cal = subparsers.add_parser(
+        "calibrate",
+        help="calibrate z-axis slice/channel responses by fitting " +
+        "a polynomial")
+    parser_cal.add_argument("-n", "--dry-run", dest="dryrun",
+                            action="store_true",
+                            help="dry run mode")
+    parser_cal.add_argument("-C", "--clobber", dest="clobber",
+                            action="store_true",
+                            help="overwrite existing output file")
+    parser_cal.add_argument("-c", "--center", dest="center", type=int,
+                            help="crop the central box region of specified " +
+                            "size to calculate the mean/std.")
+    parser_cal.add_argument("-t", "--threshold", dest="threshold",
+                            type=float, default=0.0,
+                            help="percentile threshold (0 -> 1) and only " +
+                            "considers image pixels with values > threshold " +
+                            "to determine the channel/slice responses; " +
+                            "(default: 0, i.e., all pixels are accounted for)")
+    parser_cal.add_argument("-a", "--abs", dest="abs", action="store_true",
+                            help="take absolute values for image pixels")
+    parser_cal.add_argument("-p", "--poly-order", dest="poly_order",
+                            type=int, default=2,
+                            help="order of polynomial used for fitting " +
+                            "(default: 2, i.e., quadratic)")
+    parser_cal.add_argument("-i", "--infile", dest="infile", required=True,
+                            help="input FITS cube filename")
+    parser_cal.add_argument("-o", "--outfile", dest="outfile",
+                            help="output calibrated FITS cube (optional " +
+                            "for dry-run model)")
+    parser_cal.add_argument("-O", "--cal-out", dest="cal_out",
+                            help="output TXT file to save the calibration " +
+                            "coefficients for each channel/slice")
+    parser_cal.set_defaults(func=cmd_calibrate)
     #
     args = parser.parse_args()
     args.func(args)
