@@ -5,7 +5,29 @@
 #
 
 """
-Create FITS image cube from a series of image slices.
+FITS image cube manipulation tool.
+
+This tool was originally developed to create a FITS image cube from a
+series of CT scan slices to help better visualize/examine them in the
+sophisticated SAOImage DS9 software.  Each slice in the cube is a CT
+image at a position from the CT scan, with the z-axis tracking the slice
+positions (equal-distant) in units of, e.g., [cm].
+
+Then this tool was significantly improved to deal with the spectral cube
+in radio astronomy, with each slice representing the radio sky at a
+certain frequency (channel), so the z-axis records the frequency in
+units of [Hz].
+
+For example, we simulate the observed image using OSKAR and WSClean one
+frequency channel at a time, then use this tool to combine them into
+a spectral cube, from which the 2D and 1D power spectra is derived.
+
+The ``calibrate`` sub-command is used to calibrate the frequency channel
+responses to make them spectrally smooth by fitting a low-order polynomial.
+
+The ``corrupt`` sub-command is used to corrupt the frequency channel
+responses to simulate that real instrument suffers from calibration
+imperfections.
 """
 
 import os
