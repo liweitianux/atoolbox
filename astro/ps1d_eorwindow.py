@@ -156,10 +156,11 @@ class PS1D:
             ncell = len(data)
             if ncell > 0:
                 ps1d[i, 1] = np.mean(data)
+                # XXX: how to properly estimate the errors???
                 ps1d[i, 2] = np.sqrt(np.sum(errors ** 2)) / ncell
 
         if normalize:
-            # XXX is this normalization correct???
+            # XXX: is this normalization correct???
             coef = ps1d_k**3 / (2*np.pi**2)
             ps1d[:, 1] *= coef
             ps1d[:, 2] *= coef
@@ -207,7 +208,7 @@ class PS1D:
         ax.errorbar(x[1:], y[1:], yerr=yerr[1:], fmt="none")
         ax.plot(x[1:], y[1:], marker="o")
         ax.set(xscale="log", yscale="log",
-               xlabel=r"k [Mpc$^{-1}$]", ylabel=ylabel,
+               xlabel=r"$k$ [Mpc$^{-1}$]", ylabel=ylabel,
                title="1D Spherically Averaged Power Spectrum")
         return ax
 

@@ -291,8 +291,8 @@ class PS2D:
         #
         ax.set(xscale="log", yscale="log",
                xlim=(x[1], x[-1]), ylim=(y[1], y[-1]),
-               xlabel=r"k$_{\perp}$ [Mpc$^{-1}$]",
-               ylabel=r"k$_{||}$ [Mpc$^{-1}$]",
+               xlabel=r"$k_{\perp}$ [Mpc$^{-1}$]",
+               ylabel=r"$k_{||}$ [Mpc$^{-1}$]",
                title=title)
         cb = ax.figure.colorbar(mappable, ax=ax, pad=0.01, aspect=30)
         cb.ax.set_xlabel("[%s]" % self.unit)

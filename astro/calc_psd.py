@@ -261,7 +261,7 @@ class PSD:
         ax.set(xscale="log", yscale="log",
                xlim=(xmin, xmax), ylim=(ymin, ymax),
                title="Radial (Azimuthally Averaged) Power Spectral Density",
-               xlabel=r"k [%s$^{-1}$]" % self.pixel[1],
+               xlabel=r"$k$ [%s$^{-1}$]" % self.pixel[1],
                ylabel=ylabel)
         ax.legend()
 
@@ -276,7 +276,7 @@ class PSD:
             x1_min, x1_max = ax.get_xlim()
             x2_min, x2_max = x1_min*self.pixel[0], x1_max*self.pixel[0]
             ax2.set_xlim(x2_min, x2_max)
-            ax2.set_xlabel(r"k [pixel$^{-1}$] (1 pixel = %.2f %s)" %
+            ax2.set_xlabel(r"$k$ [pixel$^{-1}$] (1 pixel = %.2f %s)" %
                            self.pixel)
             ax2.grid(False)
             # Raise title position to avoid overlapping
