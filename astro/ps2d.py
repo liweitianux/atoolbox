@@ -131,7 +131,7 @@ class PS2D:
         frequencies at each image slice [MHz]
     meanstd : bool, optional
         if ``True``, calculate the mean and standard deviation for each
-        power bin instead of the median and 68% percentile range.
+        power bin instead of the median and 1.4826*MAD.
     unit : str, optional
         unit of the cube data; will be used to determine the power spectrum
         unit as well as the plot labels.
@@ -214,10 +214,10 @@ class PS2D:
         Returns
         -------
         ps2d : 3D `~numpy.ndarray`
-            3D array of shape (3, n_k_los, n_k_perp) including the median
-            and lower and upper errors (68% percentile range).
-            If ``self.meanstd=True`` then the mean and standard deviation
-            are calculated instead.
+            3D array of shape (3, n_k_los, n_k_perp) including:
+            + average (median / mean)
+            + error (1.4826*MAD / standard deviation)
+            + number of averaging cells
 
         Attributes
         ----------
@@ -226,7 +226,8 @@ class PS2D:
         logger.info("Calculating 2D power spectrum ...")
         n_k_perp = len(self.k_perp)
         n_k_los = len(self.k_los)
-        ps2d = np.zeros(shape=(3, n_k_los, n_k_perp))  # value, errl, erru
+        # PS2D's 3 layers: value, error, number of averaging cells
+        ps2d = np.zeros(shape=(3, n_k_los, n_k_perp))
 
         eps = 1e-8
         ic_xy = (np.abs(self.k_xy) < eps).nonzero()[0][0]
@@ -243,16 +244,15 @@ class PS2D:
             for s in range(n_k_los):
                 iz = (p_z == s).nonzero()[0]
                 cells = np.concatenate([self.ps3d[z, iy, ix] for z in iz])
+                ps2d[2, s, r] = len(cells)
                 if self.meanstd:
                     ps2d[0, s, r] = cells.mean()
-                    std = cells.std()
-                    ps2d[1, s, r] = std
-                    ps2d[2, s, r] = std
+                    ps2d[1, s, r] = cells.std()
                 else:
-                    median, q16, q84 = np.percentile(cells, q=(50, 16, 84))
+                    median = np.median(cells)
+                    mad = np.median(np.abs(cells - median))
                     ps2d[0, s, r] = median
-                    ps2d[1, s, r] = median - q16
-                    ps2d[2, s, r] = q84 - median
+                    ps2d[1, s, r] = mad * 1.4826
 
         self.ps2d = ps2d
         return ps2d
@@ -280,7 +280,7 @@ class PS2D:
             title_err = "Error (standard deviation)"
         else:
             title = "2D Power Spectrum (median)"
-            title_err = "Error (68% percentile range)"
+            title_err = "Error (1.4826*MAD)"
 
         # median/mean
         mappable = ax.pcolormesh(x[1:], y[1:],
@@ -295,10 +295,9 @@ class PS2D:
         cb = ax.figure.colorbar(mappable, ax=ax, pad=0.01, aspect=30)
         cb.ax.set_xlabel(r"[%s$^2$ Mpc$^3$]" % self.unit)
 
-        # error (68% percentile range / standard deviation)
-        error = 0.5 * (self.ps2d[1, :, :] + self.ps2d[2, :, :])
+        # error
         mappable = ax_err.pcolormesh(x[1:], y[1:],
-                                     np.log10(error[1:, 1:]),
+                                     np.log10(self.ps2d[1, 1:, 1:]),
                                      cmap=colormap)
         mappable.set_clim(vmin, vmax)
         ax_err.set(xscale="log", yscale="log",
@@ -474,9 +473,10 @@ class PS2D:
         if self.meanstd:
             hdr["AvgType"] = ("mean + standard deviation", "average type")
         else:
-            hdr["AvgType"] = ("median + 68% percentile range", "average type")
+            hdr["AvgType"] = ("median + 1.4826*MAD", "average type")
 
-        hdr["WINDOW"] = (self.window_name, "window applied along LoS")
+        hdr["WINDOW"] = (self.window_name,
+                         "window applied along frequency axis")
 
         # Physical coordinates: IRAF LTM/LTV
         # Li{Image} = LTMi_i * Pi{Physical} + LTVi
@@ -527,8 +527,8 @@ def main():
     parser.add_argument("-m", "--mean-std", dest="meanstd",
                         action="store_true",
                         help="calculate the mean and standard deviation " +
-                        "for each averaged annulus instead of the median, " +
-                        "16%% and 84%% percentiles (i.e., 68%% error)")
+                        "for each averaged annulus instead of the median " +
+                        "and 1.4826*MAD")
     parser.add_argument("-P", "--no-plot", dest="noplot", action="store_true",
                         help="do NOT plot the 2D power spectrum")
     parser.add_argument("-p", "--pixelsize", dest="pixelsize", type=float,
