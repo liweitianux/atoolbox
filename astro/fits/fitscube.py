@@ -415,7 +415,7 @@ def cmd_corrupt(args):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Create FITS cube from a series of image slices.")
+        description="FITS image cube manipulation tool")
     subparsers = parser.add_subparsers(dest="subparser_name",
                                        title="sub-commands",
                                        help="additional help")

@@ -78,24 +78,26 @@ def cmd_info(args):
     fimage = FITSImage(args.infile)
     print("Image data shape: {0}".format(fimage.shape))
     print("Data unit: %s" % fimage.bunit)
-    image = fimage.image
+    data = fimage.image
     if args.abs:
-        image = np.abs(image)
+        data = np.abs(data)
     if args.center:
         print("Central box size: %d" % args.center)
-        rows, cols = image.shape
+        rows, cols = data.shape
         rc, cc = rows//2, cols//2
         cs1, cs2 = args.center//2, (args.center+1)//2
-        image = image[(rc-cs1):(rc+cs2), (cc-cs1):(cc+cs2)]
-    mean = np.mean(image)
-    median = np.median(image)
-    iqr = np.diff(np.percentile(image, q=(25, 75)))
-    std = np.std(image)
-    rms = np.sqrt(np.mean(image**2))
+        data = data[(rc-cs1):(rc+cs2), (cc-cs1):(cc+cs2)]
+    mean = np.mean(data)
+    median = np.median(data)
+    std = np.std(data)
+    iqr = np.diff(np.percentile(data, q=(25, 75)))
+    mad = np.median(np.abs(data - median))
+    rms = np.sqrt(np.mean(data**2))
     print("mean:   %-12.6e" % mean)
     print("median: %-12.6e" % median)
     print("std:    %-12.6e  (standard deviation)" % std)
     print("iqr:    %-12.6e  (interquartile range)" % iqr)
+    print("mad:    %-12.6e  (median absolute deviation)" % mad)
     print("rms:    %-12.6e  (root-mean-squared)" % rms)
 
 
