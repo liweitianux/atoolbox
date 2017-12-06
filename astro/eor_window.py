@@ -160,12 +160,27 @@ class PS2D:
     def k_los_max(self, value):
         self._k_los_max = value
 
-    def sum_power(self, window):
+    def sum_power(self, window=None):
         """
         Sum the power within the defined window.
 
         NOTE: The cylindrical average should be accounted for.
+
+        Parameters
+        ----------
+        window : `~numpy.ndarray`, optional
+            The mask array that defines the EoR window region.
+            If ``None``, then use ``self.eor_window``.
+
+        Returns
+        -------
+        power : float
+            The total power within the EoR window.
+        error : float
+            The uncertainty of the total power.
         """
+        if window is None:
+            window = self.eor_window
         k_perp = self.k_perp
         k_los = self.k_los
         dk_perp = k_perp[1] - k_perp[0]
@@ -177,22 +192,23 @@ class PS2D:
             volume[i, :] = 2*np.pi * k_perp * dk_perp * dk_los * 2
 
         power = np.sum(self.ps2d * window * volume)
-        return power
+        error = np.sqrt(np.sum((self.ps2d_err * window * volume)**2))
+        return (power, error)
 
+    @property
     def eor_window(self):
         """
         Determine the EoR window region.
 
-        Attributes
-        ----------
+        Returns
+        -------
         window : 2D bool `~numpy.ndarray`
             2D array mask of the same size of the power spectrum indicating
             the defined EoR window region.
-
-        Returns
-        -------
-        window
         """
+        if hasattr(self, "_window"):
+            return self._window
+
         print("k_perp: [%g, %g] [Mpc^-1]" % (self.k_perp_min, self.k_perp_max))
         print("k_los: [%g, %g] [Mpc^-1]" % (self.k_los_min, self.k_los_max))
         print("FoV: %.1f [deg]" % self.fov)
@@ -207,8 +223,8 @@ class PS2D:
         window[:, k_perp > self.k_perp_max] = False
         for i, k in enumerate(k_wedge):
             window[k_los < k, i] = False
-        self.window = window
-        return window
+        self._window = window
+        return self._window
 
     def header_eor_windowr(self):
         header = self.header.copy(strip=True)
@@ -238,7 +254,8 @@ class PS2D:
 
     def save_eor_window(self, outfile, clobber=False):
         header = self.header_eor_windowr()
-        hdu = fits.PrimaryHDU(data=self.window.astype(np.int16), header=header)
+        hdu = fits.PrimaryHDU(data=self.eor_window.astype(np.int16),
+                              header=header)
         try:
             hdu.writeto(outfile, overwrite=clobber)
         except TypeError:
@@ -254,8 +271,8 @@ class PS2D:
         if power is None:
             title = "EoR Window (fov=%.1f[deg], e=%.1f)" % (self.fov, self.e)
         else:
-            title = ("EoR Window (fov=%.1f[deg], e=%.1f, power=%g[%s])" %
-                     (self.fov, self.e, power, self.power_unit))
+            title = (r"fov=%.1f[deg], e=%.1f, power=%.4e$\pm$%.4e[%s]" %
+                     (self.fov, self.e, power[0], power[1], self.power_unit))
 
         # data
         mappable = ax.pcolormesh(x[1:], y[1:],
@@ -315,19 +332,20 @@ def main():
     ps2d = PS2D(args.infile, fov=args.fov, e=args.conv_width,
                 k_perp_min=args.k_perp_min, k_perp_max=args.k_perp_max,
                 k_los_min=args.k_los_min, k_los_max=args.k_los_max)
-    window = ps2d.eor_window()
-    power = ps2d.sum_power(window)
-    print("Total power within EoR window: %g [%s]" % (power, ps2d.power_unit))
+    window = ps2d.eor_window
+    power, error = ps2d.sum_power(window)
+    print("Total power within EoR window: %.4e +/- %.4e [%s]" %
+          (power, error, ps2d.power_unit))
 
     if args.save_window:
         ps2d.save_eor_window(outfile=args.save_window)
-        print("Saved EoR window into file: %s" % args.save_window)
+        print("Saved EoR window to file: %s" % args.save_window)
 
     if args.plot:
         fig = Figure(figsize=(8, 8), dpi=150)
         FigureCanvas(fig)
         ax = fig.add_subplot(1, 1, 1)
-        ps2d.plot(ax=ax, power=power)
+        ps2d.plot(ax=ax, power=(power, error))
         fig.tight_layout()
         fig.savefig(args.plot)
         print("Plotted 2D PSD with EoR window and saved to: %s" % args.plot)

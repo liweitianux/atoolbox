@@ -56,7 +56,7 @@ class PS1D:
         self.ps2d = ps2d
         self.data = ps2d.ps2d  # shape: [n_k_los, n_k_perp]
         self.data_err = ps2d.ps2d_err
-        self.eor_window = ps2d.eor_window()
+        self.eor_window = ps2d.eor_window
 
         if step is None or step <= 1:
             self.step = None
