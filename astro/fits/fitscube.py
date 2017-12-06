@@ -268,9 +268,9 @@ def cmd_info(args):
                 image = np.abs(image)
             mean[i] = np.mean(image)
             std[i] = np.std(image)
-        print("Slice <z>         <mean> +/- <std>:")
+        print("Slice <z>           <mean> +/- <std>:")
         for i, z in enumerate(zvalues):
-            print("* %12.4e:  %-12.4e  %-12.4e" % (z, mean[i], std[i]))
+            print("* %12.4e:  %12.4e  %12.4e" % (z, mean[i], std[i]))
         if args.outfile:
             data = np.column_stack([zvalues, mean, std])
             np.savetxt(args.outfile, data, header="z   mean   std")
@@ -333,10 +333,10 @@ def cmd_calibrate(args):
         cube.write(args.outfile, clobber=args.clobber)
         print("Calibrated FITS cube wrote to: %s" % args.outfile)
 
-    print("Slice <z>        <mean.old> +/- <std.old>     " +
-          "<mean.new>     <gain.coef>")
+    print("Slice <z>          <mean.old> +/- <std.old>     " +
+          "<mean.new>   <gain.coef>")
     for i, z in enumerate(zvalues):
-        print("* %12.4e:  %-12.4e  %-12.4e   %-12.4e   %.6f" %
+        print("* %12.4e:  %12.4e  %12.4e   %12.4e   %.6f" %
               (z, mean[i], std[i], mean_new[i], coef[i]))
 
     if args.save_info:
