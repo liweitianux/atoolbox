@@ -62,9 +62,9 @@ class PSD:
         If specified a value <=1 or None, then an evenly pixel-by-pixel
         (along radial direction) averaging scheme is adopted.
     meanstd : bool, optional
-        By default, the median and 16% and 84% percentiles (i.e., 68% error)
-        will be calculated for each averaged annulus.  If this option is
-        ``True`` then calculate the mean and standard deviation instead.
+        By default, the median and 1.4826*MAD will be calculated for
+        each averaging annulus.  If ``meanstd=True``, then calculate
+        the mean and standard deviation instead.
     """
     def __init__(self, image, pixel=(1.0, "pixel"), step=1.1,
                  meanstd=False, bunit=None):
@@ -150,21 +150,16 @@ class PSD:
 
         Returns
         -------
-        frequencies : 1D float `~numpy.ndarray`
-            Spatial frequencies, [{pixel_unit}^(-1)]
-        psd1d : 1D float `~numpy.ndarray`
-            The median or mean (``self.meanstd=True``) of the powers within
-            each (radial) spatial frequency bin.
-        psd1d_errl, psd1d_erru : 1D float `~numpy.ndarray`
-            The lower and upper errors of the powers.  By default, they are
-            determined from the 16% and 84% percentiles w.r.t. the median.
-            If ``self.meanstd=True`` then they are the standard deviation.
+        psd1d : 2D `~numpy.ndarray`
+            2D array of shape (nbins, 4) including such 4 columns:
+            + spatial frequencies, [{pixel_unit}^(-1)]
+            + average (median / mean) powers within each averaging bin
+            + power errors (1.4826*MAD / standard deviation)
+            + number of averaging cells
 
         Attributes
         ----------
         psd1d
-        psd1d_errl
-        psd1d_erru
         """
         if not hasattr(self, "ps2d") or self.psd2d is None:
             self.calc_psd2d()
@@ -178,7 +173,7 @@ class PSD:
         # (0-based): (ceil((n-1) / 2), ceil((m-1) / 2))
         px = np.arange(dim_half-dim, dim_half)
         x, y = np.meshgrid(px, px)
-        rho, phi = self.cart2pol(x, y)
+        rho = np.sqrt(x**2 + y**2)
 
         radii = self.radii
         nr = len(radii)
@@ -187,60 +182,51 @@ class PSD:
                   end="", flush=True)
         else:
             print(" %d data points ... " % nr, end="", flush=True)
-        psd1d = np.zeros(nr)
-        psd1d_errl = np.zeros(nr)  # lower error
-        psd1d_erru = np.zeros(nr)  # upper error
+        psd1d = np.zeros(shape=(nr, 4))
+        psd1d[:, 0] = self.frequencies
+
         for i, r in enumerate(radii):
             if (i+1) % 100 == 0:
                 percent = 100 * (i+1) / nr
                 print("%.1f%% ... " % percent, end="", flush=True)
             ii, jj = (rho <= r).nonzero()
             rho[ii, jj] = np.inf
-            data = self.psd2d[ii, jj]
+            cells = self.psd2d[ii, jj]
+            psd1d[i, 3] = len(cells)
             if self.meanstd:
-                psd1d[i] = np.mean(data)
-                std = np.std(data)
-                psd1d_errl[i] = std
-                psd1d_erru[i] = std
+                psd1d[i, 1] = np.mean(cells)
+                psd1d[i, 2] = np.std(cells)
             else:
-                median, q16, q84 = np.percentile(data, q=(50, 16, 84))
-                psd1d[i] = median
-                psd1d_errl[i] = median - q16
-                psd1d_erru[i] = q84 - median
+                median = np.median(cells)
+                mad = np.median(np.abs(cells - median))
+                psd1d[i, 1] = median
+                psd1d[i, 2] = mad * 1.4826
         print("DONE", flush=True)
 
         self.psd1d = psd1d
-        self.psd1d_errl = psd1d_errl
-        self.psd1d_erru = psd1d_erru
-        return (self.frequencies, psd1d, psd1d_errl, psd1d_erru)
-
-    @staticmethod
-    def cart2pol(x, y):
-        """
-        Convert Cartesian coordinates to polar coordinates.
-        """
-        rho = np.sqrt(x**2 + y**2)
-        phi = np.arctan2(y, x)
-        return (rho, phi)
+        return psd1d
 
     def save(self, outfile):
-        data = np.column_stack((self.frequencies, self.psd1d,
-                                self.psd1d_errl, self.psd1d_erru))
+        data = self.psd1d
         header = [
             "pixel: %s [%s]" % self.pixel,
             "frequency: [%s^-1]" % self.pixel[1],
         ]
         if self.meanstd:
             header += [
-                "psd1d: *mean* powers of radial spectral annuli",
-                "psd1d_errl, psd1d_erru: *standard deviation* (lower, upper)",
+                "psd1d: *mean* powers of radial averaging annuli",
+                "psd1d_err: *standard deviation*",
             ]
         else:
             header += [
-                "psd1d: *median* powers of radial spectral annuli",
-                "psd1d_errl, psd1d_erru: 16% and 84% *percentiles*",
+                "psd1d: *median* powers of radial averaging annuli",
+                "psd1d_err: 1.4826*MAD (median absolute deviation)",
             ]
-        header += ["", "frequency   psd1d   psd1d_errl   psd1d_erru"]
+        header += [
+            "n_cells: number of averaging cells",
+            "",
+            "frequency   psd1d   psd1d_err   n_cells"
+        ]
         np.savetxt(outfile, data, header="\n".join(header))
         print("Saved PSD data to: %s" % outfile)
 
@@ -248,27 +234,30 @@ class PSD:
         """
         Make a plot of the 1D radial power spectrum.
         """
-        freqs = self.frequencies
+        data = self.psd1d
+        freqs = data[:, 0]
+        psd1d = data[:, 1]
+        psd1d_err = data[:, 2]
+
         xmin = freqs[1] / 1.2  # ignore the first 0
         xmax = freqs[-1] * 1.1
-        ymin = np.min(self.psd1d) / 10.0
-        ymax = np.max(self.psd1d[1:] + self.psd1d_erru[1:]) * 1.5
+        ymin = np.min(psd1d) / 10.0
+        ymax = np.max(psd1d[1:] + psd1d_err[1:]) * 1.5
 
         if self.meanstd:
             label = "mean"
             labelerr = "standard deviation"
         else:
             label = "median"
-            labelerr = "68% percentile range"
+            labelerr = "1.4826*MAD"
         if self.bunit:
             ylabel = r"Power [(%s)$^2$]" % self.bunit
         else:
             ylabel = "Power"
 
-        yerr = np.row_stack((self.psd1d_errl, self.psd1d_erru))
-        ax.errorbar(freqs, self.psd1d, yerr=yerr,
+        ax.errorbar(freqs, psd1d, yerr=psd1d_err,
                     fmt="none", label=labelerr)
-        ax.plot(freqs, self.psd1d, marker="o", label=label)
+        ax.plot(freqs, psd1d, marker="o", label=label)
         ax.set(xscale="log", yscale="log",
                xlim=(xmin, xmax), ylim=(ymin, ymax),
                title="Radial (Azimuthally Averaged) Power Spectral Density",
@@ -359,8 +348,8 @@ def main():
     parser.add_argument("-m", "--mean-std", dest="meanstd",
                         action="store_true",
                         help="calculate the mean and standard deviation " +
-                        "for each averaged annulus instead of the median " +
-                        "16%% and 84%% percentiles (i.e., 68%% error)")
+                        "for each averaging annulus instead of the median " +
+                        "and 1.4826*MAD")
     parser.add_argument("-P", "--no-plot", dest="noplot", action="store_true",
                         help="do NOT plot the PSD and save")
     parser.add_argument("-i", "--infile", dest="infile", nargs="+",

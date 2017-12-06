@@ -527,7 +527,7 @@ def main():
     parser.add_argument("-m", "--mean-std", dest="meanstd",
                         action="store_true",
                         help="calculate the mean and standard deviation " +
-                        "for each averaged annulus instead of the median " +
+                        "for each averaging annulus instead of the median " +
                         "and 1.4826*MAD")
     parser.add_argument("-P", "--no-plot", dest="noplot", action="store_true",
                         help="do NOT plot the 2D power spectrum")
