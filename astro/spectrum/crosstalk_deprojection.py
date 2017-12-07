@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2016-2017 Weitian LI
+# Copyright (c) 2016-2017 Weitian LI <weitian@aaronly.me>
 # 2016-03-26
 #
 # Change log:
+# 2017-12-07:
+#   * Fix a list append error in ``cc_results``
+#   * Relax the exposure time validity check a bit
 # 2017-11-12:
 #   * Report spectrum data changes
 #   * Add 'regid' to identify spectrum/arf/rmf regions
@@ -47,9 +50,8 @@
 #   * Implement background subtraction
 #   * Add config `subtract_bkg' and corresponding argument
 #
-# TODO:
+# XXX:
 #   * Deprojection: account for ARF differences across different regions
-#   * Split classes ARF, RMF, Spectrum, and SpectrumSet to a separate module
 #
 
 
@@ -156,8 +158,8 @@ from astropy.io import fits
 from configobj import ConfigObj
 
 
-__version__ = "0.6.0"
-__date__ = "2017-11-12"
+__version__ = "0.6.1"
+__date__ = "2017-12-07"
 
 WARNING = """
 ********************************* WARNING ************************************
@@ -1348,9 +1350,14 @@ class Deprojection:  # {{{
             if verbose:
                 print("Deprojection: loaded spectrum: radius: (%s, %s)" %
                       (spec.radius_inner, spec.radius_outer), file=sys.stderr)
-        # check EXPOSURE validity (all spectra must have the same exposures)
+        # Check EXPOSURE validity, the set of spectra from one detector
+        # must have the (almost) same exposure times.
+        # NOTE: different CCD chips may have a minor different exposure times.
         exposures = [spec.EXPOSURE for spec in self.spectra]
-        assert np.allclose(exposures[:-1], exposures[1:])
+        if verbose:
+            print("Exposure times:")
+            print("\n".join(["  * %.2f [s]" % expo for expo in exposures]))
+        assert np.allclose(exposures[:-1], exposures[1:], rtol=0.05)
 
     def subtract_bkg(self, verbose=True):
         for spec in self.spectra:
@@ -1506,7 +1513,7 @@ def calc_median_errors(results):
     results = np.array(results)
     # `results' now has shape: (mc_times, num_spec, num_channel)
     # sort by the Monte Carlo simulation axis
-    results.sort(0)
+    results.sort(axis=0)
     mc_times = results.shape[0]
     medians = results[int(mc_times * 0.5)]
     lowerpcs = results[int(mc_times * 0.1585)]
@@ -1584,7 +1591,7 @@ def main(config, subtract_bkg, fix_negative, mc_times,
     deprojection.do_deprojection(add_history=True, verbose=verbose)
     deproj_results = []
     deproj_results.append(deprojection.get_spec_data(
-        group_squeeze=group_squeeze, copy=True))
+        group_squeeze=group_squeeze))
 
     # Monte Carlo for spectral group error estimation
     print("INFO: Monte Carlo to estimate spectral errors (%d times) ..." %
@@ -1609,7 +1616,7 @@ def main(config, subtract_bkg, fix_negative, mc_times,
         deprojection_copy.scale(verbose=False)
         deprojection_copy.do_deprojection(add_history=False, verbose=False)
         deproj_results.append(deprojection_copy.get_spec_data(
-                group_squeeze=group_squeeze, copy=True))
+                group_squeeze=group_squeeze))
     print("DONE!", flush=True, file=sys.stderr)
 
     if verbose:
@@ -1687,7 +1694,7 @@ def main_deprojection(config, mc_times, verbose=False, clobber=False,
     deprojection.do_deprojection(add_history=True, verbose=verbose)
     deproj_results = []
     deproj_results.append(deprojection.get_spec_data(
-            group_squeeze=group_squeeze, copy=True))
+            group_squeeze=group_squeeze))
 
     # Monte Carlo for spectral group error estimation
     print("INFO: Monte Carlo to estimate spectral errors (%d times) ..." %
@@ -1705,7 +1712,7 @@ def main_deprojection(config, mc_times, verbose=False, clobber=False,
         deprojection_copy.subtract_bkg(verbose=False)
         deprojection_copy.do_deprojection(add_history=False, verbose=False)
         deproj_results.append(deprojection_copy.get_spec_data(
-                group_squeeze=group_squeeze, copy=True))
+                group_squeeze=group_squeeze))
     print("DONE!", flush=True, file=sys.stderr)
 
     if verbose:
@@ -1787,8 +1794,8 @@ def main_crosstalk(config, subtract_bkg, fix_negative, mc_times,
 
     # spectral data of the crosstalk-corrected spectra
     cc_results = []
-    cc_results = ([spec.get_data(group_squeeze=group_squeeze, copy=True)
-                   for spec in cc_spectra])
+    cc_results.append([spec.get_data(group_squeeze=group_squeeze)
+                       for spec in cc_spectra])
 
     # Monte Carlo for spectral group error estimation
     print("INFO: Monte Carlo to estimate spectral errors (%d times) ..." %
@@ -1806,8 +1813,7 @@ def main_crosstalk(config, subtract_bkg, fix_negative, mc_times,
                                          group_squeeze=group_squeeze,
                                          add_history=False, verbose=False)
             cc_spectra_copy.append(crosstalk_copy.get_spectrum(copy=True))
-        cc_results.append([spec.get_data(group_squeeze=group_squeeze,
-                                         copy=True)
+        cc_results.append([spec.get_data(group_squeeze=group_squeeze)
                            for spec in cc_spectra_copy])
     print("DONE!", flush=True, file=sys.stderr)
 
