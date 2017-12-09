@@ -21,12 +21,15 @@ class FITSImage:
     handles single-frequency single-polarized image cube (NAXIS=3, 4),
     e.g., created by WSClean.
     """
-    def __init__(self, infile):
+    def __init__(self, infile, pixelsize=None):
+        self.infile = infile
         with fits.open(infile) as f:
             self.header = f[0].header
             self.data = f[0].data
         self.ndim = self.data.ndim
         self.shape = self.data.shape
+        if pixelsize is not None:
+            self.pixelsize = pixelsize  # [arcsec]
 
     @property
     def bunit(self):
@@ -76,6 +79,39 @@ class FITSImage:
             # NAXIS=4: [STOKES=1, FREQ=1, Y, X]
             self.data[0, 0, :, :] = value
 
+    @property
+    def pixelsize(self):
+        """
+        Image pixel size, in units of [arcsec]
+        """
+        if hasattr(self, "_pixelsize"):
+            return self._pixelsize
+
+        try:
+            return self.header["PixSize"]  # [arcsec]
+        except KeyError:
+            try:
+                return abs(self.header["CDELT1"]) * 3600  # [deg] -> [arcsec]
+            except KeyError:
+                return None
+
+    @pixelsize.setter
+    def pixelsize(self, value):
+        # Unit: [arcsec]
+        self._pixelsize = value
+
+    @property
+    def fov(self):
+        """
+        Image FoV coverage: (fov_x, fov_y)
+        Unit: [deg]
+        """
+        pixelsize = self.pixelsize
+        if pixelsize:
+            return (self.Nx*pixelsize/3600, self.Ny*pixelsize/3600)
+        else:
+            return None
+
     def write(self, outfile, clobber=False):
         self.header.add_history(" ".join(sys.argv))
         hdu = fits.PrimaryHDU(data=self.data, header=self.header)
@@ -91,7 +127,11 @@ def cmd_info(args):
     """
     fimage = FITSImage(args.infile)
     print("Image size: %dx%d" % (fimage.Nx, fimage.Ny))
-    print("Data unit: %s" % fimage.bunit)
+    print("Data unit: [%s]" % fimage.bunit)
+    pixelsize = fimage.pixelsize
+    if pixelsize:
+        print("Pixel size: %.1f [arcsec]" % pixelsize)
+        print("Field of view: (%.2f, %.2f) [deg]" % fimage.fov)
     data = fimage.image
     if args.abs:
         data = np.abs(data)
@@ -107,12 +147,12 @@ def cmd_info(args):
     iqr = np.diff(np.percentile(data, q=(25, 75)))
     mad = np.median(np.abs(data - median))
     rms = np.sqrt(np.mean(data**2))
-    print("mean:   %-12.6e" % mean)
-    print("median: %-12.6e" % median)
-    print("std:    %-12.6e  (standard deviation)" % std)
-    print("iqr:    %-12.6e  (interquartile range)" % iqr)
-    print("mad:    %-12.6e  (median absolute deviation)" % mad)
-    print("rms:    %-12.6e  (root-mean-squared)" % rms)
+    print("mean:   %13.6e" % mean)
+    print("median: %13.6e" % median)
+    print("std:    %13.6e  (standard deviation)" % std)
+    print("iqr:    %13.6e  (interquartile range)" % iqr)
+    print("mad:    %13.6e  (median absolute deviation)" % mad)
+    print("rms:    %13.6e  (root-mean-squared)" % rms)
 
 
 def cmd_add(args):
