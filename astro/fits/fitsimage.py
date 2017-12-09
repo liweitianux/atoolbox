@@ -13,6 +13,7 @@ import argparse
 
 import numpy as np
 from astropy.io import fits
+from scipy import ndimage
 
 
 class FITSImage:
@@ -100,6 +101,10 @@ class FITSImage:
         # Unit: [arcsec]
         oldvalue = self.pixelsize
         self._pixelsize = value
+        # Update header
+        self.header["PixSize"] = value  # [arcsec]
+        self.header["CDELT1"] *= value / oldvalue
+        self.header["CDELT2"] *= value / oldvalue
 
     @property
     def fov(self):
@@ -112,6 +117,35 @@ class FITSImage:
             return (self.Nx*pixelsize/3600, self.Ny*pixelsize/3600)
         else:
             return None
+
+    def zoom(self, newsize, order=1):
+        """
+        Zoom the image to the specified ``newsize``, meanwhile the header
+        information will be updated accordingly to preserve the FoV coverage.
+
+        NOTE
+        ----
+        The image aspect ratio cannot be changed.
+
+        Parameters
+        ----------
+        newsize : (Nx, Ny) or N
+            The size of the zoomed image.
+        order : int, optional
+            The interpolation order, default: 1
+        """
+        try:
+            Nx2, Ny2 = newsize
+        except TypeError:
+            Nx2 = Ny2 = newsize
+        zoom = ((Ny2+0.1)/self.Ny, (Nx2+0.1)/self.Nx)
+        if abs(zoom[0] - zoom[1]) > 1e-3:
+            raise RuntimeError("image aspect ratio cannot be changed")
+
+        pixelsize_old = self.pixelsize
+        self.image = ndimage.zoom(self.image, zoom=zoom, order=order)
+        self.pixelsize = pixelsize_old / zoom[0]
+        return self.image
 
     def write(self, outfile, clobber=False):
         self.header.add_history(" ".join(sys.argv))
@@ -127,6 +161,7 @@ def cmd_info(args):
     Sub-command: "info", show FITS image information
     """
     fimage = FITSImage(args.infile)
+    print("Image data shape: {0}".format(fimage.shape))
     print("Image size: %dx%d" % (fimage.Nx, fimage.Ny))
     print("Data unit: [%s]" % fimage.bunit)
     pixelsize = fimage.pixelsize
@@ -213,6 +248,29 @@ def cmd_mul(args):
     print("Saved FITS image to: %s" % args.outfile)
 
 
+def cmd_zoom(args):
+    """
+    Sub-command: "zoom", zoom the image to a new size with FoV coverage
+    preserved.
+    """
+    fimage = FITSImage(args.infile)
+    print("Image size: %dx%d" % (fimage.Nx, fimage.Ny))
+    pixelsize = fimage.pixelsize
+    if pixelsize is None:
+        raise RuntimeError("--pixelsize required")
+    else:
+        print("Pixel size: %.1f [arcsec]" % pixelsize)
+        print("Field of view: (%.2f, %.2f) [deg]" % fimage.fov)
+
+    print("Zooming image ...")
+    print("Interpolation order: %d" % args.order)
+    print("Zoomed image size: %dx%d" % (args.size, args.size))
+    fimage.zoom(newsize=args.size, order=args.order)
+    print("Zoomed image pixel size: %.1f [arcsec]" % pixelsize)
+    fimage.write(args.outfile, clobber=args.clobber)
+    print("Saved zoomed FITS image to: %s" % args.outfile)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="FITS image manipulation tool")
@@ -284,6 +342,26 @@ def main():
     exgrp_mul.add_argument("-f", "--files", dest="files", nargs="+",
                            help="FITS image(s) to be multiplied by")
     parser_mul.set_defaults(func=cmd_mul)
+
+    # sub-command: "zoom"
+    parser_zoom = subparsers.add_parser(
+        "zoom", aliases=["rescale"],
+        help="zoom the image to a new size with FoV coverage preserved")
+    parser_zoom.add_argument("-C", "--clobber", dest="clobber",
+                             action="store_true",
+                             help="overwrite existing output file")
+    parser_zoom.add_argument("--order", type=int, default=1,
+                             help="zoom interpolation order (default: 1)")
+    parser_zoom.add_argument("-s", "--size", type=int, required=True,
+                             help="zoomed image size (number of pixels)")
+    parser_zoom.add_argument("-p", "--pixelsize", type=float,
+                             help="input FITS image pixel size [arcsec] " +
+                             "(default: try to obtain from FITS header)")
+    parser_zoom.add_argument("-i", "--infile", dest="infile", required=True,
+                             help="input FITS image")
+    parser_zoom.add_argument("-o", "--outfile", dest="outfile", required=True,
+                             help="output zoomed FITS image")
+    parser_zoom.set_defaults(func=cmd_zoom)
 
     args = parser.parse_args()
     args.func(args)
