@@ -24,7 +24,7 @@ class FITSImage:
     def __init__(self, infile, pixelsize=None):
         self.infile = infile
         with fits.open(infile) as f:
-            self.header = f[0].header
+            self.header = f[0].header.copy(strip=True)
             self.data = f[0].data
         self.ndim = self.data.ndim
         self.shape = self.data.shape
@@ -56,13 +56,13 @@ class FITSImage:
         """
         if self.ndim == 2:
             # NAXIS=2: [Y, X]
-            image = self.data[:, :]
+            image = self.data[:, :].copy()
         elif self.ndim == 3 and self.shape[0] == 1:
             # NAXIS=3: [FREQ=1, Y, X]
-            image = self.data[0, :, :]
+            image = self.data[0, :, :].copy()
         elif self.ndim == 4 and self.shape[0] == 1 and self.shape[1] == 1:
             # NAXIS=4: [STOKES=1, FREQ=1, Y, X]
-            image = self.data[0, 0, :, :]
+            image = self.data[0, 0, :, :].copy()
         else:
             raise ValueError("invalid data shape: {1}".format(self.shape))
         return image
@@ -71,13 +71,13 @@ class FITSImage:
     def image(self, value):
         if self.ndim == 2:
             # NAXIS=2: [Y, X]
-            self.data[:, :] = value
+            self.data = np.array(value)
         elif self.ndim == 3:
             # NAXIS=3: [FREQ=1, Y, X]
-            self.data[0, :, :] = value
+            self.data = np.array(value)[np.newaxis, :, :]
         else:
             # NAXIS=4: [STOKES=1, FREQ=1, Y, X]
-            self.data[0, 0, :, :] = value
+            self.data = np.array(value)[np.newaxis, np.newaxis, :, :]
 
     @property
     def pixelsize(self):
@@ -98,6 +98,7 @@ class FITSImage:
     @pixelsize.setter
     def pixelsize(self, value):
         # Unit: [arcsec]
+        oldvalue = self.pixelsize
         self._pixelsize = value
 
     @property
