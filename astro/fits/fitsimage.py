@@ -33,6 +33,20 @@ class FITSImage:
         return self.header.get("BUNIT")
 
     @property
+    def Nx(self):
+        """
+        Number of pixels along the X axis (i.e., image width)
+        """
+        return self.shape[-1]
+
+    @property
+    def Ny(self):
+        """
+        Number of pixels along the Y axis (i.e., image height)
+        """
+        return self.shape[-2]
+
+    @property
     def image(self):
         """
         Deal with single-frequency and single-polarized image cube.
@@ -76,7 +90,7 @@ def cmd_info(args):
     Sub-command: "info", show FITS image information
     """
     fimage = FITSImage(args.infile)
-    print("Image data shape: {0}".format(fimage.shape))
+    print("Image size: %dx%d" % (fimage.Nx, fimage.Ny))
     print("Data unit: %s" % fimage.bunit)
     data = fimage.image
     if args.abs:
