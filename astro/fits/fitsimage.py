@@ -103,8 +103,11 @@ class FITSImage:
         self._pixelsize = value
         # Update header
         self.header["PixSize"] = value  # [arcsec]
-        self.header["CDELT1"] *= value / oldvalue
-        self.header["CDELT2"] *= value / oldvalue
+        try:
+            self.header["CDELT1"] *= value / oldvalue
+            self.header["CDELT2"] *= value / oldvalue
+        except KeyError:
+            pass
 
     @property
     def fov(self):
