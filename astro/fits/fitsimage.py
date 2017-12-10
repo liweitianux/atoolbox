@@ -144,7 +144,7 @@ class FITSImage:
 
         pixelsize_old = self.pixelsize
         self.image = ndimage.zoom(self.image, zoom=zoom, order=order)
-        self.pixelsize = pixelsize_old / zoom[0]
+        self.pixelsize = pixelsize_old * (self.Nx / Nx2)
         return self.image
 
     def write(self, outfile, clobber=False):
@@ -266,7 +266,7 @@ def cmd_zoom(args):
     print("Interpolation order: %d" % args.order)
     print("Zoomed image size: %dx%d" % (args.size, args.size))
     fimage.zoom(newsize=args.size, order=args.order)
-    print("Zoomed image pixel size: %.1f [arcsec]" % pixelsize)
+    print("Zoomed image pixel size: %.1f [arcsec]" % fimage.pixelsize)
     fimage.write(args.outfile, clobber=args.clobber)
     print("Saved zoomed FITS image to: %s" % args.outfile)
 
