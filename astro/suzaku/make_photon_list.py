@@ -355,7 +355,7 @@ def main():
     header_out.add_history(" ".join(sys.argv))
     logger.info("Creating photons table ...")
     photons = np.row_stack(photonlist)
-    photons.sort(axis=0)  # sort by time in place
+    photons = photons[photons[:, 0].argsort()]  # sort by time (1st column)
     hdu = fits.BinTableHDU.from_columns([
         fits.Column(name="PHOTON_TIME", format="D", unit="s",
                     array=photons[:, 0]),
