@@ -4,6 +4,7 @@
 # 2016-03-26
 #
 # Change log:
+# 2017-12-13: Cleanup reading grouping/quality from file
 # 2017-12-07:
 #   * Fix a list append error in ``cc_results``
 #   * Relax the exposure time validity check a bit
@@ -158,8 +159,8 @@ from astropy.io import fits
 from configobj import ConfigObj
 
 
-__version__ = "0.6.1"
-__date__ = "2017-12-07"
+__version__ = "0.6.2"
+__date__ = "2017-12-13"
 
 WARNING = """
 ********************************* WARNING ************************************
@@ -1547,9 +1548,9 @@ def main(config, subtract_bkg, fix_negative, mc_times,
                 for rmf, reg in rmf_files if rmf is not None}
 
     # get the GROUPING and QUALITY data
-    grouping_fits = fits.open(config["grouping"])
-    grouping = grouping_fits["SPECTRUM"].data.columns["GROUPING"].array
-    quality = grouping_fits["SPECTRUM"].data.columns["QUALITY"].array
+    with fits.open(config["grouping"]) as f:
+        grouping = f["SPECTRUM"].data.columns["GROUPING"].array
+        quality = f["SPECTRUM"].data.columns["QUALITY"].array
     # squeeze the groupped spectral data, etc.
     group_squeeze = True
 
@@ -1654,9 +1655,9 @@ def main_deprojection(config, mc_times, verbose=False, clobber=False,
                 for rmf, reg in rmf_files if rmf is not None}
 
     # get the GROUPING and QUALITY data
-    grouping_fits = fits.open(config["grouping"])
-    grouping = grouping_fits["SPECTRUM"].data.columns["GROUPING"].array
-    quality = grouping_fits["SPECTRUM"].data.columns["QUALITY"].array
+    with fits.open(config["grouping"]) as f:
+        grouping = f["SPECTRUM"].data.columns["GROUPING"].array
+        quality = f["SPECTRUM"].data.columns["QUALITY"].array
     # squeeze the groupped spectral data, etc.
     group_squeeze = True
 
@@ -1757,9 +1758,9 @@ def main_crosstalk(config, subtract_bkg, fix_negative, mc_times,
 
     # get the GROUPING and QUALITY data
     if "grouping" in config.keys():
-        grouping_fits = fits.open(config["grouping"])
-        grouping = grouping_fits["SPECTRUM"].data.columns["GROUPING"].array
-        quality = grouping_fits["SPECTRUM"].data.columns["QUALITY"].array
+        with fits.open(config["grouping"]) as f:
+            grouping = f["SPECTRUM"].data.columns["GROUPING"].array
+            quality = f["SPECTRUM"].data.columns["QUALITY"].array
         group_squeeze = True
     else:
         grouping = None
