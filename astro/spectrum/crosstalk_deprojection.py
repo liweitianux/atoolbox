@@ -4,7 +4,10 @@
 # 2016-03-26
 #
 # Change log:
-# 2017-12-13: Cleanup reading grouping/quality from file
+# 2017-12-13:
+#   * Allow the missing of ``info_emin`` and ``info_emax``
+#   * Do not use ``sys.stderr``
+#   * Cleanup reading grouping/quality from file
 # 2017-12-07:
 #   * Fix a list append error in ``cc_results``
 #   * Relax the exposure time validity check a bit
@@ -953,8 +956,11 @@ class SpectrumSet(Spectrum):  # {{{
         if verbose:
             print(operation)
         energy = self.energy
-        eidx = ((energy >= CONFIGS["info_emin"]) &
-                (energy <= CONFIGS["info_emax"]))
+        try:
+            eidx = ((energy >= CONFIGS["info_emin"]) &
+                    (energy <= CONFIGS["info_emax"]))
+        except KeyError:
+            eidx = np.ones_like(energy, dtype=bool)
         datasum1 = np.sum(self.spec_data[eidx])
         spec_data_subbkg = self.spec_data - ratio * self.bkg.get_data()
         datasum2 = np.sum(spec_data_subbkg[eidx])
@@ -1024,8 +1030,11 @@ class SpectrumSet(Spectrum):  # {{{
         spec_data_new = spec_data1 - spec_data2 * arf_ratio
         self.set_data(spec_data_new, group_squeeze=group_squeeze)
         energy_groupped = self.energy_groupped
-        eidx = ((energy_groupped >= CONFIGS["info_emin"]) &
-                (energy_groupped <= CONFIGS["info_emax"]))
+        try:
+            eidx = ((energy_groupped >= CONFIGS["info_emin"]) &
+                    (energy_groupped <= CONFIGS["info_emax"]))
+        except KeyError:
+            eidx = np.ones_like(energy_groupped, dtype=bool)
         datasum1 = np.sum(spec_data1[eidx])
         datasum2 = np.sum(spec_data_new[eidx])
         datacp = 100 * (datasum2-datasum1) / datasum1
@@ -1070,8 +1079,11 @@ class SpectrumSet(Spectrum):  # {{{
         spec_data_new = spec_data * (1 + arf_ratio)
         self.set_data(spec_data_new, group_squeeze=group_squeeze)
         energy_groupped = self.energy_groupped
-        eidx = ((energy_groupped >= CONFIGS["info_emin"]) &
-                (energy_groupped <= CONFIGS["info_emax"]))
+        try:
+            eidx = ((energy_groupped >= CONFIGS["info_emin"]) &
+                    (energy_groupped <= CONFIGS["info_emax"]))
+        except KeyError:
+            eidx = np.ones_like(energy_groupped, dtype=bool)
         datasum1 = np.sum(spec_data[eidx])
         datasum2 = np.sum(spec_data_new[eidx])
         datacp = 100 * (datasum2-datasum1) / datasum1
