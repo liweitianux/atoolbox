@@ -298,7 +298,7 @@ class ARF:  # {{{
             arf = self.get_data(copy=False)
             if verbose:
                 print("INFO: Interpolating ARF '%s' (may take a while) ..." %
-                      self.filename, file=sys.stderr)
+                      self.filename)
             f_interp = scipy.interpolate.interp1d(
                 self.energy, arf, kind="quadratic", bounds_error=False,
                 fill_value=0.0, assume_sorted=True)
@@ -323,8 +323,7 @@ class ARF:  # {{{
         if self.groupped:
             return
         if verbose:
-            print("INFO: Grouping ARF '%s' ..." % self.filename,
-                  file=sys.stderr)
+            print("INFO: Grouping ARF '%s' ..." % self.filename)
         self.energy_channel = energy_channel
         self.grouping = grouping
         # interpolate the ARF w.r.t the spectral channel energies
@@ -952,7 +951,7 @@ class SpectrumSet(Spectrum):  # {{{
         operation = ("  SUBTRACT_BACKGROUND: %s - %s * %s" %
                      (self.filename, ratio, self.bkg.filename))
         if verbose:
-            print(operation, file=sys.stderr)
+            print(operation)
         energy = self.energy
         eidx = ((energy >= CONFIGS["info_emin"]) &
                 (energy <= CONFIGS["info_emax"]))
@@ -999,7 +998,7 @@ class SpectrumSet(Spectrum):  # {{{
             self.filename, cross_arf.filename, spectrumset.arf.filename,
             spectrumset.filename)
         if verbose:
-            print(operation, file=sys.stderr)
+            print(operation)
         energy = self.energy
         if groupped:
             spectrumset.arf.apply_grouping(energy_channel=energy,
@@ -1050,7 +1049,7 @@ class SpectrumSet(Spectrum):  # {{{
             self.filename, cross_arf.filename, self.arf.filename,
             self.filename)
         if verbose:
-            print(operation, file=sys.stderr)
+            print(operation)
         energy = self.energy
         if groupped:
             cross_arf.apply_grouping(energy_channel=energy,
@@ -1093,16 +1092,16 @@ class SpectrumSet(Spectrum):  # {{{
         neg_channels = np.arange(N, dtype=int)[neg_counts]
         if len(neg_channels) > 0:
             print("WARNING: %d channels have NEGATIVE counts" %
-                  len(neg_channels), file=sys.stderr)
+                  len(neg_channels))
         i = 0
         while len(neg_channels) > 0:
             i += 1
             if verbose:
                 if i == 1:
                     print("*** Fixing negative channels: iter %d..." % i,
-                          end="", file=sys.stderr)
+                          end="")
                 else:
-                    print("%d..." % i, end="", file=sys.stderr)
+                    print("%d..." % i, end="")
             for ch in neg_channels:
                 neg_val = self.spec_data[ch]
                 if ch < N-2:
@@ -1115,7 +1114,7 @@ class SpectrumSet(Spectrum):  # {{{
             neg_counts = self.spec_data < 0
             neg_channels = np.arange(N, dtype=int)[neg_counts]
         if i > 0:
-            print("FIXED!", file=sys.stderr)
+            print("FIXED!")
             # record history
             if add_history:
                 self.header.add_history("  FIXED NEGATIVE CHANNELS")
@@ -1242,7 +1241,7 @@ class Crosstalk:  # {{{
         # background subtraction
         if subtract_bkg:
             if verbose:
-                print("INFO: subtract background ...", file=sys.stderr)
+                print("INFO: subtract background ...")
             self.spectrumset.subtract_bkg(inplace=True,
                                           add_history=add_history,
                                           verbose=verbose)
@@ -1253,7 +1252,7 @@ class Crosstalk:  # {{{
                                      verbose=verbose)
         # subtractions
         if verbose:
-            print("INFO: apply subtractions ...", file=sys.stderr)
+            print("INFO: apply subtractions ...")
         for specset, cross_arf in zip(self.cross_in_specset,
                                       self.cross_in_arf):
             self.spectrumset.subtract(
@@ -1262,7 +1261,7 @@ class Crosstalk:  # {{{
                 add_history=add_history, verbose=verbose)
         # compensations
         if verbose:
-            print("INFO: apply compensations ...", file=sys.stderr)
+            print("INFO: apply compensations ...")
         for cross_arf in self.cross_out_arf:
             self.spectrumset.compensate(
                 cross_arf=cross_arf, groupped=self.groupped,
@@ -1271,7 +1270,7 @@ class Crosstalk:  # {{{
         # fix negative values in channels
         if fix_negative:
             if verbose:
-                print("INFO: fix negative channel values ...", file=sys.stderr)
+                print("INFO: fix negative channel values ...")
             self.spectrumset.fix_negative(add_history=add_history,
                                           verbose=verbose)
         if add_history:
@@ -1350,7 +1349,7 @@ class Deprojection:  # {{{
             spec.set_radius_inner(rin)
             if verbose:
                 print("Deprojection: loaded spectrum: radius: (%s, %s)" %
-                      (spec.radius_inner, spec.radius_outer), file=sys.stderr)
+                      (spec.radius_inner, spec.radius_outer))
         # Check EXPOSURE validity, the set of spectra from one detector
         # must have the (almost) same exposure times.
         # NOTE: different CCD chips may have a minor different exposure times.
@@ -1396,8 +1395,7 @@ class Deprojection:  # {{{
         #
         for shellnum in reversed(range(num_spec)):
             if verbose:
-                print("DEPROJECTION: deprojecting shell %d ..." % shellnum,
-                      file=sys.stderr)
+                print("DEPROJECTION: deprojecting shell %d ..." % shellnum)
             spec = self.spectra[shellnum]
             # calculate projected spectrum of outlying shells
             proj_spec = np.zeros(spec_shape, spec_dtype)
@@ -1540,8 +1538,8 @@ def main(config, subtract_bkg, fix_negative, mc_times,
         if "cross_out" in config_reg.sections:
             for arf in config_reg["cross_out"].as_list("cross_arf"):
                 arf_files.add((arf, None))
-    print("INFO: arf_files:", arf_files, file=sys.stderr)
-    print("INFO: rmf_files:", rmf_files, file=sys.stderr)
+    print("INFO: arf_files:", arf_files)
+    print("INFO: rmf_files:", rmf_files)
     arf_dict = {arf: ARF(arf, regid=reg)
                 for arf, reg in arf_files if arf is not None}
     rmf_dict = {rmf: RMF(rmf, regid=reg)
@@ -1562,7 +1560,7 @@ def main(config, subtract_bkg, fix_negative, mc_times,
     # correct crosstalk effects for each region first
     for region in config.sections:
         if verbose:
-            print("INFO: processing '%s' ..." % region, file=sys.stderr)
+            print("INFO: processing '%s' ..." % region)
         crosstalk = Crosstalk(config.get(region), regid=region,
                               arf_dict=arf_dict, rmf_dict=rmf_dict,
                               grouping=grouping, quality=quality)
@@ -1571,7 +1569,7 @@ def main(config, subtract_bkg, fix_negative, mc_times,
         # keep a (almost) clean copy of the crosstalk object
         crosstalks_cleancopy.append(crosstalk.copy())
         if verbose:
-            print("INFO: doing crosstalk correction ...", file=sys.stderr)
+            print("INFO: doing crosstalk correction ...")
         crosstalk.do_correction(subtract_bkg=subtract_bkg,
                                 fix_negative=fix_negative,
                                 group_squeeze=group_squeeze,
@@ -1580,26 +1578,24 @@ def main(config, subtract_bkg, fix_negative, mc_times,
 
     # load back the crosstalk-corrected spectra for deprojection
     if verbose:
-        print("INFO: preparing spectra for deprojection ...", file=sys.stderr)
+        print("INFO: preparing spectra for deprojection ...")
     deprojection = Deprojection(spectra=cc_spectra, grouping=grouping,
                                 quality=quality, verbose=verbose)
     if verbose:
-        print("INFO: scaling spectra according the region angular size...",
-              file=sys.stderr)
+        print("INFO: scaling spectra according the region angular size...")
     deprojection.scale(verbose=verbose)
     if verbose:
-        print("INFO: doing deprojection ...", file=sys.stderr)
+        print("INFO: doing deprojection ...")
     deprojection.do_deprojection(add_history=True, verbose=verbose)
     deproj_results = []
     deproj_results.append(deprojection.get_spec_data(
         group_squeeze=group_squeeze))
 
     # Monte Carlo for spectral group error estimation
-    print("INFO: Monte Carlo to estimate spectral errors (%d times) ..." %
-          mc_times, file=sys.stderr)
+    print("INFO: Monte Carlo to estimate errors (%d times) ..." % mc_times)
     for i in range(mc_times):
         if i % 50 == 0:
-            print("%d..." % i, end="", flush=True, file=sys.stderr)
+            print("%d..." % i, end="", flush=True)
         # correct crosstalk effects
         cc_spectra_copy = []
         for crosstalk in crosstalks_cleancopy:
@@ -1618,17 +1614,16 @@ def main(config, subtract_bkg, fix_negative, mc_times,
         deprojection_copy.do_deprojection(add_history=False, verbose=False)
         deproj_results.append(deprojection_copy.get_spec_data(
                 group_squeeze=group_squeeze))
-    print("DONE!", flush=True, file=sys.stderr)
+    print("DONE!", flush=True)
 
     if verbose:
-        print("INFO: Calculating the median and errors for each spectrum ...",
-              file=sys.stderr)
+        print("INFO: Calculating the median and errors for each spectrum ...")
     medians, errors = calc_median_errors(deproj_results)
     deprojection.set_spec_data(medians, group_squeeze=group_squeeze)
     deprojection.add_stat_err(errors, group_squeeze=group_squeeze)
     if verbose:
         print("INFO: Writing the crosstalk-corrected and deprojected " +
-              "spectra with estimated statistical errors ...", file=sys.stderr)
+              "spectra with estimated statistical errors ...")
     deprojection.fix_header()
     deprojection.write(clobber=clobber)
 # main routine }}}
@@ -1647,8 +1642,8 @@ def main_deprojection(config, mc_times, verbose=False, clobber=False,
         config_reg = config[region]
         arf_files.add((config_reg["arf"], region))
         rmf_files.add((config_reg["rmf"], region))
-    print("INFO: arf_files:", arf_files, file=sys.stderr)
-    print("INFO: rmf_files:", rmf_files, file=sys.stderr)
+    print("INFO: arf_files:", arf_files)
+    print("INFO: rmf_files:", rmf_files)
     arf_dict = {arf: ARF(arf, regid=reg)
                 for arf, reg in arf_files if arf is not None}
     rmf_dict = {rmf: RMF(rmf, regid=reg)
@@ -1663,7 +1658,7 @@ def main_deprojection(config, mc_times, verbose=False, clobber=False,
 
     # load spectra for deprojection
     if verbose:
-        print("INFO: preparing spectra for deprojection ...", file=sys.stderr)
+        print("INFO: preparing spectra for deprojection ...")
     proj_spectra = []
     for region in config.sections:
         config_reg = config[region]
@@ -1680,29 +1675,27 @@ def main_deprojection(config, mc_times, verbose=False, clobber=False,
     deprojection.apply_grouping(verbose=verbose)
     deprojection.estimate_errors()
     if verbose:
-        print("INFO: scaling spectra according the region angular size ...",
-              file=sys.stderr)
+        print("INFO: scaling spectra according the region angular size ...")
     deprojection.scale(verbose=verbose)
 
     # keep a (almost) clean copy of the input projected spectra
     proj_spectra_cleancopy = [spec.copy() for spec in proj_spectra]
 
     if verbose:
-        print("INFO: subtract the background ...", file=sys.stderr)
+        print("INFO: subtract the background ...")
     deprojection.subtract_bkg(verbose=verbose)
     if verbose:
-        print("INFO: doing deprojection ...", file=sys.stderr)
+        print("INFO: doing deprojection ...")
     deprojection.do_deprojection(add_history=True, verbose=verbose)
     deproj_results = []
     deproj_results.append(deprojection.get_spec_data(
             group_squeeze=group_squeeze))
 
     # Monte Carlo for spectral group error estimation
-    print("INFO: Monte Carlo to estimate spectral errors (%d times) ..." %
-          mc_times, file=sys.stderr)
+    print("INFO: Monte Carlo to estimate errors (%d times) ..." % mc_times)
     for i in range(mc_times):
         if i % 50 == 0:
-            print("%d..." % i, end="", flush=True, file=sys.stderr)
+            print("%d..." % i, end="", flush=True)
         # copy and randomize the input projected spectra
         proj_spectra_copy = [spec.copy().randomize()
                              for spec in proj_spectra_cleancopy]
@@ -1714,17 +1707,16 @@ def main_deprojection(config, mc_times, verbose=False, clobber=False,
         deprojection_copy.do_deprojection(add_history=False, verbose=False)
         deproj_results.append(deprojection_copy.get_spec_data(
                 group_squeeze=group_squeeze))
-    print("DONE!", flush=True, file=sys.stderr)
+    print("DONE!", flush=True)
 
     if verbose:
-        print("INFO: Calculating the median and errors for each spectrum ...",
-              file=sys.stderr)
+        print("INFO: Calculating the median and errors for each spectrum ...")
     medians, errors = calc_median_errors(deproj_results)
     deprojection.set_spec_data(medians, group_squeeze=group_squeeze)
     deprojection.add_stat_err(errors, group_squeeze=group_squeeze)
     if verbose:
         print("INFO: Writing the deprojected spectra " +
-              "with estimated statistical errors ...", file=sys.stderr)
+              "with estimated statistical errors ...")
     deprojection.fix_header()
     deprojection.write(clobber=clobber)
 # main_deprojection routine }}}
@@ -1749,8 +1741,8 @@ def main_crosstalk(config, subtract_bkg, fix_negative, mc_times,
         if "cross_out" in config_reg.sections:
             for arf in config_reg["cross_out"].as_list("cross_arf"):
                 arf_files.add((arf, None))
-    print("INFO: arf_files:", arf_files, file=sys.stderr)
-    print("INFO: rmf_files:", rmf_files, file=sys.stderr)
+    print("INFO: arf_files:", arf_files)
+    print("INFO: rmf_files:", rmf_files)
     arf_dict = {arf: ARF(arf, regid=reg)
                 for arf, reg in arf_files if arf is not None}
     rmf_dict = {rmf: RMF(rmf, regid=reg)
@@ -1775,7 +1767,7 @@ def main_crosstalk(config, subtract_bkg, fix_negative, mc_times,
     # correct crosstalk effects for each region first
     for region in config.sections:
         if verbose:
-            print("INFO: processing '%s' ..." % region, file=sys.stderr)
+            print("INFO: processing '%s' ..." % region)
         crosstalk = Crosstalk(config.get(region), regid=region,
                               arf_dict=arf_dict, rmf_dict=rmf_dict,
                               grouping=grouping, quality=quality)
@@ -1785,7 +1777,7 @@ def main_crosstalk(config, subtract_bkg, fix_negative, mc_times,
         # keep a (almost) clean copy of the crosstalk object
         crosstalks_cleancopy.append(crosstalk.copy())
         if verbose:
-            print("INFO: doing crosstalk correction ...", file=sys.stderr)
+            print("INFO: doing crosstalk correction ...")
         crosstalk.do_correction(subtract_bkg=subtract_bkg,
                                 fix_negative=fix_negative,
                                 group_squeeze=group_squeeze,
@@ -1799,11 +1791,10 @@ def main_crosstalk(config, subtract_bkg, fix_negative, mc_times,
                        for spec in cc_spectra])
 
     # Monte Carlo for spectral group error estimation
-    print("INFO: Monte Carlo to estimate spectral errors (%d times) ..." %
-          mc_times, file=sys.stderr)
+    print("INFO: Monte Carlo to estimate errors (%d times) ..." % mc_times)
     for i in range(mc_times):
         if i % 50 == 0:
-            print("%d..." % i, end="", flush=True, file=sys.stderr)
+            print("%d..." % i, end="", flush=True)
         # correct crosstalk effects
         cc_spectra_copy = []
         for crosstalk in crosstalks_cleancopy:
@@ -1816,15 +1807,14 @@ def main_crosstalk(config, subtract_bkg, fix_negative, mc_times,
             cc_spectra_copy.append(crosstalk_copy.get_spectrum(copy=True))
         cc_results.append([spec.get_data(group_squeeze=group_squeeze)
                            for spec in cc_spectra_copy])
-    print("DONE!", flush=True, file=sys.stderr)
+    print("DONE!", flush=True)
 
     if verbose:
-        print("INFO: Calculating the median and errors for each spectrum ...",
-              file=sys.stderr)
+        print("INFO: Calculating the median and errors for each spectrum ...")
     medians, errors = calc_median_errors(cc_results)
     if verbose:
         print("INFO: Writing the crosstalk-corrected spectra " +
-              "with estimated statistical errors ...", file=sys.stderr)
+              "with estimated statistical errors ...")
     for spec, data, err in zip(cc_spectra, medians, errors):
         spec.set_data(data, group_squeeze=group_squeeze)
         spec.add_stat_err(err, group_squeeze=group_squeeze)
@@ -1887,13 +1877,13 @@ if __name__ == "__main__":
         print("* %s: %s" % (k, v))
 
     if mode.lower() == "both":
-        print("MODE: CROSSTALK + DEPROJECTION", file=sys.stderr)
+        print("MODE: CROSSTALK + DEPROJECTION")
         main(configs, **CONFIGS)
     elif mode.lower() == "deprojection":
-        print("MODE: DEPROJECTION", file=sys.stderr)
+        print("MODE: DEPROJECTION")
         main_deprojection(configs, **CONFIGS)
     elif mode.lower() == "crosstalk":
-        print("MODE: CROSSTALK", file=sys.stderr)
+        print("MODE: CROSSTALK")
         main_crosstalk(configs, **CONFIGS)
     else:
         raise ValueError("Invalid operation mode: %s" % mode)
