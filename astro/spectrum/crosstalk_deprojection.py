@@ -5,6 +5,7 @@
 #
 # Change log:
 # 2017-12-13:
+#   * Fix possible invalid spectral errors due to negative group counts
 #   * Allow the missing of ``info_emin`` and ``info_emax``
 #   * Do not use ``sys.stderr``
 #   * Cleanup reading grouping/quality from file
@@ -162,7 +163,7 @@ from astropy.io import fits
 from configobj import ConfigObj
 
 
-__version__ = "0.6.2"
+__version__ = "0.6.3"
 __date__ = "2017-12-13"
 
 WARNING = """
@@ -605,16 +606,24 @@ class Spectrum:  # {{{
         N photons is given by `1 + sqrt(N + 0.75)'; otherwise, the error
         is given by `sqrt(N)'.
 
-        Results: `self.spec_err'
+        Attributes
+        ----------
+        spec_err : `~numpy.ndarray`
+            Estimated errors for the spectral data.
+            NOTE: If the spectral data (in counts) have negative groups, the
+                  errors of those groups are set to 0.0!
         """
-        eps = 1.0e-10
-        if gehrels:
-            self.spec_err = 1.0 + np.sqrt(self.spec_data + 0.75)
-        else:
-            self.spec_err = np.sqrt(self.spec_data)
-        # replace the zeros with a very small value (because
-        # `np.random.normal' requires `scale' > 0)
-        self.spec_err[self.spec_err <= 0.0] = eps
+        with np.errstate(invalid="ignore"):
+            if gehrels:
+                self.spec_err = 1.0 + np.sqrt(self.spec_data + 0.75)
+            else:
+                self.spec_err = np.sqrt(self.spec_data)
+        # Warn about and fix the invalid error values
+        invalid = ~np.isfinite(self.spec_err)
+        if np.sum(invalid) > 0:
+            print("WARNING: invalid spectral errors are set to 0.0! " +
+                  "(due to negative spectral group counts)")
+            self.spec_err[invalid] = 0.0
 
     def copy(self):
         """
@@ -916,21 +925,11 @@ class SpectrumSet(Spectrum):  # {{{
         Estimate the statistical errors of each spectral group (after
         applying grouping) for the source spectrum (and background spectrum).
 
-        If `gehrels=True', the statistical error for a spectral group with
-        N photons is given by `1 + sqrt(N + 0.75)'; otherwise, the error
-        is given by `sqrt(N)'.
-
         Results: `self.spec_err' (and `self.bkg.spec_err')
         """
         super().estimate_errors(gehrels=gehrels)
-        eps = 1.0e-10
-        # estimate the errors for background spectrum if present
         if self.bkg:
-            if gehrels:
-                self.bkg.spec_err = 1.0 + np.sqrt(self.bkg.spec_data + 0.75)
-            else:
-                self.bkg.spec_err = np.sqrt(self.bkg.spec_data)
-            self.bkg.spec_err[self.bkg.spec_err <= 0.0] = eps
+            self.bkg.estimate_errors(gehrels=gehrels)
 
     def subtract_bkg(self, inplace=True, add_history=False, verbose=False):
         """
