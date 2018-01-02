@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) Weitian LI <weitian@aaronly.me>
+# Copyright (c) 2017-2018 Weitian LI <weitian@aaronly.me>
 # MIT license
 #
 
@@ -159,11 +159,11 @@ class FITSImage:
             hdu.writeto(outfile, clobber=clobber)
 
 
-def cmd_info(args):
+def show_info(filename, abs_=None, center=None):
     """
-    Sub-command: "info", show FITS image information
+    Show FITS image information.
     """
-    fimage = FITSImage(args.infile)
+    fimage = FITSImage(filename)
     print("Image data shape: {0}".format(fimage.shape))
     print("Image size: %dx%d" % (fimage.Nx, fimage.Ny))
     print("Data unit: [%s]" % fimage.bunit)
@@ -172,13 +172,13 @@ def cmd_info(args):
         print("Pixel size: %.1f [arcsec]" % pixelsize)
         print("Field of view: (%.2f, %.2f) [deg]" % fimage.fov)
     data = fimage.image
-    if args.abs:
+    if abs_:
         data = np.abs(data)
-    if args.center:
-        print("Central box size: %d" % args.center)
+    if center:
+        print("Central box size: %d" % center)
         rows, cols = data.shape
         rc, cc = rows//2, cols//2
-        cs1, cs2 = args.center//2, (args.center+1)//2
+        cs1, cs2 = center//2, (center+1)//2
         data = data[(rc-cs1):(rc+cs2), (cc-cs1):(cc+cs2)]
     mean = np.mean(data)
     median = np.median(data)
@@ -192,6 +192,16 @@ def cmd_info(args):
     print("iqr:    %13.6e  (interquartile range)" % iqr)
     print("mad:    %13.6e  (median absolute deviation)" % mad)
     print("rms:    %13.6e  (root-mean-squared)" % rms)
+
+
+def cmd_info(args):
+    """
+    Sub-command: "info", show FITS image information
+    """
+    for fn in args.files:
+        print(">>> %s <<<" % fn)
+        show_info(fn, abs_=args.abs, center=args.center)
+        print("")
 
 
 def cmd_add(args):
@@ -289,7 +299,7 @@ def main():
                              help="choose central region of specified size")
     parser_info.add_argument("-a", "--abs", dest="abs", action="store_true",
                              help="take absolute values of image pixels")
-    parser_info.add_argument("infile", help="FITS image filename")
+    parser_info.add_argument("files", nargs="+", help="FITS image filename")
     parser_info.set_defaults(func=cmd_info)
 
     # sub-command: "add"
