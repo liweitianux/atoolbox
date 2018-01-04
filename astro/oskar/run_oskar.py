@@ -16,7 +16,8 @@ from time import time
 
 
 def run_oskar(configfile, model, freq, vis_ms, vis_oskar=None,
-              telescope=None, chunksize=None, dryrun=False):
+              telescope=None, chunksize=None, use_gpus=None,
+              num_devices=None, dryrun=False):
     """
     Update simulation settings in the configuration file,
     and run the simulator ``oskar_sim_interferometer``.
@@ -30,6 +31,8 @@ def run_oskar(configfile, model, freq, vis_ms, vis_oskar=None,
     simulator = "oskar_sim_interferometer"
     for item, value in [
             ("simulator/max_sources_per_chunk",   chunksize),
+            ("simulator/use_gpus",                use_gpus),
+            ("simulator/num_devices",             num_devices),
             ("sky/oskar_sky_model/file",          model),
             ("telescope/input_directory",         telescope),
             ("observation/start_frequency_hz",    freq*1e6),  # [MHz] -> [Hz]
@@ -77,14 +80,28 @@ def main():
                         default="visibility",
                         help="simulated visibility output directory " +
                         "(default: 'visibility/')")
-    exgrp = parser.add_mutually_exclusive_group(required=True)
-    exgrp.add_argument("-l", "--list", dest="listfile",
-                       help="list of frequencies [MHz] and input sky models")
-    exgrp.add_argument("-i", "--items", dest="items", nargs="+",
-                       help="list of sky model items in format of " +
-                       "'<freq[MHz]>:<skymodel-file>'")
+    parser.add_argument("--num-devices", dest="num_devices",
+                        type=int, default=None,
+                        help="number of GPU devices or CPU threads to use")
+    exgrp1 = parser.add_mutually_exclusive_group()
+    exgrp1.add_argument("--use-gpu", dest="use_gpu", action="store_true",
+                        help="force to only use GPUs")
+    exgrp1.add_argument("--use-cpu", dest="use_cpu", action="store_true",
+                        help="force to only use CPUs")
+    exgrp2 = parser.add_mutually_exclusive_group(required=True)
+    exgrp2.add_argument("-l", "--list", dest="listfile",
+                        help="list of frequencies [MHz] and input sky models")
+    exgrp2.add_argument("-i", "--items", dest="items", nargs="+",
+                        help="list of sky model items in format of " +
+                        "'<freq[MHz]>:<skymodel-file>'")
     args = parser.parse_args()
     t1 = time()
+
+    use_gpus = None
+    if args.use_gpu:
+        use_gpus = True
+    elif args.use_cpu:
+        use_gpus = False
 
     if not os.path.exists(args.outdir):
         os.mkdir(args.outdir)
@@ -123,6 +140,7 @@ def main():
         run_oskar(configfile=configfile, freq=freq,
                   model=skyfile, vis_ms=vis_ms, vis_oskar=vis_oskar,
                   telescope=args.telescope, chunksize=args.chunksize,
+                  use_gpus=use_gpus, num_devices=args.num_devices,
                   dryrun=args.dryrun)
 
     t2 = time()
