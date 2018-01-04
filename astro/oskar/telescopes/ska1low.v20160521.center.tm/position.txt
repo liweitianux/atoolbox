@@ -1,0 +1,4 @@
+# SKA1-low layout: /home/aly/syncthing/git/fg21sim/fg21sim/uvsim/ska1low.layout.txt
+# Telescope center position (WGS84)
+# longitude[deg]  latitude[deg]
+116.76444820  -26.82472208
