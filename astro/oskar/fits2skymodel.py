@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2017 Weitian LI <weitian@aaronly.me>
+# Copyright (c) 2017-2018 Weitian LI <weitian@aaronly.me>
 # MIT License
 #
 
@@ -114,7 +114,7 @@ class SkyModel:
         wcs_.wcs.ctype = ["RA---"+self.projection, "DEC--"+self.projection]
         wcs_.wcs.crval = np.array([self.ra0, self.dec0])
         wcs_.wcs.crpix = np.array([shape[1], shape[0]]) / 2.0 + 1
-        wcs_.wcs.cdelt = np.array([delta, delta])
+        wcs_.wcs.cdelt = np.array([-delta, delta])  # NOTE the minus sign
         return wcs_
 
     @property
@@ -204,7 +204,7 @@ class SkyModel:
         logger.info("Source counts: %d (%.1f%%)" % (counts, percent))
         header = ("Frequency = %.3f [MHz]\n" % self.freq +
                   "Pixel size = %.2f [arcsec]\n" % self.pixelsize +
-                  "K2JyPixel = %.2f\n" % self.factor_K2JyPixel +
+                  "K2JyPixel = %.3e\n" % self.factor_K2JyPixel +
                   "RA0 = %.4f [deg]\n" % self.ra0 +
                   "Dec0 = %.4f [deg]\n" % self.dec0 +
                   "Minimum value = %.4e [K]\n" % self.minvalue +
@@ -225,7 +225,7 @@ class SkyModel:
             header = self.fits_header
         header.add_history(datetime.now().isoformat())
         header.add_history(" ".join(sys.argv))
-        image = self.image
+        image = self.image.copy()
         image[~self.mask] = np.nan
         image *= self.factor_K2JyPixel
         hdu = fits.PrimaryHDU(data=image, header=header)
