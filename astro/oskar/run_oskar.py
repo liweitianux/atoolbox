@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) Weitna LI <weitian@aaronly.me>
+# Copyright (c) 2017-2018 Weitian LI <weitian@aaronly.me>
 # MIT License
 #
 # Run OSKAR interferometer simulator, with corresponding settings
 # applied to the common configurations.
+#
+# OSKAR settings doc:
+# http://www.oerc.ox.ac.uk/~ska/oskar2/OSKAR-Settings.pdf
 #
 
 import os
@@ -17,7 +20,7 @@ from time import time
 
 def run_oskar(configfile, model, freq, vis_ms, vis_oskar=None,
               telescope=None, chunksize=None, use_gpus=None,
-              num_devices=None, dryrun=False):
+              gpu_ids=None, num_devices=None, dryrun=False):
     """
     Update simulation settings in the configuration file,
     and run the simulator ``oskar_sim_interferometer``.
@@ -32,6 +35,7 @@ def run_oskar(configfile, model, freq, vis_ms, vis_oskar=None,
     for item, value in [
             ("simulator/max_sources_per_chunk",   chunksize),
             ("simulator/use_gpus",                use_gpus),
+            ("simulator/cuda_device_ids",         gpu_ids),
             ("simulator/num_devices",             num_devices),
             ("sky/oskar_sky_model/file",          model),
             ("telescope/input_directory",         telescope),
@@ -82,7 +86,10 @@ def main():
                         "(default: 'visibility/')")
     parser.add_argument("--num-devices", dest="num_devices",
                         type=int, default=None,
-                        help="number of GPU devices or CPU threads to use")
+                        help="number of CPU threads to use")
+    parser.add_argument("--gpu-ids", dest="gpu_ids", default=None,
+                        help="comma-separated GPU device IDs to use; " +
+                        "(default: use all GPU devices)")
     exgrp1 = parser.add_mutually_exclusive_group()
     exgrp1.add_argument("--use-gpu", dest="use_gpu", action="store_true",
                         help="force to only use GPUs")
@@ -140,8 +147,8 @@ def main():
         run_oskar(configfile=configfile, freq=freq,
                   model=skyfile, vis_ms=vis_ms, vis_oskar=vis_oskar,
                   telescope=args.telescope, chunksize=args.chunksize,
-                  use_gpus=use_gpus, num_devices=args.num_devices,
-                  dryrun=args.dryrun)
+                  use_gpus=use_gpus, gpu_ids=args.gpu_ids,
+                  num_devices=args.num_devices, dryrun=args.dryrun)
 
     t2 = time()
     print("=============================================================")
