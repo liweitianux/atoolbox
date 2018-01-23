@@ -49,7 +49,7 @@ def query_name(name, verbose=False):
     """
     try:
         q = Ned.query_object(name)
-        objname  = q["Object Name"][0].decode("utf-8")
+        objname  = q["Object Name"][0]
         objtype  = q["Type"][0].decode("utf-8")
         ra       = q["RA(deg)"][0]
         dec      = q["DEC(deg)"][0]
