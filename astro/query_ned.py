@@ -1,21 +1,11 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2016-2017 Weitian LI <liweitianux@live.com>
-# MIT license
+# Copyright (c) 2016-2018 Weitian LI <weitian@aaronly.me>
+# MIT License
 #
 # References:
 # [1] astroquery: NedClass
 #     https://astroquery.readthedocs.org/en/latest/api/astroquery.ned.NedClass.html
-#
-# Change log:
-# 2017-02-11:
-#   * Add argument "--brief" to not print header
-# 2016-05-25:
-#   * Also output RA, DEC results
-#   * Update argument process
-#   * Simplify queried results process
-#   * Improve comments a bit
-#   * Some PEP8 fixes
 #
 # TODO:
 #   * allow to query by coordinates & radius range
@@ -35,15 +25,13 @@ from collections import OrderedDict
 
 from astroquery.ned import Ned
 from astroquery.exceptions import RemoteServiceError
-# from astropy import coordinates
-# import astropy.units as u
 
 
 # Ned configurations
 Ned.TIMEOUT = 20
 
 
-def query_name(name, verbose=False):
+def query_name(name, verbose=False, print_header=False):
     """
     Query NED by source name.
     """
@@ -58,12 +46,7 @@ def query_name(name, verbose=False):
         z_flag   = q["Redshift Flag"][0].decode("utf-8")
         refs     = q["References"][0]
         notes    = q["Notes"][0]
-        if verbose:
-            print("%s: %s,%s,%s,%s,%s,%s,%s,%s,%s" %
-                  (name, objname, objtype, ra, dec, velocity, z, z_flag,
-                   refs, notes),
-                  file=sys.stderr)
-    except RemoteServiceError as e:
+    except RemoteServiceError:
         objname  = None
         objtype  = None
         ra       = None
@@ -88,6 +71,10 @@ def query_name(name, verbose=False):
         ("References", refs),
         ("Notes",      notes),
     ])
+    if verbose:
+        if print_header:
+            print(",".join(results.keys()))
+        print(",".join([str(v) for v in results.values()]))
     return results
 
 
@@ -102,8 +89,9 @@ def main():
                         help="be brief and do not print header")
     parser.add_argument("-i", "--input", dest="input", required=True,
                         help="source names to be queried (sep by comma); " +
-                             "or a file contains the names (one per line)")
-    parser.add_argument("-o", "--output", dest="output", default=sys.stdout,
+                        "or a file contains the names (one per line)")
+    parser.add_argument("-o", "--output", dest="output",
+                        default=sys.stdout,
                         help="output CSV file with queried data")
     args = parser.parse_args()
 
@@ -114,8 +102,11 @@ def main():
 
     results_list = []
 
+    print_header = True
     for name in names:
-        qr = query_name(name, verbose=args.verbose)
+        qr = query_name(name, verbose=args.verbose,
+                        print_header=print_header)
+        print_header = False
         results_list.append(qr)
 
     try:
