@@ -1,15 +1,26 @@
-#!/usr/bin/perl -t
+#!/usr/bin/env perl
+#
+# Copyright (C) 2008-2014  Francois Marier <francois@fmarier.org>
+# GNU General Public License, version 3 (GPLv3)
+#
+# https://launchpad.net/safe-rm
+# http://repo.or.cz/safe-rm.git
+# v0.12, 2014-11-03
+#
+# Aaron LI
+# 2018-01-17
+#
 
-use warnings;
 use strict;
+use warnings FATAL => 'all';
 use Cwd 'realpath';
 
-our $VERSION = '0.12';
+my $PROG = "safe-rm";
+my $VERSION = "0.13";
 
-my $homedir            = $ENV{HOME} || q{};
-my $LEGACY_CONFIG_FILE = "$homedir/.safe-rm";
-my $USER_CONFIG_FILE   = ($ENV{XDG_CONFIG_HOME} || "$homedir/.config") . "/safe-rm";
-my $GLOBAL_CONFIG_FILE = '/etc/safe-rm.conf';
+my $HOME     = $ENV{HOME} || q{};
+my $USER_CFG = ($ENV{XDG_CONFIG_HOME} || "$HOME/.config") . "/${PROG}.conf";
+my $SYS_CFG  = "/etc/${PROG}.conf";
 
 my %default_protected_dirs = (
     '/bin'               => 1,
@@ -17,27 +28,35 @@ my %default_protected_dirs = (
     '/dev'               => 1,
     '/etc'               => 1,
     '/home'              => 1,
-    '/initrd'            => 1,
     '/lib'               => 1,
     '/lib32'             => 1,
     '/lib64'             => 1,
+    '/libexec'           => 1,
     '/proc'              => 1,
     '/root'              => 1,
+    '/run'               => 1,
     '/sbin'              => 1,
     '/sys'               => 1,
     '/usr'               => 1,
     '/usr/bin'           => 1,
     '/usr/include'       => 1,
     '/usr/lib'           => 1,
+    '/usr/libdata'       => 1,
+    '/usr/libexec'       => 1,
     '/usr/local'         => 1,
     '/usr/local/bin'     => 1,
     '/usr/local/include' => 1,
+    '/usr/local/lib'     => 1,
+    '/usr/local/libdata' => 1,
+    '/usr/local/libexec' => 1,
     '/usr/local/sbin'    => 1,
     '/usr/local/share'   => 1,
     '/usr/sbin'          => 1,
     '/usr/share'         => 1,
     '/usr/src'           => 1,
     '/var'               => 1,
+    '/var/db'            => 1,
+    '/var/lib'           => 1,
 );
 
 my %protected_dirs = ();
@@ -63,9 +82,8 @@ sub read_config_file {
     return;
 }
 
-read_config_file($GLOBAL_CONFIG_FILE);
-read_config_file($LEGACY_CONFIG_FILE);
-read_config_file($USER_CONFIG_FILE);
+read_config_file($SYS_CFG);
+read_config_file($USER_CFG);
 
 if ( 0 == scalar keys %protected_dirs ) {
     %protected_dirs = %default_protected_dirs;
@@ -78,22 +96,21 @@ foreach (@ARGV) {
     # Normalize the pathname
     my $normalized_pathname = $pathname;
     if ( $normalized_pathname =~ m{/}xms or -e "$normalized_pathname" ) {
-
         # Convert to an absolute path (e.g. remove "..")
         $normalized_pathname = realpath($normalized_pathname);
         if ( !$normalized_pathname ) {
             $normalized_pathname = $pathname;
         }
     }
-    if ( $normalized_pathname =~ m{^(.+?)/+$}xms ) {
 
-        # Trim trailing slashes
+    # Trim trailing slashes
+    if ( $normalized_pathname =~ m{^(.+?)/+$}xms ) {
         $normalized_pathname = $1;
     }
 
     # Check against the blacklist
     if ( exists $protected_dirs{$normalized_pathname} and not -l $pathname ) {
-        print {*STDERR} "safe-rm: skipping $pathname\n" || 0;
+        print {*STDERR} "$PROG: skipping $pathname\n" || 0;
     }
     elsif ( $pathname =~ /(.*)/xms ) {    # pointless untainting
         push @allowed_args, $1;
@@ -108,7 +125,7 @@ my $real_rm = '/bin/rm';
 
 # Make sure we're not calling ourselves recursively
 if ( realpath($real_rm) eq realpath($0) ) {
-    die 'safe-rm cannot find the real "rm" binary' . "\n";
+    die '$PROG: cannot find the real "rm" binary' . "\n";
 }
 
 # Run the real rm command, returning with the same error code
@@ -156,7 +173,7 @@ Both of these configuration files can contain a list of important files
 or directories (one per line):
 
   /etc/safe-rm.conf
-  ~/.config/safe-rm
+  ~/.config/safe-rm.conf
 
 If both of these are empty, a default list of important paths will be
 used.
