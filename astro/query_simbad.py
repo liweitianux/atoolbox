@@ -1,20 +1,7 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2016-2017 Weitian LI <liweitianux@live.com>
-# MIT license
-#
-# NOTE:
-# * SimbadClass
-#   https://astroquery.readthedocs.org/en/latest/api/astroquery.simbad.SimbadClass.html
-# * All available VOTable fields:
-#   http://simbad.u-strasbg.fr/simbad/sim-help?Page=sim-fscript#VotableFields
-#
-# Change logs:
-# 2017-02-11:
-#   * Add argument "--brief" to not print header
-#   * Sync with 'query_ned.py'
-# 2016-01-14:
-#   * Add 'z_value'
+# Copyright (c) 2016-2018 Weitian LI <weitian@aaronly.me>
+# MIT License
 #
 # TODO:
 # * allow to query by coordinates & radius range
@@ -25,17 +12,22 @@
 """
 Query SIMBAD with the provided name or coordinate.
 http://simbad.u-strasbg.fr/simbad/
+
+References
+----------
+* astroquery: SimbadClass
+  https://astroquery.readthedocs.org/en/latest/api/astroquery.simbad.SimbadClass.html
+* All available VOTable fields:
+  http://simbad.u-strasbg.fr/simbad/sim-help?Page=sim-fscript#VotableFields
 """
 
 import sys
 import argparse
 import csv
-
 from collections import OrderedDict
 
 from astroquery.simbad import Simbad
-# from astropy import coordinates
-# import astropy.units as u
+from astroquery.exceptions import RemoteServiceError
 
 
 # Simbad configurations
@@ -53,28 +45,25 @@ Simbad.add_votable_fields('otype', 'rv_value', 'z_value',
                           'rvz_qual', 'rvz_type')
 
 
-def query_name(name, verbose=False):
+def query_name(name, verbose=False, print_header=False):
     """
     Query SIMBAD by name.
     """
-    q = Simbad.query_object(name)
     try:
+        q = Simbad.query_object(name)
         main_id  = str(q['MAIN_ID'][0], encoding='utf-8')
         otype    = str(q['OTYPE'][0], encoding='utf-8')
         rv       = q['RV_VALUE'][0]
         z        = q['Z_VALUE'][0]
         rvz_qual = q['RVZ_QUAL'][0]
         rvz_type = q['RVZ_TYPE'][0]
-        if verbose:
-            print('%s: %s,%s,%s,%s,%s,%s' % (name, main_id, otype, rv, z,
-                                             rvz_qual, rvz_type))
-    except (TypeError, KeyError) as e:
-        main_id  = ''
-        otype    = ''
-        rv       = ''
-        z        = ''
-        rvz_qual = ''
-        rvz_type = ''
+    except RemoteServiceError:
+        main_id  = None
+        otype    = None
+        rv       = None
+        z        = None
+        rvz_qual = None
+        rvz_type = None
         if verbose:
             print('*** %s: not found ***' % name, file=sys.stderr)
     #
@@ -87,6 +76,10 @@ def query_name(name, verbose=False):
         ("RV/z_Quality", rvz_qual),
         ("RV/z_Type",    rvz_type),
     ])
+    if verbose:
+        if print_header:
+            print(",".join(results.keys()))
+        print(",".join([str(v) for v in results.values()]))
     return results
 
 
@@ -113,8 +106,11 @@ def main():
 
     results_list = []
 
+    print_header = True
     for name in names:
-        qr = query_name(name, verbose=args.verbose)
+        qr = query_name(name, verbose=args.verbose,
+                        print_header=print_header)
+        print_header = False
         results_list.append(qr)
 
     try:

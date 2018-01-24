@@ -3,10 +3,6 @@
 # Copyright (c) 2016-2018 Weitian LI <weitian@aaronly.me>
 # MIT License
 #
-# References:
-# [1] astroquery: NedClass
-#     https://astroquery.readthedocs.org/en/latest/api/astroquery.ned.NedClass.html
-#
 # TODO:
 #   * allow to query by coordinates & radius range
 #   * filter queried results according to the type/other...
@@ -16,6 +12,11 @@
 """
 Query NED with the provided name or coordinate.
 NASA/IPAC Extragalactic Database: http://ned.ipac.caltech.edu/
+
+References
+----------
+* astroquery: NedClass
+  https://astroquery.readthedocs.org/en/latest/api/astroquery.ned.NedClass.html
 """
 
 import sys
