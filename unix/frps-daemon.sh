@@ -3,7 +3,12 @@
 # Start the `FRP server' as a daemon, and start/check with a cron job.
 # https://github.com/fatedier/frp
 #
-# See start-stop-daemon(8)
+# See start-stop-daemon(8) for details.
+# The `start-stop-daemon' tool is shipped with the `dpkg' package on
+# Debian systems, which is an essential part.  While on non-Debian
+# systems, e.g., RedHat/CentOS, install the `dpkg' package to get this
+# tool ;)
+#
 #
 # Example configuration file:
 # ---------------------------------------------------------------------
