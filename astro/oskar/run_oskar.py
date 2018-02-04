@@ -19,8 +19,9 @@ from time import time
 
 
 def run_oskar(configfile, model, freq, vis_ms, vis_oskar=None,
-              telescope=None, chunksize=None, use_gpus=None,
-              gpu_ids=None, num_devices=None, dryrun=False):
+              telescope=None, chunksize=None, double_precision=None,
+              use_gpus=None, gpu_ids=None, num_devices=None,
+              dryrun=False):
     """
     Update simulation settings in the configuration file,
     and run the simulator ``oskar_sim_interferometer``.
@@ -34,6 +35,7 @@ def run_oskar(configfile, model, freq, vis_ms, vis_oskar=None,
     simulator = "oskar_sim_interferometer"
     for item, value in [
             ("simulator/max_sources_per_chunk",   chunksize),
+            ("simulator/double_precision",        double_precision),
             ("simulator/use_gpus",                use_gpus),
             ("simulator/cuda_device_ids",         gpu_ids),
             ("simulator/num_devices",             num_devices),
@@ -95,10 +97,15 @@ def main():
                         help="force to only use GPUs")
     exgrp1.add_argument("--use-cpu", dest="use_cpu", action="store_true",
                         help="force to only use CPUs")
-    exgrp2 = parser.add_mutually_exclusive_group(required=True)
-    exgrp2.add_argument("-l", "--list", dest="listfile",
+    exgrp2 = parser.add_mutually_exclusive_group()
+    exgrp2.add_argument("--use-double", dest="use_double", action="store_true",
+                        help="use double-precision float numbers")
+    exgrp2.add_argument("--use-single", dest="use_single", action="store_true",
+                        help="use single-precision float numbers")
+    exgrp3 = parser.add_mutually_exclusive_group(required=True)
+    exgrp3.add_argument("-l", "--list", dest="listfile",
                         help="list of frequencies [MHz] and input sky models")
-    exgrp2.add_argument("-i", "--items", dest="items", nargs="+",
+    exgrp3.add_argument("-i", "--items", dest="items", nargs="+",
                         help="list of sky model items in format of " +
                         "'<freq[MHz]>:<skymodel-file>'")
     args = parser.parse_args()
@@ -109,6 +116,12 @@ def main():
         use_gpus = True
     elif args.use_cpu:
         use_gpus = False
+
+    double_precision = None
+    if args.use_double:
+        double_precision = True
+    elif args.use_single:
+        double_precision = False
 
     if not os.path.exists(args.outdir):
         os.mkdir(args.outdir)
@@ -147,6 +160,7 @@ def main():
         run_oskar(configfile=configfile, freq=freq,
                   model=skyfile, vis_ms=vis_ms, vis_oskar=vis_oskar,
                   telescope=args.telescope, chunksize=args.chunksize,
+                  double_precision=double_precision,
                   use_gpus=use_gpus, gpu_ids=args.gpu_ids,
                   num_devices=args.num_devices, dryrun=args.dryrun)
 
