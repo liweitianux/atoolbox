@@ -18,6 +18,18 @@ import shutil
 from time import time
 
 
+def file_len(fname):
+    """
+    Get the number of lines of a text file.
+
+    Credit: https://stackoverflow.com/q/845058/4856091
+    """
+    with open(fname) as f:
+        for i, l in enumerate(f):
+            pass
+    return i+1
+
+
 def run_oskar(configfile, model, freq, vis_ms, vis_oskar=None,
               telescope=None, chunksize=None, double_precision=None,
               use_gpus=None, gpu_ids=None, num_devices=None,
@@ -75,8 +87,11 @@ def main():
                         help="filename pattern of the configuration files " +
                         "updated for OSKAR usage " +
                         "(default: %s)" % default_fconfig)
-    parser.add_argument("-S", "--chunk-size", dest="chunksize", type=float,
-                        help="overwrite the chunk size in config file")
+    parser.add_argument("-S", "--max-chunk", dest="chunk_max", type=float,
+                        help="maximum allowed chunk size; if the input " +
+                        "sky model has less sources than this maximum " +
+                        "chunk size, then use the input source number " +
+                        "as the simulation chunk size.")
     parser.add_argument("--vis-oskar", dest="vis_oskar",
                         action="store_true",
                         help="also save visibility in OSKAR native format")
@@ -148,6 +163,11 @@ def main():
         print("=============================================================")
         print("[%d/%d] %s @ %.2f [MHz]" % (i+1, Nosm, skyfile, freq))
         print("-------------------------------------------------------------")
+        Nsrc = file_len(skyfile)
+        print("Number of sources: ~{:,}".format(Nsrc))
+        chunksize = args.chunk_max
+        if chunksize and chunksize > Nsrc:
+            chunksize = Nsrc
         basename = os.path.splitext(os.path.basename(skyfile))[0]
         if args.vis_oskar:
             vis_oskar = os.path.join(args.outdir, basename+".oskar")
@@ -159,7 +179,7 @@ def main():
         print("Copied OSKAR configuration file as: %s" % configfile)
         run_oskar(configfile=configfile, freq=freq,
                   model=skyfile, vis_ms=vis_ms, vis_oskar=vis_oskar,
-                  telescope=args.telescope, chunksize=args.chunksize,
+                  telescope=args.telescope, chunksize=chunksize,
                   double_precision=double_precision,
                   use_gpus=use_gpus, gpu_ids=args.gpu_ids,
                   num_devices=args.num_devices, dryrun=args.dryrun)
