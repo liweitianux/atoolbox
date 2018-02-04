@@ -68,10 +68,13 @@ def run_oskar(configfile, model, freq, vis_ms, vis_oskar=None,
     if dryrun:
         print("Dry run mode -> DONE!")
     else:
-        t1 = time()
+        tstart = time()
         subprocess.check_call(cmd)
-        t2 = time()
-        print("Elapsed time: %.1f [min]" % ((t2-t1)/60))
+        tcost = time() - tstart
+        if tcost <= 3*60:
+            print("Elapsed time: %.1f [sec]" % tcost)
+        else:
+            print("Elapsed time: %.1f [min]" % (tcost/60))
     print("-------------------------------------------------------------")
 
 
@@ -124,7 +127,7 @@ def main():
                         help="list of sky model items in format of " +
                         "'<freq[MHz]>:<skymodel-file>'")
     args = parser.parse_args()
-    t1 = time()
+    tstart = time()
 
     use_gpus = None
     if args.use_gpu:
@@ -184,9 +187,12 @@ def main():
                   use_gpus=use_gpus, gpu_ids=args.gpu_ids,
                   num_devices=args.num_devices, dryrun=args.dryrun)
 
-    t2 = time()
+    tcost = time() - tstart
     print("=============================================================")
-    print("Total elapsed time: %.1f [min]" % ((t2-t1)/60))
+    if tcost <= 3*60:
+        print("Total elapsed time: %.1f [sec]" % tcost)
+    else:
+        print("Total elapsed time: %.1f [min]" % (tcost/60))
 
 
 if __name__ == "__main__":
