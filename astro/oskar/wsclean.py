@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2017 Aaron LI
+# Copyright (c) 2017-2018 Aaron LI
 # MIT license
 #
 # Create image from OSKAR simulated visibility data using `WSClean`.
@@ -42,7 +42,7 @@ def wsclean(args, dryrun=False, logfile=None):
     """
     tmpdir = tempfile.TemporaryDirectory()
     cmd = [
-        "wsclean", "-tempdir", tmpdir.name,
+        "wsclean", "-temp-dir", tmpdir.name,
     ] + [str(arg) for arg in args]  # NOTE: Convert all arguments to strings
     printlog("CMD: %s" % " ".join(cmd), logfile=logfile)
     if dryrun:
@@ -193,7 +193,7 @@ def main():
     if args.save_uv:
         cmdargs += ["-saveuv"]
     if args.circular_beam:
-        cmdargs += ["-circularbeam"]
+        cmdargs += ["-circular-beam"]
     if args.beam_size:
         cmdargs += ["-beamsize", args.beam_size]
     if args.wlayers:
