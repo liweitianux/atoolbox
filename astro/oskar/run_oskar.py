@@ -18,6 +18,10 @@ import shutil
 from time import time
 
 
+OSKAR_BIN = os.environ.get("OSKAR_BIN", "oskar_sim_interferometer")
+print("OSKAR simulator: %s" % OSKAR_BIN)
+
+
 def file_len(fname):
     """
     Get the number of lines of a text file.
@@ -44,7 +48,6 @@ def run_oskar(configfile, model, freq, vis_ms, vis_oskar=None,
         raise ValueError("both 'vis_oskar' & 'vis_ms' are missing")
 
     print("Updating simulation settings ...")
-    simulator = "oskar_sim_interferometer"
     for item, value in [
             ("simulator/max_sources_per_chunk",   chunksize),
             ("simulator/double_precision",        double_precision),
@@ -57,13 +60,13 @@ def run_oskar(configfile, model, freq, vis_ms, vis_oskar=None,
             ("interferometer/oskar_vis_filename", vis_oskar),
             ("interferometer/ms_filename",        vis_ms)]:
         if value is not None:
-            subprocess.check_call([simulator, "--set",
+            subprocess.check_call([OSKAR_BIN, "--set",
                                    configfile, item, str(value)])
             print("Updated '%s' -> '%s'" % (item, str(value)))
 
     print("-------------------------------------------------------------")
     print("Simulating %s @ %.2f [MHz] ..." % (model, freq))
-    cmd = [simulator, configfile]
+    cmd = [OSKAR_BIN, configfile]
     print("CWD: %s" % os.getcwd())
     print("CMD: %s" % " ".join(cmd))
     if dryrun:
@@ -81,7 +84,10 @@ def run_oskar(configfile, model, freq, vis_ms, vis_oskar=None,
 
 def main():
     default_fconfig = "sim_interferometer.f{freq:06.2f}.ini"
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        description="Run OSKAR simulator on a list of sky models",
+        epilog="NOTE: use env variable 'OSKAR_BIN' to manually specify the " +
+        "path to the simulator: 'oskar_sim_interferometer'")
     parser.add_argument("-d", "--dry-run", dest="dryrun", action="store_true",
                         help="dry run")
     parser.add_argument("-c", "--config", dest="config", required=True,
