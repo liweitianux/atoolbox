@@ -19,6 +19,10 @@ import time
 import tempfile
 
 
+WSCLEAN_BIN = os.environ.get("WSCLEAN_BIN", "wsclean")
+print("WSClean binary: %s" % WSCLEAN_BIN)
+
+
 def printlog(msg, logfile=None, **kwargs):
     if logfile:
         files = [sys.stdout, logfile]
@@ -42,7 +46,7 @@ def wsclean(args, dryrun=False, logfile=None):
     """
     tmpdir = tempfile.TemporaryDirectory()
     cmd = [
-        "wsclean", "-temp-dir", tmpdir.name,
+        WSCLEAN_BIN, "-temp-dir", tmpdir.name,
     ] + [str(arg) for arg in args]  # NOTE: Convert all arguments to strings
     printlog("CWD: %s" % os.getcwd())
     printlog("CMD: %s" % " ".join(cmd), logfile=logfile)
@@ -72,7 +76,9 @@ def wsclean(args, dryrun=False, logfile=None):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Run WSClean with more handy arguments")
+        description="Run WSClean with more handy arguments",
+        epilog="NOTE: use env variable 'WSCLEAN_BIN' to specify the path " +
+        "to the WSClean binary")
     parser.add_argument("-a", "--args", dest="args",
                         help="additional arguments for WSClean, " +
                         "in a quoted string separated by space, e.g.," +
