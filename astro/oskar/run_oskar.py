@@ -64,6 +64,7 @@ def run_oskar(configfile, model, freq, vis_ms, vis_oskar=None,
     print("-------------------------------------------------------------")
     print("Simulating %s @ %.2f [MHz] ..." % (model, freq))
     cmd = [simulator, configfile]
+    print("CWD: %s" % os.getcwd())
     print("CMD: %s" % " ".join(cmd))
     if dryrun:
         print("Dry run mode -> DONE!")

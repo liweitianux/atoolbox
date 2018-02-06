@@ -44,6 +44,7 @@ def wsclean(args, dryrun=False, logfile=None):
     cmd = [
         "wsclean", "-temp-dir", tmpdir.name,
     ] + [str(arg) for arg in args]  # NOTE: Convert all arguments to strings
+    printlog("CWD: %s" % os.getcwd())
     printlog("CMD: %s" % " ".join(cmd), logfile=logfile)
     if dryrun:
         print(">>> DRY RUN MODE <<<")
