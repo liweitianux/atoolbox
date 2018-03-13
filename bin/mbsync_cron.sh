@@ -95,8 +95,8 @@ usage() {
 check_cached_passphrase() {
     local key="$1"
     echo "test" | \
-        gpg2 --sign --batch --no-tty --pinentry-mode error \
-             --local-user ${key} -o /dev/null >/dev/null 2>&1
+        gpg --sign --batch --no-tty --pinentry-mode error \
+            --local-user ${key} -o /dev/null >/dev/null 2>&1
 }
 
 
