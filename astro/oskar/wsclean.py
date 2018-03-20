@@ -187,7 +187,7 @@ def main():
     cmdargs += ["-scale", "{0}asec".format(args.pixelsize)]
 
     if args.fit_spec_order:
-        cmdargs += ["-joinchannels", "-channelsout", nms,
+        cmdargs += ["-join-channels", "-channels-out", nms,
                     "-fit-spectral-pol", args.fit_spec_order+1]
 
     if args.update_model:
