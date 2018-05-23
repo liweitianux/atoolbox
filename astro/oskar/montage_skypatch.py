@@ -223,7 +223,7 @@ if __name__ == '__main__':
         jj = 0
         for j, p0 in enumerate(zip(plon, plat)):
             logger.info('[%d/%d|%d] patch @ (%.2f, %.2f)' %
-                        (j+1, jj+1, npatch, p0[0], p0[1]))
+                        (j+1, npatch, jj+1, p0[0], p0[1]))
             if central_angle(p0, pcenter) > rmax:
                 logger.info('skip')
                 continue
