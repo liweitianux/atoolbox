@@ -1,9 +1,8 @@
 #!/bin/sh
 #
-# Encrypt the given file using symmetric AES256 algorithm.
+# Copyright (c) 2015,2018 Aaron LI
 #
-# Aaron LI
-# 2015-01-24
+# Encrypt a file using GPG with symmetric AES256 algorithm.
 #
 
 case "$1" in
@@ -13,7 +12,17 @@ case "$1" in
         ;;
 esac
 
+if which gpg2 >/dev/null 2>&1; then
+    GPG=gpg2
+elif which gpg >/dev/null 2>&1; then
+    GPG=gpg
+else
+    echo "ERROR: cannot find gpg/gpg2!"
+    exit 2
+fi
+
 infile="$1"
 outfile="${infile}.gpg"
-gpg2 --symmetric --cipher-algo aes256 -o "${outfile}" "${infile}"
+${GPG} --symmetric --cipher-algo aes256 -o "${outfile}" "${infile}"
 chmod 0600 "${outfile}"
+echo "Encrypted file saved to: ${outfile}"
