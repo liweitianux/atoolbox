@@ -180,12 +180,12 @@ def show_info(filename, abs_=None, center=None):
         rc, cc = rows//2, cols//2
         cs1, cs2 = center//2, (center+1)//2
         data = data[(rc-cs1):(rc+cs2), (cc-cs1):(cc+cs2)]
-    mean = np.mean(data)
-    median = np.median(data)
-    std = np.std(data)
-    iqr = np.diff(np.percentile(data, q=(25, 75)))
-    mad = np.median(np.abs(data - median))
-    rms = np.sqrt(np.mean(data**2))
+    mean = np.nanmean(data)
+    median = np.nanmedian(data)
+    std = np.nanstd(data)
+    iqr = np.diff(np.nanpercentile(data, q=(25, 75)))
+    mad = np.nanmedian(np.abs(data - median))
+    rms = np.sqrt(np.nanmean(data**2))
     print("mean:   %13.6e" % mean)
     print("median: %13.6e" % median)
     print("std:    %13.6e  (standard deviation)" % std)
