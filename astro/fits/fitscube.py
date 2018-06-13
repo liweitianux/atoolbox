@@ -152,6 +152,13 @@ class FITSCube:
                                 self.zstep])
         return w
 
+    def keyword(self, key, value=None, comment=None):
+        header = self.header
+        if value is None:
+            return header[key]
+        else:
+            header[key] = (value, comment)
+
     def write(self, outfile, clobber=False):
         header = self.header
         header.extend(self.wcs.to_header(), update=True)
@@ -219,6 +226,24 @@ class FITSCube:
         """
         gain = np.asarray(gain)
         self.data *= gain[:, np.newaxis, np.newaxis]
+
+    def pool(self, blocksize, func=np.mean):
+        """
+        Down-sampling the images by pooling
+        """
+        try:
+            from skimage.measure import block_reduce
+        except ImportError:
+            print("scikit-image not installed")
+            raise
+
+        self.data = block_reduce(self.data,
+                                 block_size=(1, blocksize, blocksize),
+                                 func=func)
+        self.keyword(key="POOL_BS", value=blocksize,
+                     comment="down-sampling block size")
+        self.keyword(key="POOL_FUN", value=func.__name__,
+                     comment="down-sampling function/method")
 
     @property
     def unit(self):
@@ -480,6 +505,27 @@ def cmd_corrupt(args):
         print("Saved corruption information to file: %s" % infofile)
 
 
+def cmd_pool(args):
+    """
+    Sub-command: "pool", down-sample image cube along the spatial dimension.
+    """
+    if not args.clobber and os.path.exists(args.outfile):
+        raise OSError("output file already exists: %s" % args.outfile)
+
+    cube = FITSCube(args.infile)
+    print("Data cube unit: %s" % cube.unit)
+    print("Image/slice size: %dx%d" % (cube.width, cube.height))
+    print("Number of slices: %d" % cube.nslice)
+
+    print("Pooling image cube ...")
+    print("block size: %d, method: %s" % (args.blocksize, args.method))
+    cube.pool(blocksize=args.blocksize, func=getattr(np, args.method))
+    print("Pooled image/slice size: %dx%d" % (cube.width, cube.height))
+    print("Saving pooled FITS cube ...")
+    cube.write(args.outfile, clobber=args.clobber)
+    print("Pooled FITS cube wrote to: %s" % args.outfile)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="FITS image cube manipulation tool")
@@ -630,6 +676,25 @@ def main():
                             help="save the corruption information of each " +
                             "channel/slice to a text file")
     parser_crp.set_defaults(func=cmd_corrupt)
+
+    # sub-command: "pool"
+    parser_pool = subparsers.add_parser(
+        "pool",
+        help="down-sample image cube along the spatial dimensions")
+    parser_pool.add_argument("-C", "--clobber", dest="clobber",
+                             action="store_true",
+                             help="overwrite existing output file")
+    parser_pool.add_argument("-i", "--infile", required=True,
+                             help="input FITS cube filename")
+    parser_pool.add_argument("-o", "--outfile", required=True,
+                             help="output pooled FITS cube")
+    parser_pool.add_argument("-n", "--block-size", dest="blocksize",
+                             type=int, required=True,
+                             help="down-sampling block size (i.e., factor)")
+    parser_pool.add_argument("-m", "--method", default="mean",
+                             choices=["mean", "min", "max"],
+                             help="down-sampling method (default: mean)")
+    parser_pool.set_defaults(func=cmd_pool)
 
     args = parser.parse_args()
     args.func(args)
