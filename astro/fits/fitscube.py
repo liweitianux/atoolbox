@@ -503,9 +503,10 @@ def main():
     parser_info.set_defaults(func=cmd_info)
 
     # sub-command: "create"
-    parser_create = subparsers.add_parser("create", help="create a FITS cube")
-    parser_create.add_argument("-C", "--clobber", dest="clobber",
-                               action="store_true",
+    parser_create = subparsers.add_parser(
+        "create", aliases=["new"],
+        help="create a FITS cube from a series of images/slices")
+    parser_create.add_argument("-C", "--clobber", action="store_true",
                                help="overwrite existing output file")
     parser_create.add_argument("-U", "--data-unit", dest="unit",
                                help="cube data unit (will overwrite the " +
@@ -568,7 +569,7 @@ def main():
 
     # sub-command: "calibrate"
     parser_cal = subparsers.add_parser(
-        "calibrate",
+        "cal", aliases=["calibrate"],
         help="calibrate z-axis slice/channel responses by fitting " +
         "a polynomial")
     parser_cal.add_argument("-n", "--dry-run", dest="dryrun",
@@ -605,7 +606,7 @@ def main():
 
     # sub-command: "corrupt"
     parser_crp = subparsers.add_parser(
-        "corrupt",
+        "crp", aliases=["corrupt"],
         help="corrupt z-axis slice/channel responses by applying " +
         "random gain coefficients")
     exgrp_crp = parser_crp.add_mutually_exclusive_group(required=True)
