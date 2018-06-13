@@ -312,6 +312,53 @@ def cmd_crop(args):
     print("Created FITS cube: %s" % args.outfile)
 
 
+def cmd_add(args):
+    """
+    Sub-command: "add", add two or more FITS cubes
+    """
+    if not args.clobber and os.path.exists(args.outfile):
+        raise FileExistsError("output file already exists: %s" % args.outfile)
+    if len(args.infiles) < 2:
+        raise RuntimeError("Two or more input FITS cubes required")
+
+    cube = FITSCube(args.infiles[0])
+    print("Data cube unit: %s" % cube.unit)
+    print("Image/slice size: %dx%d" % (cube.width, cube.height))
+    print("Number of slices: %d" % cube.nslice)
+
+    for f in args.infiles[1:]:
+        cube2 = FITSCube(f)
+        assert (cube.unit, cube.zunit) == (cube2.unit, cube2.zunit)
+        print("Adding cube %s ..." % f)
+        cube.data = cube.data + cube2.data
+
+    print("Saving FITS cube ...")
+    cube.write(args.outfile, clobber=args.clobber)
+    print("Saved FITS cube: %s" % args.outfile)
+
+
+def cmd_sub(args):
+    """
+    Sub-command: "sub", subtract one FITS cube by another one
+    """
+    if not args.clobber and os.path.exists(args.outfile):
+        raise FileExistsError("output file already exists: %s" % args.outfile)
+
+    cube = FITSCube(args.infile)
+    print("Data cube unit: %s" % cube.unit)
+    print("Image/slice size: %dx%d" % (cube.width, cube.height))
+    print("Number of slices: %d" % cube.nslice)
+
+    cube2 = FITSCube(args.infile2)
+    assert (cube.unit, cube.zunit) == (cube2.unit, cube2.zunit)
+    print("Subtracting cube %s ..." % args.infile2)
+    cube.data = cube.data - cube2.data
+
+    print("Saving FITS cube ...")
+    cube.write(args.outfile, clobber=args.clobber)
+    print("Saved FITS cube: %s" % args.outfile)
+
+
 def cmd_calibrate(args):
     """
     Sub-command: "calibrate", calibrate the z-axis slice/channel responses
@@ -492,6 +539,32 @@ def main():
     parser_crop.add_argument("-i", "--infile", required=True,
                              help="input FITS cube")
     parser_crop.set_defaults(func=cmd_crop)
+
+    # sub-command: "add"
+    parser_add = subparsers.add_parser(
+        "add",
+        help="add two or more FITS cubes")
+    parser_add.add_argument("-C", "--clobber", action="store_true",
+                            help="overwrite existing output file")
+    parser_add.add_argument("-o", "--outfile", required=True,
+                            help="output FITS cube filename")
+    parser_add.add_argument("-i", "--infiles", nargs="+", required=True,
+                            help="two or more input FITS cubes")
+    parser_add.set_defaults(func=cmd_add)
+
+    # sub-command: "subtract"
+    parser_sub = subparsers.add_parser(
+        "sub", aliases=["subtract"],
+        help="subtract one FITS cube by another one")
+    parser_sub.add_argument("-C", "--clobber", action="store_true",
+                            help="overwrite existing output file")
+    parser_sub.add_argument("-o", "--outfile", required=True,
+                            help="output FITS cube filename")
+    parser_sub.add_argument("-i", "--infile", required=True,
+                            help="input FITS cube as the minuend")
+    parser_sub.add_argument("-I", "--infile2", required=True,
+                            help="another input FITS cube as the subtrahend")
+    parser_sub.set_defaults(func=cmd_sub)
 
     # sub-command: "calibrate"
     parser_cal = subparsers.add_parser(
