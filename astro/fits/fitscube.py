@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) Weitian LI <weitian@aaronly.me>
+# Copyright (c) 2017-2018 Weitian LI <wt@liwt.net>
 # MIT license
 #
 
@@ -292,6 +292,26 @@ def cmd_create(args):
     print("Created FITS cube: %s" % args.outfile)
 
 
+def cmd_crop(args):
+    """
+    Sub-command: "crop", crop the central region of a FITS cube
+    """
+    if not args.clobber and os.path.exists(args.outfile):
+        raise FileExistsError("output file already exists: %s" % args.outfile)
+
+    cube = FITSCube(args.infile)
+    print("Image/slice size: %dx%d" % (cube.width, cube.height))
+    print("Cropping region size: %dx%d" % (args.size, args.size))
+    s_width = slice((cube.width - args.size) // 2,
+                    (cube.width + args.size) // 2)
+    s_height = slice((cube.height - args.size) // 2,
+                     (cube.height + args.size) // 2)
+    cube.data = cube.data[:, s_height, s_width]
+    print("Saving FITS cube ...")
+    cube.write(args.outfile, clobber=args.clobber)
+    print("Created FITS cube: %s" % args.outfile)
+
+
 def cmd_calibrate(args):
     """
     Sub-command: "calibrate", calibrate the z-axis slice/channel responses
@@ -458,6 +478,20 @@ def main():
                                nargs="+", required=True,
                                help="input image slices (in order)")
     parser_create.set_defaults(func=cmd_create)
+
+    # sub-command: "crop"
+    parser_crop = subparsers.add_parser(
+        "crop",
+        help="crop the central spatial region of the FITS cube")
+    parser_crop.add_argument("-C", "--clobber", action="store_true",
+                             help="overwrite existing output file")
+    parser_crop.add_argument("-n", "--size", type=int, required=True,
+                             help="crop region size (number of pixels)")
+    parser_crop.add_argument("-o", "--outfile", required=True,
+                             help="output FITS cube filename")
+    parser_crop.add_argument("-i", "--infile", required=True,
+                             help="input FITS cube")
+    parser_crop.set_defaults(func=cmd_crop)
 
     # sub-command: "calibrate"
     parser_cal = subparsers.add_parser(
