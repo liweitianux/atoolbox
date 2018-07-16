@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2017 Weitian LI <weitian@aaronly.me>
+# Copyright (c) 2017-2018 Weitian LI <wt@liwt.net>
 # MIT License
 #
 
@@ -9,6 +9,7 @@ Tile the given slices to the required FoV size, scale down to the
 wanted size (for faster simulation later).
 """
 
+import os
 import sys
 import argparse
 
@@ -54,6 +55,13 @@ def main():
     exgrp.add_argument("-f", "--freq-c", dest="fc", type=float,
                        help="central frequency [MHz] of the selected cube")
     args = parser.parse_args()
+
+    if os.path.exists(args.outfile):
+        if args.clobber:
+            os.remove(args.outfile)
+        else:
+            raise FileExistsError('output file already exists: %s' %
+                                  args.outfile)
 
     if args.zc:
         zc = args.zc
