@@ -49,7 +49,7 @@ def parse_inputs(inputs):
         except ValueError:
             begin, step, stop = inp.split(":")
             begin, step, stop = float(begin), float(step), float(stop)
-            v = np.arange(start=begin, stop=stop+step, step=step)
+            v = np.arange(start=begin, stop=stop+step/2, step=step)
             values += list(v)
     return values
 
