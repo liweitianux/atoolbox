@@ -362,6 +362,31 @@ def cmd_add(args):
     print("Saved FITS cube: %s" % args.outfile)
 
 
+def cmd_mul(args):
+    """
+    Sub-command: "mul", multiply two or more FITS cubes
+    """
+    if not args.clobber and os.path.exists(args.outfile):
+        raise FileExistsError("output file already exists: %s" % args.outfile)
+    if len(args.infiles) < 2:
+        raise RuntimeError("Two or more input FITS cubes required")
+
+    cube = FITSCube(args.infiles[0])
+    print("Data cube unit: %s" % cube.unit)
+    print("Image/slice size: %dx%d" % (cube.width, cube.height))
+    print("Number of slices: %d" % cube.nslice)
+
+    for f in args.infiles[1:]:
+        cube2 = FITSCube(f)
+        assert (cube.unit, cube.zunit) == (cube2.unit, cube2.zunit)
+        print("Multiplying cube %s ..." % f)
+        cube.data = cube.data * cube2.data
+
+    print("Saving FITS cube ...")
+    cube.write(args.outfile, clobber=args.clobber)
+    print("Saved FITS cube: %s" % args.outfile)
+
+
 def cmd_sub(args):
     """
     Sub-command: "sub", subtract one FITS cube by another one
@@ -625,6 +650,18 @@ def main():
     parser_add.add_argument("-i", "--infiles", nargs="+", required=True,
                             help="two or more input FITS cubes")
     parser_add.set_defaults(func=cmd_add)
+
+    # sub-command: "multiply"
+    parser_mul = subparsers.add_parser(
+        "mul", aliases=["multiply"],
+        help="multiply one FITS cube by another one")
+    parser_mul.add_argument("-C", "--clobber", action="store_true",
+                            help="overwrite existing output file")
+    parser_mul.add_argument("-o", "--outfile", required=True,
+                            help="output FITS cube filename")
+    parser_mul.add_argument("-i", "--infiles", nargs="+", required=True,
+                            help="two or more input FITS cubes")
+    parser_mul.set_defaults(func=cmd_mul)
 
     # sub-command: "subtract"
     parser_sub = subparsers.add_parser(
