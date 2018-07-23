@@ -61,7 +61,7 @@ class Spectrogram:
 
     def calc_fourier(self):
         logger.info('Calculating FFT ...')
-        z = fftpack.fftshift(fftpack.fft(self.data, axis=0), axis=0)
+        z = fftpack.fftshift(fftpack.fft(self.data, axis=0), axes=0)
         return (np.abs(z), np.real(z), np.imag(z))
 
 
