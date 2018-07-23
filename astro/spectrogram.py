@@ -93,10 +93,11 @@ def main():
 
     header = fits.Header()
     header.add_history(' '.join(sys.argv))
-    header['SP_TYPE'] = args.type
+    header['SP_TYPE'] = (args.type, 'cosine (DCT) or fourier (FFT)')
 
     spectrogram = Spectrogram(cube)
     spectrogram.set_window(args.window)
+    header['SP_WIND'] = (args.window, 'window function along frequency')
 
     if args.type == 'cosine':
         sp_mag = spectrogram.calc_cosine()
