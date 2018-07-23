@@ -384,6 +384,33 @@ def cmd_sub(args):
     print("Saved FITS cube: %s" % args.outfile)
 
 
+def cmd_div(args):
+    """
+    Sub-command: "div", divide one FITS cube by another one
+    """
+    if not args.clobber and os.path.exists(args.outfile):
+        raise FileExistsError("output file already exists: %s" % args.outfile)
+
+    cube = FITSCube(args.infile)
+    print("Data cube unit: %s" % cube.unit)
+    print("Image/slice size: %dx%d" % (cube.width, cube.height))
+    print("Number of slices: %d" % cube.nslice)
+
+    cube2 = FITSCube(args.infile2)
+    assert (cube.unit, cube.zunit) == (cube2.unit, cube2.zunit)
+    print("Dividing cube %s ..." % args.infile2)
+    with np.errstate(divide='warn'):
+        cube.data = cube.data / cube2.data
+
+    if args.fill_value:
+        print("Filling invalid data with: %s" % args.fill_value)
+        cube.data[~np.isfinite(cube.data)] = float(args.fill_value)
+
+    print("Saving FITS cube ...")
+    cube.write(args.outfile, clobber=args.clobber)
+    print("Saved FITS cube: %s" % args.outfile)
+
+
 def cmd_calibrate(args):
     """
     Sub-command: "calibrate", calibrate the z-axis slice/channel responses
@@ -612,6 +639,22 @@ def main():
     parser_sub.add_argument("-I", "--infile2", required=True,
                             help="another input FITS cube as the subtrahend")
     parser_sub.set_defaults(func=cmd_sub)
+
+    # sub-command: "divide"
+    parser_div = subparsers.add_parser(
+        "div", aliases=["divide"],
+        help="divide one FITS cube by another one")
+    parser_div.add_argument("-C", "--clobber", action="store_true",
+                            help="overwrite existing output file")
+    parser_div.add_argument("-F", "--fill-value", dest="fill_value",
+                            help="value to fill the invalid elements")
+    parser_div.add_argument("-o", "--outfile", required=True,
+                            help="output FITS cube filename")
+    parser_div.add_argument("-i", "--infile", required=True,
+                            help="input FITS cube as the dividend")
+    parser_div.add_argument("-I", "--infile2", required=True,
+                            help="another input FITS cube as the divisor")
+    parser_div.set_defaults(func=cmd_div)
 
     # sub-command: "calibrate"
     parser_cal = subparsers.add_parser(
