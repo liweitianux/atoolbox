@@ -261,6 +261,30 @@ def cmd_mul(args):
     print("Saved FITS image to: %s" % args.outfile)
 
 
+def cmd_div(args):
+    """
+    Sub-command: "div", divide the image by a number or other image(s)
+    """
+    fimage = FITSImage(args.infile)
+    image = fimage.image
+    if args.number:
+        print("Divide by number: %g" % args.number)
+        image /= args.number
+    else:
+        for fn in args.files:
+            print("Divide by another image from: %s" % fn)
+            fimage2 = FITSImage(fn)
+            with np.errstate(divide="warn"):
+                image /= fimage2.image
+
+    if args.fill_value:
+        print("Filling invalid data with: %s" % args.fill_value)
+        image[~np.isfinite(image)] = float(args.fill_value)
+    fimage.image = image
+    fimage.write(args.outfile, clobber=args.clobber)
+    print("Saved FITS image to: %s" % args.outfile)
+
+
 def cmd_zoom(args):
     """
     Sub-command: "zoom", zoom the image to a new size with FoV coverage
@@ -355,6 +379,26 @@ def main():
     exgrp_mul.add_argument("-f", "--files", dest="files", nargs="+",
                            help="FITS image(s) to be multiplied by")
     parser_mul.set_defaults(func=cmd_mul)
+
+    # sub-command: "div"
+    parser_div = subparsers.add_parser(
+        "div", aliases=["divide"],
+        help="divide the image by a number or other image(s)")
+    parser_div.add_argument("-C", "--clobber", dest="clobber",
+                            action="store_true",
+                            help="overwrite existing output file")
+    parser_div.add_argument("-F", "--fill-value", dest="fill_value",
+                            help="value to fill the invalid elements")
+    parser_div.add_argument("-i", "--infile", dest="infile", required=True,
+                            help="input FITS image")
+    parser_div.add_argument("-o", "--outfile", dest="outfile", required=True,
+                            help="output FITS image")
+    exgrp_div = parser_div.add_mutually_exclusive_group(required=True)
+    exgrp_div.add_argument("-n", "--number", dest="number", type=float,
+                           help="number to be divided by")
+    exgrp_div.add_argument("-f", "--files", dest="files", nargs="+",
+                           help="FITS image(s) to be divided by")
+    parser_div.set_defaults(func=cmd_div)
 
     # sub-command: "zoom"
     parser_zoom = subparsers.add_parser(
