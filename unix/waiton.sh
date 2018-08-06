@@ -14,13 +14,13 @@ case "$1" in
 esac
 
 pid="$1"
-me="${0##*/}($$)"
-name=$(ps -p ${pid} -o comm=)
+me="${0##*/} (pid=$$)"
+name=$(ps -p ${pid} -o args=)
 if [ $? -eq 0 ]; then
-    echo "${me}: waiting for process (${pid}, ${name}) to finish ..."
+    echo "${me}: waiting for process (pid=${pid}, ${name}) to finish ..."
     while ps -p ${pid} >/dev/null 2>&1; do
         echo -n .
-        sleep 1
+        sleep 3
     done
     echo
 else
