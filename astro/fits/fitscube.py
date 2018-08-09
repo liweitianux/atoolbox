@@ -278,28 +278,32 @@ def cmd_info(args):
     else:
         pzunit = ""
     zvalues = cube.zvalues
+    nslice = cube.nslice
     print("Data cube unit: %s" % cube.unit)
     print("Image/slice size: %dx%d" % (cube.width, cube.height))
-    print("Number of slices: %d" % cube.nslice)
+    print("Number of slices: %d" % nslice)
     print("Slice step/spacing: %s%s" % (cube.zstep, pzunit))
     print("Slice positions: %s <-> %s%s" %
           (zvalues.min(), zvalues.max(), pzunit))
-    if args.meanstd:
-        mean = np.zeros(cube.nslice)
-        std = np.zeros(cube.nslice)
-        for i in range(cube.nslice):
+    if args.stats:
+        mean = np.zeros(nslice)
+        std = np.zeros(nslice)
+        rms = np.zeros(nslice)
+        for i in range(nslice):
             image = cube.get_slice(i, csize=args.center)
             if args.abs:
                 image = np.abs(image)
             mean[i] = np.mean(image)
             std[i] = np.std(image)
-        print("Slice <z>           <mean> +/- <std>:")
+            rms[i] = np.sqrt(np.mean(image**2))
+        print("Slice <z>          <mean>        <std>         <rms>")
         for i, z in enumerate(zvalues):
-            print("* %12.4e:  %12.4e  %12.4e" % (z, mean[i], std[i]))
+            print("* %12.4e:  %12.4e  %12.4e  %12.4e" %
+                  (z, mean[i], std[i], rms[i]))
         if args.outfile:
-            data = np.column_stack([zvalues, mean, std])
-            np.savetxt(args.outfile, data, header="z   mean   std")
-            print("Saved mean/std data to file: %s" % args.outfile)
+            data = np.column_stack([zvalues, mean, std, rms])
+            np.savetxt(args.outfile, data, header="z   mean   std   rms")
+            print("Saved statistics data to file: %s" % args.outfile)
 
 
 def cmd_create(args):
@@ -587,16 +591,16 @@ def main():
 
     # sub-command: "info"
     parser_info = subparsers.add_parser("info", help="show FITS cube info")
-    parser_info.add_argument("-c", "--center", dest="center", type=int,
-                             help="crop the central box region of specified " +
-                             "size to calculate the mean/std.")
-    parser_info.add_argument("-m", "--mean-std", dest="meanstd",
-                             action="store_true",
-                             help="calculate mean+/-std for each slice")
-    parser_info.add_argument("-a", "--abs", dest="abs", action="store_true",
+    parser_info.add_argument("-a", "--abs", action="store_true",
                              help="take absolute values for image pixels")
-    parser_info.add_argument("-o", "--outfile", dest="outfile",
-                             help="outfile to save mean/std values")
+    parser_info.add_argument("-c", "--center", type=int,
+                             help="crop the central box region of specified " +
+                             "size to calculate the statistics")
+    parser_info.add_argument("-s", "--stats", action="store_true",
+                             help="calculate statistics (mean, std, rms) "
+                             "for each slice")
+    parser_info.add_argument("-o", "--outfile",
+                             help="outfile to save the statistics")
     parser_info.add_argument("infile", help="FITS cube filename")
     parser_info.set_defaults(func=cmd_info)
 
