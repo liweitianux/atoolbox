@@ -150,6 +150,15 @@ class FITSImage:
         self.pixelsize = pixelsize_old * (self.Nx / Nx2)
         return self.image
 
+    def flip(self, direction):
+        if direction == "lr":
+            self.image = np.fliplr(self.image)
+        elif direction == "ud":
+            self.image = np.flipud(self.image)
+        else:
+            raise ValueError("invalid flip direction: %s" % direction)
+        return self.image
+
     def write(self, outfile, clobber=False):
         self.header.add_history(" ".join(sys.argv))
         hdu = fits.PrimaryHDU(data=self.data, header=self.header)
@@ -424,6 +433,24 @@ def main():
     parser_zoom.add_argument("-o", "--outfile", dest="outfile", required=True,
                              help="output zoomed FITS image")
     parser_zoom.set_defaults(func=cmd_zoom)
+
+    # sub-command: "flip"
+    parser_flip = subparsers.add_parser(
+        "flip", help="flip the image left-right or up-down")
+    parser_flip.add_argument("-C", "--clobber", action="store_true",
+                             help="overwrite existing output file")
+    parser_flip.add_argument("-i", "--infile", required=True,
+                             help="input FITS image")
+    parser_flip.add_argument("-o", "--outfile", required=True,
+                             help="output flipped FITS image")
+    exgrp_flip = parser_flip.add_mutually_exclusive_group(required=True)
+    exgrp_flip.add_argument("-l", "--left-right", dest="lr",
+                            action="store_true",
+                            help="flip in the left/right direction")
+    exgrp_flip.add_argument("-u", "--up-down", dest="ud",
+                            action="store_true",
+                            help="flip in the left/right direction")
+    parser_flip.set_defaults(func=cmd_flip)
 
     args = parser.parse_args()
     args.func(args)
