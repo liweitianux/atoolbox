@@ -159,6 +159,17 @@ class FITSImage:
             raise ValueError("invalid flip direction: %s" % direction)
         return self.image
 
+    def rotate(self, to):
+        if to == "left":
+            self.image = np.rot90(self.image, k=-1)
+        elif to == "right":
+            self.image = np.rot90(self.image, k=1)
+        elif to == "180":
+            self.image = np.rot90(self.image, k=2)
+        else:
+            raise ValueError("invalid rotate to: %s" % to)
+        return self.image
+
     def write(self, outfile, clobber=False):
         self.header.add_history(" ".join(sys.argv))
         hdu = fits.PrimaryHDU(data=self.data, header=self.header)
@@ -322,6 +333,37 @@ def cmd_zoom(args):
     print("Saved zoomed FITS image to: %s" % args.outfile)
 
 
+def cmd_flip(args):
+    """
+    Sub-command: "flip", flip the image left-right or up-down.
+    """
+    fimage = FITSImage(args.infile)
+    print("Flipping image ...")
+    direction = "lr" if args.lr else "ud"
+    print("Flip direction: %s" % direction)
+    fimage.flip(direction)
+    fimage.write(args.outfile, clobber=args.clobber)
+    print("Saved flipped FITS image to: %s" % args.outfile)
+
+
+def cmd_rotate(args):
+    """
+    Sub-command: "rotate", rotate the image.
+    """
+    fimage = FITSImage(args.infile)
+    print("Rotating image ...")
+    if args.left:
+        to = "left"
+    elif args.right:
+        to = "right"
+    else:
+        to = "180"
+    print("Rotate to: %s" % to)
+    fimage.rotate(to)
+    fimage.write(args.outfile, clobber=args.clobber)
+    print("Saved rotated FITS image to: %s" % args.outfile)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="FITS image manipulation tool")
@@ -451,6 +493,26 @@ def main():
                             action="store_true",
                             help="flip in the left/right direction")
     parser_flip.set_defaults(func=cmd_flip)
+
+    # sub-command: "rotate"
+    parser_rot = subparsers.add_parser(
+        "rot", aliases=["rotate"],
+        help="rotate the image")
+    parser_rot.add_argument("-C", "--clobber", action="store_true",
+                            help="overwrite existing output file")
+    parser_rot.add_argument("-i", "--infile", required=True,
+                            help="input FITS image")
+    parser_rot.add_argument("-o", "--outfile", required=True,
+                            help="output rotated FITS image")
+    exgrp_rot = parser_rot.add_mutually_exclusive_group(required=True)
+    exgrp_rot.add_argument("-l", "--left", action="store_true",
+                           help="rotate left")
+    exgrp_rot.add_argument("-r", "--right", action="store_true",
+                           help="rotate right")
+    exgrp_rot.add_argument("-u", "--180", dest="ud",
+                           action="store_true",
+                           help="rotate 180 degree")
+    parser_rot.set_defaults(func=cmd_rotate)
 
     args = parser.parse_args()
     args.func(args)
