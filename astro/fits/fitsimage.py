@@ -210,7 +210,7 @@ def show_info(filename, abs_=None, center=None):
     rms = np.sqrt(np.nanmean(data**2))
     print("min:    %13.6e" % min_)
     print("max:    %13.6e" % max_)
-    print("range:  %13.6e (max - min)" % (max_ - min_))
+    print("range:  %13.6e  (max - min)" % (max_ - min_))
     print("mean:   %13.6e" % mean)
     print("median: %13.6e" % median)
     print("std:    %13.6e  (standard deviation)" % std)
