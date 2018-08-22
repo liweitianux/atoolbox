@@ -32,7 +32,7 @@ def printlog(msg, logfile=None, **kwargs):
         print(msg, file=f, **kwargs)
 
 
-def wsclean(args, dryrun=False, logfile=None):
+def wsclean(args, dryrun=False, logfile=None, tmproot=None):
     """
     Run the WSClean imager with the provided arguments.
 
@@ -44,7 +44,7 @@ def wsclean(args, dryrun=False, logfile=None):
     * A randomly generated temporary directory is specified, to avoid the
       conflict when running multiple WSClean's on the same MeasurementSet.
     """
-    tmpdir = tempfile.TemporaryDirectory()
+    tmpdir = tempfile.TemporaryDirectory(dir=tmproot)
     cmd = [
         WSCLEAN_BIN, "-temp-dir", tmpdir.name,
     ] + [str(arg) for arg in args]  # NOTE: Convert all arguments to strings
@@ -81,7 +81,7 @@ def main():
         "to the WSClean binary")
     parser.add_argument("-a", "--args", dest="args",
                         help="additional arguments for WSClean, " +
-                        "in a quoted string separated by space, e.g.," +
+                        "in a quoted string separated by space, e.g., " +
                         "' -simulate-noise 0.001' (NOTE the beginning space!)")
     parser.add_argument("-d", "--dirty", dest="dirty", action="store_true",
                         help="only create the dirty image by overriding " +
@@ -124,9 +124,9 @@ def main():
                         help="Briggs robustness parameter (default: 0); " +
                         "-1 (uniform) -> 1 (natural)")
     parser.add_argument("-#", "--niter", dest="niter",
-                        type=float, default=5e5,
+                        type=float, default=1e6,
                         help="maximum number of CLEAN iterations " +
-                        "(default: 500,000)")
+                        "(default: 1,000,000)")
     parser.add_argument("--gain", dest="gain", type=float, default=0.1,
                         help="CLEAN gain for each minor iteration " +
                         "(default: 0.1)")
@@ -146,6 +146,8 @@ def main():
     parser.add_argument("--fit-spec-order", dest="fit_spec_order", type=int,
                         help="do joined-channel CLEAN by fitting the " +
                         "spectra with [order] polynomial in normal-space")
+    parser.add_argument("--tmp-root", dest="tmproot",
+                        help="root of the temporary directory")
     #
     exgrp = parser.add_mutually_exclusive_group()
     exgrp.add_argument("-S", "--threshold-nsigma", dest="threshold_nsigma",
@@ -239,7 +241,8 @@ def main():
         logfilename = nameprefix + "-wsclean.log"
         logfile = open(logfilename, "w")
         logfile.write(" ".join(sys.argv) + "\n")
-    wsclean(cmdargs, dryrun=args.dryrun, logfile=logfile)
+    wsclean(cmdargs, dryrun=args.dryrun, logfile=logfile,
+            tmproot=args.tmproot)
 
     if args.dirty and not args.dryrun:
         # Remove the output "-image" since it is identical to "-dirty"
