@@ -161,8 +161,7 @@ class PSD:
         ----------
         psd1d
         """
-        if not hasattr(self, "ps2d") or self.psd2d is None:
-            self.calc_psd2d()
+        psd2d = np.array(self.calc_psd2d())
 
         print("Azimuthally averaging 2D power spectral density ... ",
               end="", flush=True)
@@ -191,7 +190,7 @@ class PSD:
                 print("%.1f%% ... " % percent, end="", flush=True)
             ii, jj = (rho <= r).nonzero()
             rho[ii, jj] = np.inf
-            cells = self.psd2d[ii, jj]
+            cells = psd2d[ii, jj]
             psd1d[i, 3] = len(cells)
             if self.meanstd:
                 psd1d[i, 1] = np.mean(cells)
