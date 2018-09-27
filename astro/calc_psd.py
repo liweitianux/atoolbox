@@ -251,7 +251,7 @@ class PSD:
             label = "median"
             labelerr = "1.4826*MAD"
         if self.bunit:
-            ylabel = r"Power [(%s)$^2$]" % self.bunit
+            ylabel = r"Power [(%s/%s)$^2$]" % (self.bunit, self.pixel[1])
         else:
             ylabel = "Power"
 
