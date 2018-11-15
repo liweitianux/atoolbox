@@ -170,6 +170,17 @@ class FITSImage:
             raise ValueError("invalid rotate to: %s" % to)
         return self.image
 
+    def shift(self, x, y=None):
+        y = y or x
+        ny, nx = self.image.shape
+        image = np.zeros((ny, nx))
+        image[y:, x:] = self.image[:ny-y, :nx-x]
+        image[:y, :x] = self.image[ny-y:, nx-x:]
+        image[:y, x:] = self.image[ny-y:, :nx-x]
+        image[y:, :x] = self.image[:ny-y, nx-x:]
+        self.image = image
+        return self.image
+
     def write(self, outfile, clobber=False):
         self.header.add_history(" ".join(sys.argv))
         hdu = fits.PrimaryHDU(data=self.data, header=self.header)
@@ -364,6 +375,17 @@ def cmd_rotate(args):
     print("Saved rotated FITS image to: %s" % args.outfile)
 
 
+def cmd_shift(args):
+    """
+    Sub-command: "shift", shift the image and padding accordingly.
+    """
+    fimage = FITSImage(args.infile)
+    print("Shift image by (%d,%d) ..." % (args.x, args.y or args.x))
+    fimage.shift(x=args.x, y=args.y)
+    fimage.write(args.outfile, clobber=args.clobber)
+    print("Saved shifted FITS image to: %s" % args.outfile)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="FITS image manipulation tool")
@@ -513,6 +535,22 @@ def main():
                            action="store_true",
                            help="rotate 180 degree")
     parser_rot.set_defaults(func=cmd_rotate)
+
+    # sub-command: "shift"
+    parser_sft = subparsers.add_parser(
+        "sft", aliases=["shift"],
+        help="shift the image and pad accordingly")
+    parser_sft.add_argument("-C", "--clobber", action="store_true",
+                            help="overwrite existing output file")
+    parser_sft.add_argument("-i", "--infile", required=True,
+                            help="input FITS image")
+    parser_sft.add_argument("-o", "--outfile", required=True,
+                            help="output shifted and padded FITS image")
+    parser_sft.add_argument("-x", type=int, required=True,
+                            help="numer of horizontal pixels")
+    parser_sft.add_argument("-y", type=int,
+                            help="numer of vertical pixels")
+    parser_sft.set_defaults(func=cmd_shift)
 
     args = parser.parse_args()
     args.func(args)
