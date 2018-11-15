@@ -1,25 +1,7 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
-# Aaron LI
-# 2015/06/16
-#
-# Changelogs:
-# 0.3.0, 2015/06/17, Aaron LI
-#   * added argument '-c/--columns' to specify columns to be merged
-#   * added argument 'columns' to function 'merge2fits()'
-# 0.2.0, 2015/06/17, Aaron LI
-#   * added function 'del_key_startswith()' to delete header keywords,
-#     and the deletion must be repeated until the header length does not
-#     decrease any more
-#   * ignore the header of the second FITS file to avoid keyword conflictions
-#
-# BUGS:
-#   * astropy.io.fits may have bug with header keywords deletion
-#
-# TODO:
-#   * to support image FITS merge
-#   * to allow specify column list to be merged
+# Copyright (c) 2015 Weitian LI <weitian@aaronly.me>
+# MIT license
 #
 
 """
