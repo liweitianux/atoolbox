@@ -290,7 +290,7 @@ def main():
     parser.add_argument("infile", help="input FITS image")
     parser.add_argument("outfile", nargs="?",
                         help="output OSKAR sky model (default: " +
-                        "save basename as the input FITS image)")
+                        "same basename as the input FITS image)")
     args = parser.parse_args()
 
     if args.outfile:
