@@ -198,9 +198,9 @@ def main():
         cmdargs += ["-no-update-model-required"]
 
     if args.save_weights:
-        cmdargs += ["-saveweights"]
+        cmdargs += ["-save-weights"]
     if args.save_uv:
-        cmdargs += ["-saveuv"]
+        cmdargs += ["-save-uv"]
     if args.circular_beam:
         cmdargs += ["-circular-beam"]
     if args.beam_size:
