@@ -587,6 +587,21 @@ def cmd_pool(args):
     print("Pooled FITS cube wrote to: %s" % args.outfile)
 
 
+def cmd_d2f(args):
+    """
+    Sub-command: "d2f", convert data type from double to float(32).
+    """
+    if not args.clobber and os.path.exists(args.outfile):
+        raise OSError("output file already exists: %s" % args.outfile)
+
+    cube = FITSCube(args.infile)
+    print("Data type: %s" % cube.data.dtype)
+    print("Converting to float(32) ...")
+    cube.data = cube.data.astype(np.float32)
+    cube.write(args.outfile, clobber=args.clobber)
+    print("FITS cube wrote to: %s" % args.outfile)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="FITS image cube manipulation tool")
@@ -784,6 +799,18 @@ def main():
                              choices=["mean", "min", "max"],
                              help="down-sampling method (default: mean)")
     parser_pool.set_defaults(func=cmd_pool)
+
+    # sub-command: "d2f"
+    parser_d2f = subparsers.add_parser(
+        "d2f",
+        help="convert data type from double to float(32)")
+    parser_d2f.add_argument("-C", "--clobber", action="store_true",
+                            help="overwrite existing output file")
+    parser_d2f.add_argument("-i", "--infile", required=True,
+                            help="input FITS cube filename")
+    parser_d2f.add_argument("-o", "--outfile", required=True,
+                            help="output converted FITS cube")
+    parser_d2f.set_defaults(func=cmd_d2f)
 
     args = parser.parse_args()
     args.func(args)
