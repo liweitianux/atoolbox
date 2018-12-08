@@ -357,7 +357,12 @@ def cmd_add(args):
 
     for f in args.infiles[1:]:
         cube2 = FITSCube(f)
-        assert (cube.unit, cube.zunit) == (cube2.unit, cube2.zunit)
+        if cube.unit != cube2.unit:
+            print("WARNING: data unit mismatch: %s <-> %s" %
+                  (cube.unit, cube2.unit))
+        if cube.zunit != cube2.zunit:
+            print("WARNING: Z-axis unit mismatch: %s <-> %s" %
+                  (cube.zunit, cube2.zunit))
         print("Adding cube %s ..." % f)
         cube.data = cube.data + cube2.data
 
