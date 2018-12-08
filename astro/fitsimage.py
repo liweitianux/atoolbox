@@ -386,6 +386,18 @@ def cmd_shift(args):
     print("Saved shifted FITS image to: %s" % args.outfile)
 
 
+def cmd_d2f(args):
+    """
+    Sub-command: "d2f", convert data type from double to float(32).
+    """
+    fimage = FITSImage(args.infile)
+    print("Data type: %s" % fimage.data.dtype)
+    print("Converting to float(32) ...")
+    fimage.data = fimage.data.astype(np.float32)
+    fimage.write(args.outfile, clobber=args.clobber)
+    print("Saved FITS image to: %s" % args.outfile)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="FITS image manipulation tool")
@@ -551,6 +563,18 @@ def main():
     parser_sft.add_argument("-y", type=int,
                             help="numer of vertical pixels")
     parser_sft.set_defaults(func=cmd_shift)
+
+    # sub-command: "d2f"
+    parser_d2f = subparsers.add_parser(
+        "d2f",
+        help="convert data type from double to float(32)")
+    parser_d2f.add_argument("-C", "--clobber", action="store_true",
+                            help="overwrite existing output file")
+    parser_d2f.add_argument("-i", "--infile", required=True,
+                            help="input FITS image")
+    parser_d2f.add_argument("-o", "--outfile", required=True,
+                            help="output converted FITS image")
+    parser_d2f.set_defaults(func=cmd_d2f)
 
     args = parser.parse_args()
     args.func(args)
