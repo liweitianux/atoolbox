@@ -69,7 +69,8 @@ def main():
     info = (
         "%-14s  %-14s\n" % ("R.A.", "Dec.") +
         "%s--%s\n" % ("-"*14, "-"*14) +
-        "%-14.3f  %-+14.3f\n" % (ra.deg, dec.deg) +
+        "%-9.4f[deg]  %-+9.4f[deg]\n" % (ra.deg, dec.deg) +
+        "%-8.4f[hour]  %-+9.4f[deg]\n" % (ra.hour, dec.deg) +
         "%-14s  %-14s\n" % (
             ra.to_string(unit=au.hourangle, precision=4),
             dec.to_string(unit=au.deg, alwayssign=True, precision=3)) +
