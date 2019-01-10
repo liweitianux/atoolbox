@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2017 Aaron LI <aly@aaronly.me>
+# Copyright (c) 2017,2019 Aaron LI <aly@aaronly.me>
 # MIT License
 #
 
@@ -8,6 +8,7 @@
 Convert among various (R.A., Dec.) coordinate formats.
 """
 
+import re
 import argparse
 
 from astropy import units as au
@@ -15,22 +16,53 @@ from astropy.coordinates import Angle
 
 
 def parse_coord(c):
-    if len(c) == 6:
-        # h m s d m s
-        ra = Angle((float(c[0]), float(c[1]), float(c[2])), unit=au.hourangle)
-        dec = Angle((float(c[3]), float(c[4]), float(c[5])), unit=au.deg)
-    elif len(c) == 2:
-        ra = Angle(float(c[0]), unit=au.deg)
-        dec = Angle(float(c[1]), unit=au.deg)
+    ra_is_deg = True
+    if len(c) == 2:
+        ra, dec = c
+        # ?h[our]  ?[deg]
+        if ra.endswith('h') or ra.endswith('hour'):
+            ra = ra.rstrip('hour')
+            ra_is_deg = False
+
+        # ?d[eg] ?[deg]
+        # ?[deg] ?[deg]
+        ra = ra.rstrip('deg')
+        dec = dec.rstrip('deg')
+
+        # ?h?m?s   ?d?m?s
+        # ?:?:?    ?:?:?
+        ra = re.split(r'[hms:]', ra.rstrip('s'))
+        dec = re.split(r'[dms:]', dec.rstrip('s'))
+    elif len(c) == 6:
+        # h m s  d m s
+        ra, dec = c[:3], c[-3:]
     else:
-        raise ValueError("invalid coordinate: {0}".format(c))
+        raise ValueError('invalid coordinate: {0}'.format(c))
+
+    if len(ra) == 1:
+        ra = float(ra[0])
+    else:
+        ra = (float(ra[0]), float(ra[1]), float(ra[2]))
+    if len(dec) == 1:
+        dec = float(dec[0])
+    else:
+        dec = (float(dec[0]), float(dec[1]), float(dec[2]))
+
+    if ra_is_deg:
+        ra = Angle(ra, unit=au.deg)
+    else:
+        ra = Angle(ra, unit=au.hourangle)
+    dec = Angle(dec, unit=au.deg)
     return (ra, dec)
 
 
 def main():
     parser = argparse.ArgumentParser(
         description="Convert among multiple coordinate formats")
-    parser.add_argument("coord", nargs="+")
+    parser.add_argument(
+        "coord", nargs="+",
+        help="syntax: (1) deg deg; (2) hour deg; (3) h m s d m s; " +
+        "(4) ?h?m?s ?d?m?s; (5) ?:?:? ?:?:?")
     args = parser.parse_args()
 
     ra, dec = parse_coord(args.coord)
