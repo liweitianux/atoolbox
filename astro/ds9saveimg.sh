@@ -23,8 +23,6 @@ IMG="${FITS%.fits}.png"
 TITLE="${NAME%.sh}$$"
 
 ds9 ${FITS} \
-    -width 768 -height 768 \
-    -zoom to fit \
     -scale linear -scale mode 99.9 \
     -cmap sls \
     -regions format ds9 -regions ${REG} \
@@ -32,14 +30,19 @@ ds9 ${FITS} \
 PID=$!
 echo "Launched ds9 as PID=${PID}"
 
+sleep 2
 retry=1
 while [ ${retry} -ne 0 ]; do
     sleep 1
-    # Bring the window to the front and snapshot to an image file
-    wmctrl -a ${TITLE}
-    xpaset -p ${TITLE} saveimage png ${IMG}
+    xpaset -p ${TITLE} width 768 &&
+        xpaset -p ${TITLE} height 768 &&
+        xpaset -p ${TITLE} zoom to fit
     retry=$?
 done
+
+# Bring the window to the front and snapshot to an image file
+wmctrl -a ${TITLE}
+xpaset -p ${TITLE} saveimage png ${IMG}
 echo "${TITLE}: ${FITS} + ${REG} => ${IMG}"
 
 #echo 'paused ...' && read _
