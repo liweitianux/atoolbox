@@ -40,9 +40,14 @@ while [ ${retry} -ne 0 ]; do
     retry=$?
 done
 
-# Bring the window to the front and snapshot to an image file
-wmctrl -a ${TITLE}
-xpaset -p ${TITLE} saveimage png ${IMG}
+retry=1
+while [ ${retry} -ne 0 ]; do
+    # Bring the window to the front and snapshot to an image file
+    wmctrl -a ${TITLE} &&
+        xpaset -p ${TITLE} saveimage png ${IMG}
+    retry=$?
+    [ ${retry} -ne 0 ] && sleep 1
+done
 echo "${TITLE}: ${FITS} + ${REG} => ${IMG}"
 
 #echo 'paused ...' && read _
