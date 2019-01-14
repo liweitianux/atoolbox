@@ -1,7 +1,7 @@
 #!/bin/sh
 #
 #############################################################################
-#  
+#
 #  Shellscript to convert a set of JPEG files to a multipage PDF.
 #
 #  Requirements: (1) Ghostscript needs to be installed on the local system.
@@ -17,6 +17,12 @@
 #          v1.0.1, Jan 07 2011:  set viewJPEG.ps path (self-compiled GS 9.02)
 #
 #############################################################################
+
+if [ $# -lt 2 ]; then
+    echo "Usage:"
+    echo "    `basename $0` output.pdf 1.jpg ..."
+    exit 1
+fi
 
 outfile=$1
 shift
