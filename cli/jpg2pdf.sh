@@ -1,42 +1,41 @@
 #!/bin/sh
 #
-#############################################################################
+# Copyright (c) 2019 Aaron LI <aly@aaronly.me>
+# MIT License
 #
-#  Shellscript to convert a set of JPEG files to a multipage PDF.
+# Convert a set of JPEG files to a multipage PDF using Ghostscript and
+# ImageMagick (requires the "identify" command).
 #
-#  Requirements: (1) Ghostscript needs to be installed on the local system.
-#                (2) ImageMagick needs to be installed on the local system.
+# Credit: pipitas@gmail.com
 #
-#  Usage:  jpegs2pdf.sh output.pdf file1.jpeg [file2.jpeg [file2.jpeg [...]]]
-#
-#  Copyright (c) 2007, <pipitas@gmail.com>
-#                Use, distribute and modify without any restrictions.
-#
-#  Versions:
-#          v1.0.0, Jul 12 2007:  initial version
-#          v1.0.1, Jan 07 2011:  set viewJPEG.ps path (self-compiled GS 9.02)
-#
-#############################################################################
 
 if [ $# -lt 2 ]; then
-    echo "Usage:"
-    echo "    `basename $0` output.pdf 1.jpg ..."
+    echo "usage: ${0##*/} output.pdf 1.jpg ..."
     exit 1
 fi
 
-outfile=$1
+outfile="$1"
 shift
 
-param=""
-for i in "$@" ; do
-   dimension=$(identify -format "%[fx:(w)] %[fx:(h)]" "${i}")
-   param="${param} <</PageSize [${dimension}]>> setpagedevice (${i}) viewJPEG showpage"
+fcmd=$(mktemp)
+N=$#
+i=0
+echo "Total images: ${N}"
+while [ -n "$1" ]; do
+    f="$1"; shift; i=$((${i} + 1))
+    echo -n "${i}.."
+    dim=$(identify -format "%[fx:(w)] %[fx:(h)]" "${f}")
+    echo "<</PageSize [${dim}]>> setpagedevice (${f}) viewJPEG showpage" \
+        >> ${fcmd}
 done
 
 gs \
   -sDEVICE=pdfwrite \
   -dPDFSETTINGS=/prepress \
-  -o "$outfile" \
+  -o "${outfile}" \
   viewjpeg.ps \
-  -c "${param}"
+  -f ${fcmd}
+
+rm -f ${fcmd}
+echo "Output file: ${outfile}"
 
