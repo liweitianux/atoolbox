@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2017-2018 Weitian LI <wt@liwt.net>
-# MIT license
+# Copyright (c) 2017-2019 Weitian LI <wt@liwt.net>
+# MIT License
 #
 
 """
@@ -32,6 +32,7 @@ imperfections.
 
 import os
 import sys
+import re
 import argparse
 from datetime import datetime, timezone
 from functools import lru_cache
@@ -310,13 +311,40 @@ def cmd_create(args):
     """
     Sub-command: "create", create a FITS cube
     """
+    def sorted_natural(l):
+        # Credit: https://stackoverflow.com/a/4623518
+
+        def _tryint(s):
+            try:
+                return int(s)
+            except ValueError:
+                return s
+
+        def _alphanum_key(s):
+            return [_tryint(c) for c in re.split(r'([0-9]+)', s)]
+
+        return sorted(l, key=_alphanum_key)
+
     if not args.clobber and os.path.exists(args.outfile):
         raise FileExistsError("output file already exists: %s" % args.outfile)
+
+    if args.sort:
+        infiles = sorted_natural(args.infiles)
+    else:
+        infiles = args.infiles
+
+    N = len(infiles)
+    print("Input slices:")
+    for i, fn in enumerate(infiles):
+        print("  + [%2d/%2d] %s" % (i+1, N, fn))
+
     cube = FITSCube()
-    cube.add_slices(args.infiles, zbegin=args.zbegin, zstep=args.zstep)
+    print("Adding slices to cube ...")
+    cube.add_slices(infiles, zbegin=args.zbegin, zstep=args.zstep)
     cube.zunit = args.zunit
     if args.unit:
         cube.unit = args.unit
+
     cube.write(args.outfile, clobber=args.clobber)
     print("Created FITS cube: %s" % args.outfile)
 
@@ -641,6 +669,8 @@ def main():
                                help="Z-axis step/spacing between slices")
     parser_create.add_argument("-u", "--z-unit", dest="zunit",
                                help="Z-axis unit (e.g., cm, Hz)")
+    parser_create.add_argument("-S", "--sort", action="store_true",
+                               help="Sort input files naturally")
     parser_create.add_argument("-o", "--outfile", dest="outfile",
                                required=True,
                                help="output FITS cube filename")
