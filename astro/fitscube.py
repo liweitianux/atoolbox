@@ -65,22 +65,24 @@ class FITSCube:
     def add_slices(self, infiles, zbegin=0.0, zstep=1.0):
         """
         Create a FITS cube from input image slices.
+
+        NOTE: The infiles should be sorted appropriately.
         """
         self.infiles = infiles
         self.zbegin = zbegin
         self.zstep = zstep
-        nslice = len(infiles)
+        N = len(infiles)
+        zvalues = zbegin + zstep * np.arange(N)
         header, image = self.open_image(infiles[0])
-        shape = (nslice, ) + image.shape
-        data = np.zeros(shape, dtype=image.dtype)
-        for i, fn in enumerate(infiles):
-            print("[%d/%d] Adding image slice: %s ..." % (i+1, nslice, fn))
+        height, width = image.shape
+        data = np.zeros((N, height, width), dtype=image.dtype)
+        for i, (z, fn) in enumerate(zip(zvalues, infiles)):
+            print("[%2d/%2d] slice @ %s: %s ..." % (i+1, N, z, fn))
             hdr, img = self.open_image(fn)
             data[i, :, :] = img
         self.data = data
         self.header = header.copy(strip=True)
-        print("Created FITS cube of dimensions: %dx%dx%d" %
-              (self.width, self.height, self.nslice))
+        print("Cube dimension: %dx%dx%d" % (width, height, N))
 
     @staticmethod
     def open_image(infile):
