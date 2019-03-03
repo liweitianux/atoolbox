@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2017-2018 Aaron LI
-# MIT license
+# Copyright (c) 2017-2019 Aaron LI
+# MIT License
 #
 # Create image from OSKAR simulated visibility data using `WSClean`.
 # WSClean: https://sourceforge.net/p/wsclean/
@@ -88,6 +88,8 @@ def main():
                         "--niter to 0")
     parser.add_argument("-n", "--dry-run", dest="dryrun", action="store_true",
                         help="do not actually run WSClean")
+    parser.add_argument("-j", "--threads", type=int,
+                        help="number of computing threads to use")
     parser.add_argument("--update-model", dest="update_model",
                         action="store_true",
                         help="write/update the MODEL_DATA column in MS")
@@ -183,6 +185,10 @@ def main():
         cmdargs += ["-weight", "briggs", args.briggs]
     else:
         cmdargs += ["-weight", args.weight]  # natural
+
+    if args.threads:
+        cmdargs += ["-j", args.threads]
+
     cmdargs += ["-gain", args.gain]
     cmdargs += ["-mgain", args.mgain]
     cmdargs += ["-size", args.size, args.size]
