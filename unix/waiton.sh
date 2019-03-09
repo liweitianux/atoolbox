@@ -29,10 +29,10 @@ usage() {
 Wait for process(s) to finish ...
 
 usage:
-    ${me} [-t interval] <pid1> [<pid2> ...]
+    ${me} [-i interval] <pid1> [<pid2> ...]
 
 options:
-    -t : number of seconds between every check.
+    -i : number of seconds between every check.
          (default: 5)
 
 example:
@@ -44,12 +44,12 @@ _EOF_
 
 
 interval=5
-while getopts :ht: opt; do
+while getopts :1hi: opt; do
     case ${opt} in
     h)
         usage
         ;;
-    t)
+    i)
         interval="${OPTARG}"
         ;;
     \?)
