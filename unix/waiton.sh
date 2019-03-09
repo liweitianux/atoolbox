@@ -3,7 +3,7 @@
 # Copyright (c) 2018-2019 Aaron LI <aly@aaronly.me>
 # MIT License
 #
-# Wait for process(s) to finish ...
+# Wait for all/any process(s) to finish ...
 #
 # Credit: http://blog.joncairns.com/2013/03/wait-for-a-unix-process-to-finish/
 #
@@ -26,12 +26,14 @@ get_proc_cmd() {
 usage() {
     cat <<_EOF_
 
-Wait for process(s) to finish ...
+Wait for all/any process(s) to finish ...
 
 usage:
-    ${me} [-i interval] <pid1> [<pid2> ...]
+    ${me} [-1] [-i interval] <pid1> [<pid2> ...]
 
 options:
+    -1 : (number 1) done if any of the given processes finishes.
+         (default: wait until all processes finish)
     -i : number of seconds between every check.
          (default: 5)
 
@@ -43,9 +45,13 @@ _EOF_
 }
 
 
+mode="all"
 interval=5
 while getopts :1hi: opt; do
     case ${opt} in
+    1)
+        mode="any"
+        ;;
     h)
         usage
         ;;
@@ -66,7 +72,7 @@ done
 shift $((${OPTIND} - 1))
 [ $# -eq 0 ] && usage
 
-echo "${me}: waiting for following process(s) to finish ..."
+echo "${me}: waiting for *${mode}* of following process(s) to finish ..."
 pids="$@"
 nwait=0
 for p in ${pids}; do
@@ -90,7 +96,8 @@ while [ ${nwait} -ne 0 ]; do
             eval ${key}=yes
         elif [ -n "${last}" ]; then
             echo
-            echo "${me}: pid=${p} exited."
+            echo "${me}: pid=${p} has finished."
+            [ "${mode}" = "any" ] && exit 0
             echo -n "${me}: "
             eval ${key}=
         fi
