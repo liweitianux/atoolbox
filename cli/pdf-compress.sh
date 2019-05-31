@@ -43,6 +43,7 @@ gs  -dNOPAUSE -dBATCH -dSAFER \
     -sDEVICE=pdfwrite \
     -dCompatibilityLevel=1.4 \
     -dPDFSETTINGS="/${quality}" \
+    -dPrinted=false \
     -dEmbedAllFonts=true \
     -dSubsetFonts=true \
     -dColorImageDownsampleType=/Bicubic \
