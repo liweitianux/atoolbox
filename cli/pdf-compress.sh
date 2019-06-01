@@ -1,57 +1,85 @@
 #!/bin/sh
 #
-# Shrink the size of PDF files by adjust its quality using `gs` (GhostScript).
+# Copyright (c) 2013,2019 Aaron LI
+# MIT License
 #
-# Aaron LI
-# 2013/09/18
+# Compress a PDF file by adjust its quality using GhostScript.
+#
+# Credits:
+# * https://www.ghostscript.com/doc/current/Use.htm
+# * https://www.ghostscript.com/doc/current/VectorDevices.htm
 #
 
-case "$1" in
-    -[hH]*|--[hH]*)
-        printf "usage:\n"
-        printf "    `basename $0` in=<input.pdf> out=<output.pdf> quality=<screen|ebook|printer|prepress> imgdpi=<img_dpi>\n"
-        exit 1
-        ;;
-esac
+usage() {
+    cat << _EOF_
+Compress a PDF file by adjust its quality using GhostScript.
 
-getopt_keyval() {
-    until [ -z "$1" ]
-    do
-        key=${1%%=*}                    # extract key
-        val=${1#*=}                     # extract value
-        keyval="${key}=\"${val}\""
-        echo "## getopt: eval '${keyval}'"
-        eval ${keyval}
-        shift                           # shift, process next one
-    done
+usage:
+    ${0##*/} [-d dpi] [-l level] [-s settings] <infile> <outfile>
+
+options:
+    -d dpi : image dpi to be downsampled to (default: 150)
+    -l level : PDF compatibility level (default: 1.5)
+    -s settings : predefined settings (default: ebook)
+        valid choices: screen, ebook, printer, prepress, default
+_EOF_
+
+    exit 1
 }
-getopt_keyval "$@"
 
-if [ -z "${in}" ] || [ -z "${out}" ]; then
-    printf "Error: 'in' or 'out' not specified\n"
-    exit 2
-fi
-quality=${quality:-ebook}
-imgdpi=${imgdpi:-120}
+main() {
+    local dpi=150
+    local level=1.5
+    local settings=ebook
+    local infile outfile
 
-printf "# in: ${in}
-# out: ${out}
-# quality: ${quality}
-# imgdpi: ${imgdpi}\n"
+    while getopts :hd:l:s: opt; do
+        case ${opt} in
+        h)
+            usage
+            ;;
+        d)
+            dpi=${OPTARG}
+            ;;
+        l)
+            level=${OPTARG}
+            ;;
+        s)
+            settings=${OPTARG}
+            ;;
+        \?)
+            echo "Invalid option -${OPTARG}"
+            usage
+            ;;
+        :)
+            echo "Option -${OPTARG} requires an argument"
+            usage
+            ;;
+        esac
+    done
 
-gs  -dNOPAUSE -dBATCH -dSAFER \
-    -sDEVICE=pdfwrite \
-    -dCompatibilityLevel=1.4 \
-    -dPDFSETTINGS="/${quality}" \
-    -dPrinted=false \
-    -dEmbedAllFonts=true \
-    -dSubsetFonts=true \
-    -dColorImageDownsampleType=/Bicubic \
-    -dColorImageResolution=${imgdpi} \
-    -dGrayImageDownsampleType=/Bicubic \
-    -dGrayImageResolution=${imgdpi} \
-    -dMonoImageDownsampleType=/Bicubic \
-    -dMonoImageResolution=${imgdpi} \
-    -sOutputFile=${out} \
-    ${in}
+    shift $((${OPTIND} - 1))
+    if [ $# -ne 2 ]; then
+        usage
+    fi
 
+    infile="$1"
+    outfile="$2"
+
+    gs  -dQUIET -dNOPAUSE -dBATCH -dSAFER \
+        -sDEVICE=pdfwrite \
+        -dCompatibilityLevel=${level} \
+        -dPDFSETTINGS=/${settings} \
+        -dPrinted=false \
+        -dEmbedAllFonts=true \
+        -dSubsetFonts=true \
+        -dFastWebView=true \
+        -dColorImageDownsampleType=/Bicubic \
+        -dColorImageResolution=${dpi} \
+        -dGrayImageDownsampleType=/Bicubic \
+        -dGrayImageResolution=${dpi} \
+        -sOutputFile="${outfile}" \
+        "${infile}"
+}
+
+main "$@"
