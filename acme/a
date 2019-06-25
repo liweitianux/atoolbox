@@ -64,8 +64,8 @@ FONT=$(get_font "${font}" ${fontname} ${fontsize})
 is_running fontsrv || fontsrv &
 is_running plumber || plumber
 
-export PAGER=nobs
 export TERM=dumb
-export tabstop=8
+export SHELL="${PLAN9}/bin/rc"
+export PAGER="${PLAN9}/bin/nobs"
 
 exec ${PLAN9}/bin/acme -a -f "${FONT}" "$@"
