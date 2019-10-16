@@ -16,10 +16,18 @@
 use strict;
 use warnings;
 use File::Basename;
+use File::Copy;
 
-my $version = "2015/03/04";
+my $version = "2019/10/16";
 #
 # ChangeLogs:
+#
+# 2019/10/16: Weitian LI
+#   * support region list file with each line representing a region file
+#     instead of the region itself (Sanders's contour binning
+#     segmentation program output such a region format:
+#     http://www-xray.ast.cam.ac.uk/papers/contbin/ )
+#
 # 2015/03/04: Weitian LI
 #   Completely rewrite of this script:
 #   * add use strict, warnings, many fixes to the syntax
@@ -57,6 +65,9 @@ sub usage {
     my $text = qq(SFR - Spectral Fitting Robot
 Usage:
     $prog <region_list> <evt> <bkgd> <output> <rmf> <arf> <fit_config>
+
+Options:
+    region_list: each line can be a region string or a region file
 
 Version: $version
 );
@@ -614,11 +625,18 @@ foreach my $line (@region_lines) {
 
     # Save the current region to a temporary region file
     unlink($fit_reg_fn);
-    open(my $FIT_REG, ">", $fit_reg_fn)
-        or die "ERROR: Could not open file '$fit_reg_fn', $!";
-    my @cur_regs = split(/\s+/, $line);
-    foreach my $reg (@cur_regs) {
-        print $FIT_REG "$reg\n"
+    if (-f $line) {
+        # Each line is a region file
+        copy($line, $fit_reg_fn)
+            or die "ERROR: Could not copy region file '$line', $!";
+    } else {
+        # Each line is a region string
+        open(my $FIT_REG, ">", $fit_reg_fn)
+            or die "ERROR: Could not open file '$fit_reg_fn', $!";
+        my @cur_regs = split(/\s+/, $line);
+        foreach my $reg (@cur_regs) {
+            print $FIT_REG "$reg\n"
+        }
     }
     close($FIT_REG);
 
