@@ -43,13 +43,13 @@ esac
 zipfile=$(realpath "$1")
 curdir=$(pwd)
 tmpdir=$(mktemp -d)
-cd "${tmpdir}"
+cd "${tmpdir}" || exit $?
 
 echo "Extracting archive '${zipfile}' ..."
 extract "${zipfile}"
 echo "Fixing filenames ..."
 fixnames
 
-cd "${curdir}"
+cd "${curdir}" || exit $?
 mv "${tmpdir}"/* .
 rmdir "${tmpdir}"
