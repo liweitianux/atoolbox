@@ -1,8 +1,9 @@
 #!/usr/bin/env perl
 #
-use strict;
-use warnings;
-use File::Basename;
+# Copyright (c) 2015 Weitian LI <liweitianux@gmail.com>
+# Copyright (c) 2007 Junhua GU <tompkins@sjtu.edu.cn>
+#
+# MIT License
 #
 # Performs automatically spectral fitting with XSPEC 12.
 # For Chandra data only.
@@ -11,15 +12,16 @@ use File::Basename;
 # [1] Running Multiple Copies of a Tool - CIAO
 #     http://cxc.harvard.edu/ciao/ahelp/parameter.html#Running_Multiple_Copies_of_a_Tool
 #
-# Author: Junhua GU <tompkins@sjtu.edu.cn>
-# 2007
-#
-# Updated by: Weitian LI <liweitianux@gmail.com>
+
+use strict;
+use warnings;
+use File::Basename;
+
 my $version = "2015/03/04";
 #
 # ChangeLogs:
 # 2015/03/04: Weitian LI
-#   Totally rewrite of this script:
+#   Completely rewrite of this script:
 #   * add use strict, warnings, many fixes to the syntax
 #   * add sub 'usage'
 #   * rewrite sub 'update_backscale' -> 'rescale'
@@ -38,10 +40,13 @@ my $version = "2015/03/04";
 #   * update config file syntax: merged '#PARA' and '#ERROR'
 #   * use backtics to get the output of command within perl
 #   * !! INCOMPATIBLE !! improve/change output format (columns adjustments)
+#
 # 2015/02/05: Weitian LI
 #   * fix the wrong use of chomp.
+#
 # 2015/01/27: Weitian LI
 #   * check 'cnt_spec' value before adjust the backscale
+#
 # 2015/01/21:
 #   * add 'query yes' to temp_fit_script
 #
@@ -155,7 +160,7 @@ foreach (@ciao_tools) {
     system("punlearn $tool && cp -Lv $tool_par .");
 }
 
-# Set environment variable PFILES 
+# Set environment variable PFILES
 $ENV{PFILES} = "./:$ENV{PFILES}";
 #system("echo PFILES: \$PFILES");
 ## PFILES }}}
@@ -255,8 +260,8 @@ foreach my $i (0 .. $#evt_list) {
 sub determine_bkg {
     my $argc = @_;
     if ($argc != 1) {
-	print "ERROR: sub determine_bkg() requires 1 argument!\n";
-	exit 21;
+        print "ERROR: sub determine_bkg() requires 1 argument!\n";
+        exit 21;
     }
     my $bkgd = $_[0];
     my $filetype = `file -bL $bkgd`;
@@ -300,8 +305,8 @@ sub determine_bkg {
 sub bkg_rescale {
     my $argc = @_;
     if ($argc != 2) {
-	print "ERROR: sub bkg_rescale() requires 2 arguments!\n";
-	exit 22;
+        print "ERROR: sub bkg_rescale() requires 2 arguments!\n";
+        exit 22;
     }
     my $src_spec = $_[0];
     my $bkg_spec = $_[1];
@@ -355,8 +360,8 @@ sub bkg_rescale {
 sub extract_spectrum {
     my $argc = @_;
     if ($argc != 3) {
-	print "ERROR: sub extract_spec() requires 3 arguments!\n";
-	exit 31;
+        print "ERROR: sub extract_spec() requires 3 arguments!\n";
+        exit 31;
     }
     my $infile  = $_[0];
     my $outfile = $_[1];
@@ -373,8 +378,8 @@ sub extract_spectrum {
 sub group_spectrum {
     my $argc = @_;
     if ($argc != 5) {
-	print "ERROR: sub group_spec() requires 5 arguments!\n";
-	exit 41;
+        print "ERROR: sub group_spec() requires 5 arguments!\n";
+        exit 41;
     }
     my $infile  = $_[0];
     my $outfile = $_[1];
@@ -396,13 +401,13 @@ sub group_spectrum {
 sub parse_result ($\@\%) {
     my $argc = @_;
     if ($argc != 3) {
-	print "ERROR: sub parse_result() requires 3 argument!\n";
-	exit 51;
+        print "ERROR: sub parse_result() requires 3 argument!\n";
+        exit 51;
     }
     my $line=$_[0];
     my @para_name_list = @{$_[1]};
     my %para_num= %{$_[2]};
-    
+
     my @parsed_results = ();
 
     foreach my $para_name (@para_name_list) {
@@ -477,16 +482,16 @@ foreach my $line (@config_lines) {
         # Output:
         #     'para_name: value sigma'
         #     'para_name_err: error_lower error_upper'
-	my @para = split(/\s+/, $line);
-	my $para_name = $para[1];
-	my $para_idx = $para[2];
-	push(@para_name_list, $para_name);
-	$para_num{$para_name} = 2;
-	print $FIT_SCRIPT "tclout para $para_idx\n";
-	print $FIT_SCRIPT "scan \$xspec_tclout \"%f\" value\n";
-	print $FIT_SCRIPT "tclout sigma $para_idx\n";
-	print $FIT_SCRIPT "scan \$xspec_tclout \"%f\" sigma\n";
-	print $FIT_SCRIPT "puts \$ff \"$para_name: \$value \$sigma\"\n";
+        my @para = split(/\s+/, $line);
+        my $para_name = $para[1];
+        my $para_idx = $para[2];
+        push(@para_name_list, $para_name);
+        $para_num{$para_name} = 2;
+        print $FIT_SCRIPT "tclout para $para_idx\n";
+        print $FIT_SCRIPT "scan \$xspec_tclout \"%f\" value\n";
+        print $FIT_SCRIPT "tclout sigma $para_idx\n";
+        print $FIT_SCRIPT "scan \$xspec_tclout \"%f\" sigma\n";
+        print $FIT_SCRIPT "puts \$ff \"$para_name: \$value \$sigma\"\n";
         # Check whether to calculate the errors
         if ($line =~ /ERR(OR|)\s+\d*\.\d*\s*$/) {
             # Calculate errors with XSPEC 'error' command
@@ -507,44 +512,44 @@ foreach my $line (@config_lines) {
         #     'stat_value statistic'
         #     'dof_value dof'
         #     'rechisq_value Reduced_chisq'
-	my $stat_name = "stat";
-	push(@para_name_list, $stat_name);
+        my $stat_name = "stat";
+        push(@para_name_list, $stat_name);
         $para_num{$stat_name} = 1;
-	my $dof_name  = "dof";
-	push(@para_name_list, $dof_name);
+        my $dof_name  = "dof";
+        push(@para_name_list, $dof_name);
         $para_num{$dof_name} = 1;
         # Reduced chi-squared
         my $rechisq_name = "reduced_chisq";
-	push(@para_name_list, $rechisq_name);
+        push(@para_name_list, $rechisq_name);
         $para_num{$rechisq_name} = 1;
-	print $FIT_SCRIPT "tclout $stat_name\n";
-	print $FIT_SCRIPT "scan \$xspec_tclout \"%f\" stat_val\n";
-	print $FIT_SCRIPT "puts \$ff \"$stat_name: \$stat_val\"\n";
-	print $FIT_SCRIPT "tclout $dof_name\n";
-	print $FIT_SCRIPT "scan \$xspec_tclout \"%d\" dof_val\n";
-	print $FIT_SCRIPT "puts \$ff \"$dof_name: \$dof_val\"\n";
-	print $FIT_SCRIPT "set rechisq_cmd \{ format \"%.5f\" \[ expr \{ \$stat_val / \$dof_val \} \] \}\n";
-	print $FIT_SCRIPT "set rechisq \[ eval \$rechisq_cmd \]\n";
-	print $FIT_SCRIPT "puts \$ff \"$rechisq_name: \$rechisq\"\n";
+        print $FIT_SCRIPT "tclout $stat_name\n";
+        print $FIT_SCRIPT "scan \$xspec_tclout \"%f\" stat_val\n";
+        print $FIT_SCRIPT "puts \$ff \"$stat_name: \$stat_val\"\n";
+        print $FIT_SCRIPT "tclout $dof_name\n";
+        print $FIT_SCRIPT "scan \$xspec_tclout \"%d\" dof_val\n";
+        print $FIT_SCRIPT "puts \$ff \"$dof_name: \$dof_val\"\n";
+        print $FIT_SCRIPT "set rechisq_cmd \{ format \"%.5f\" \[ expr \{ \$stat_val / \$dof_val \} \] \}\n";
+        print $FIT_SCRIPT "set rechisq \[ eval \$rechisq_cmd \]\n";
+        print $FIT_SCRIPT "puts \$ff \"$rechisq_name: \$rechisq\"\n";
     } elsif ($line =~ /^\#FLUX/) {
         # Whether output flux information
         # Config: '#FLUX start_keV end_keV'
-	my @para = split(/\s+/, $line);
-	my $energy_low = $para[1];
-	my $energy_high = $para[2];
-	my $para_name = "flux";
-	push(@para_name_list, $para_name);
+        my @para = split(/\s+/, $line);
+        my $energy_low = $para[1];
+        my $energy_high = $para[2];
+        my $para_name = "flux";
+        push(@para_name_list, $para_name);
         $para_num{$para_name} = 1;
-	print $FIT_SCRIPT "flux $energy_low $energy_high\n";
-	print $FIT_SCRIPT "tclout $para_name\n";
-	print $FIT_SCRIPT "scan \$xspec_tclout \"%f\" flux_val\n";
-	print $FIT_SCRIPT "puts \$ff \"$para_name: \$flux_val\"\n";
+        print $FIT_SCRIPT "flux $energy_low $energy_high\n";
+        print $FIT_SCRIPT "tclout $para_name\n";
+        print $FIT_SCRIPT "scan \$xspec_tclout \"%f\" flux_val\n";
+        print $FIT_SCRIPT "puts \$ff \"$para_name: \$flux_val\"\n";
     } elsif ($line =~ /^\#DMGROUP/) {
         # dmgroup parameters
-	my @para = split(/\s+/, $line);
-	$grouptype = $para[1];
-	if ($grouptype eq "NUM_CTS") {
-	    $grouptypeval = $para[2];
+        my @para = split(/\s+/, $line);
+        $grouptype = $para[1];
+        if ($grouptype eq "NUM_CTS") {
+            $grouptypeval = $para[2];
             print "dmgroup: $grouptype, $grouptypeval\n";
         } elsif ($grouptype eq "BIN") {
             $binspec = $para[2];
@@ -555,14 +560,14 @@ foreach my $line (@config_lines) {
             exit 16;
         }
     } elsif ($line =~ /^\#NORESCALE/) {
-	$rescale = 0;
+        $rescale = 0;
     } elsif ($line =~ /^\#/) {
         # Other unsupported lines starting with '#'
         print "WARNING: unsupported config line:\n    '$line'\n";
         next;
     } else {
         # XSPEC commands/lines
-	print $FIT_SCRIPT "$line\n";
+        print $FIT_SCRIPT "$line\n";
     }
 }
 # Parse config file }}}
@@ -591,9 +596,9 @@ foreach my $line (@region_lines) {
     $n++;
     print "### $n of $reg_total ###\n";
 
-    # Skip the null/none region
+    # Skip null/none regions
     if ($line =~ /^\#(null|none)/i) {
-	print $OUTFILE "$n ";
+        print $OUTFILE "$n ";
         foreach my $para_name (@para_name_list) {
             # Number of values for this parameter
             my $num = $para_num{$para_name};
@@ -602,18 +607,18 @@ foreach my $line (@region_lines) {
                 print $OUTFILE "-1 ";
             }
         }
-	print $OUTFILE "\n";
-        print "Skipped the null/none region.\n";
-	next;
+        print $OUTFILE "\n";
+        print "Skipped a null/none region.\n";
+        next;
     }
-    
+
     # Save the current region to a temporary region file
     unlink($fit_reg_fn);
     open(my $FIT_REG, ">", $fit_reg_fn)
         or die "ERROR: Could not open file '$fit_reg_fn', $!";
     my @cur_regs = split(/\s+/, $line);
     foreach my $reg (@cur_regs) {
-	print $FIT_REG "$reg\n"
+        print $FIT_REG "$reg\n"
     }
     close($FIT_REG);
 
@@ -665,8 +670,8 @@ foreach my $line (@region_lines) {
     # Array to store parsed results of current fit
     my @current_results = ($n);
     foreach my $line (@fitted_results) {
-	chomp($line);
-	push(@current_results, parse_result($line, @para_name_list, %para_num));	
+        chomp($line);
+        push(@current_results, parse_result($line, @para_name_list, %para_num));
     }
     print join(" ", @current_results) . "\n";
     print $OUTFILE join(" ", @current_results) . "\n";
@@ -682,5 +687,3 @@ if ($bad_fit_num > 0) {
 }
 
 exit 0;
-
-# vim: set ts=8 sw=4 tw=0 fenc=utf-8 ft=perl: #
