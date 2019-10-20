@@ -637,8 +637,8 @@ foreach my $line (@region_lines) {
         foreach my $reg (@cur_regs) {
             print $FIT_REG "$reg\n"
         }
+        close($FIT_REG);
     }
-    close($FIT_REG);
 
     # Prepare source and background spectra {{{
     print "Prepare source and background  spectra \.\.\.\n";
