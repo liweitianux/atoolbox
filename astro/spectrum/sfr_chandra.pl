@@ -1,6 +1,6 @@
 #!/usr/bin/env perl
 #
-# Copyright (c) 2015 Weitian LI <liweitianux@gmail.com>
+# Copyright (c) 2015,2019 Weitian LI <liweitianux@gmail.com>
 # Copyright (c) 2007 Junhua GU <tompkins@sjtu.edu.cn>
 #
 # MIT License
@@ -8,19 +8,18 @@
 # Performs automatically spectral fitting with XSPEC 12.
 # For Chandra data only.
 #
-# Reference:
-# [1] Running Multiple Copies of a Tool - CIAO
-#     http://cxc.harvard.edu/ciao/ahelp/parameter.html#Running_Multiple_Copies_of_a_Tool
-#
 
 use strict;
 use warnings;
 use File::Basename;
 use File::Copy;
 
-my $version = "2019/10/16";
+my $version = "2019/10/21";
 #
 # ChangeLogs:
+#
+# 2019/10/21: Weitian LI
+#   * generate RMF and ARF for each region
 #
 # 2019/10/16: Weitian LI
 #   * support region list file with each line representing a region file
@@ -58,22 +57,6 @@ my $version = "2019/10/16";
 # 2015/01/21:
 #   * add 'query yes' to temp_fit_script
 #
-
-## usage {{{
-sub usage {
-    my $prog = basename($0);
-    my $text = qq(SFR - Spectral Fitting Robot
-Usage:
-    $prog <region_list> <evt> <bkgd> <output> <rmf> <arf> <fit_config>
-
-Options:
-    region_list: each line can be a region string or a region file
-
-Version: $version
-);
-    print $text;
-}
-## usage }}}
 
 # Example fit config {{{
 #----------------------------------------------------------------
@@ -146,13 +129,96 @@ my $grouptypeval = "20";
 my $binspec = "1:128:2,129:256:4,257:512:8,513:1024:16";
 ## variables }}}
 
+
+## usage {{{
+sub usage {
+    my $prog = basename($0);
+    my $text = qq(SFR - Spectral Fitting Robot
+Usage:
+    $prog <region_list> <evt> <bkgd> <asol> <msk> <bpix> <output> <fit_config>
+
+Options:
+    region_list: each line can be a region string or a region file
+    evt: input event file (support multiple event files with comma ','
+         separated)
+    bkgd: input background file (support blanksky FITS file or
+          local background spectrum file; same number as 'evt')
+    asol: apsect solution files (e.g., '\@asol.lis'; same number as 'evt')
+    msk: detector mask file (same number as 'evt')
+    bpix: bad pixel file (same number as 'evt')
+    output: output text file to store fitting results
+    fit_config: config file that specifies model and output parameters
+
+Version: $version
+);
+    print $text;
+}
+## usage }}}
+
 # NOTE: @ARGV does NOT include $0, the name of the program.
-#my $argc = @ARGV;
-my $argc = $#ARGV + 1;
-#print "argc: $argc\n";
-if ($argc != 7) {
+my $argc = @ARGV;
+if ($argc != 8) {
     usage();
     exit 1;
+}
+
+## process arguments {{{
+my $region_list_fn  = $ARGV[0];
+my $evt_fn          = $ARGV[1];
+my $bkg_fn          = $ARGV[2];
+my $asol_fn         = $ARGV[3];
+my $msk_fn          = $ARGV[4];
+my $bpix_fn         = $ARGV[5];
+my $output_fn       = $ARGV[6];
+my $config_fn       = $ARGV[7];
+
+print "====================================================\n";
+print "region_list: $region_list_fn\n";
+print "evt:         $evt_fn\n";
+print "bkg:         $bkg_fn\n";
+print "asol:        $asol_fn\n";
+print "msk:         $msk_fn\n";
+print "bpix:        $bpix_fn\n";
+print "output:      $output_fn\n";
+print "config:      $config_fn\n";
+
+my @evt_list  = split(/[,\ ]+/, $evt_fn);
+my $evt_num   = @evt_list;
+my @bkg_list  = split(/[,\ ]+/, $bkg_fn);
+my $bkg_num   = @bkg_list;
+my @asol_list = split(/[,\ ]+/, $asol_fn);
+my $asol_num  = @asol_list;
+my @msk_list  = split(/[,\ ]+/, $msk_fn);
+my $msk_num   = @msk_list;
+my @bpix_list = split(/[,\ ]+/, $bpix_fn);
+my $bpix_num  = @bpix_list;
+
+print "====================================================\n";
+print "evt_num:  $evt_num\n";
+print "bkg_num:  $bkg_num\n";
+print "asol_num: $asol_num\n";
+print "msk_num:  $msk_num\n";
+print "bpix_num: $bpix_num\n";
+if (($evt_num  != $bkg_num) || ($bkg_num != $asol_num) ||
+    ($asol_num != $msk_num) || ($msk_num != $bpix_num)) {
+    print "ERROR: numbers of evt, bkg, asol, msk, bpix NOT match\n";
+    exit 12;
+}
+
+foreach my $i (0 .. $#evt_list) {
+    printf "--- Data group %d: ---\n", ($i+1);
+    printf "evt:  %s\n", $evt_list[$i];
+    printf "bkg:  %s\n", $bkg_list[$i];
+    printf "asol: %s\n", $asol_list[$i];
+    printf "msk:  %s\n", $msk_list[$i];
+    printf "bpix: %s\n", $bpix_list[$i];
+}
+print "====================================================\n";
+
+# Backup the output file if it exists
+if ( -e $output_fn ) {
+    print "WARNING: Output file '$output_fn' already exists!\n";
+    system("mv -fv $output_fn ${output_fn}_bak");
 }
 
 ## Setup local PFILES environment {{{
@@ -171,63 +237,8 @@ foreach (@ciao_tools) {
     system("punlearn $tool && cp -Lv $tool_par .");
 }
 
-# Set environment variable PFILES
 $ENV{PFILES} = "./:$ENV{PFILES}";
-#system("echo PFILES: \$PFILES");
 ## PFILES }}}
-
-## process arguments {{{
-# File contains the list of fitting regions
-my $region_list_fn = $ARGV[0];
-# Event file (clean)
-my $evt2_fn = $ARGV[1];
-# Background file (blanksky.fits / bkg.pi)
-my $bkg_fn = $ARGV[2];
-# Output file to save fitting results
-my $output_fn = $ARGV[3];
-my $rmf_fn = $ARGV[4];
-my $arf_fn = $ARGV[5];
-# Fit config file for this tool
-my $config_fn = $ARGV[6];
-
-print "====================================================\n";
-print "region_list: $region_list_fn\n";
-print "evt2:        $evt2_fn\n";
-print "bkg:         $bkg_fn \n";
-print "output:      $output_fn\n";
-print "rmf:         $rmf_fn\n";
-print "arf:         $arf_fn\n";
-print "config:      $config_fn\n";
-
-# Parse evt, back, rmf, arf ... {{{
-my @evt_list = split(/[,\ ]+/, $evt2_fn);
-my $evt_num  = @evt_list;
-my @bkg_list = split(/[,\ ]+/, $bkg_fn);
-my $bkg_num  = @bkg_list;
-my @rmf_list = split(/[,\ ]+/, $rmf_fn);
-my $rmf_num  = @rmf_list;
-my @arf_list = split(/[,\ ]+/, $arf_fn);
-my $arf_num  = @arf_list;
-
-print "====================================================\n";
-print "evt_num: $evt_num, bkg_num: $bkg_num, rmf_num: $rmf_num, arf_num: $arf_num\n";
-if (! (($evt_num == $bkg_num) && ($bkg_num == $rmf_num) && ($rmf_num == $arf_num))) {
-    print "ERROR: number of evt, bkg, rmf or arf NOT match!\n";
-    exit 12;
-}
-
-foreach my $i (0 .. $#evt_list) {
-    printf "Data group %d: ", ($i+1);
-    printf "%s, %s, %s, %s\n", $evt_list[$i], $bkg_list[$i], $rmf_list[$i], $arf_list[$i];
-}
-print "====================================================\n";
-# parse evt, bkg ... }}}
-
-# Backup the output file if it exists
-if ( -e $output_fn ) {
-    print "WARNING: Output file '$output_fn' already exists!\n";
-    system("mv -fv $output_fn ${output_fn}_bak");
-}
 
 # Determine the type of each background file
 my @bkg_type = ();
@@ -254,14 +265,20 @@ if (-e $fit_result_fn) {
     unlink($fit_result_fn);
 }
 
+my @fit_outroot_list = ();
 my @fit_spec_list = ();
 my @fit_grp_spec_list = ();
 my @fit_bkg_spec_list = ();
+my @fit_arf_list = ();
+my @fit_rmf_list = ();
 foreach my $i (0 .. $#evt_list) {
     my $ii = $i + 1;
+    push (@fit_outroot_list,  "_fit_${ii}");
     push (@fit_spec_list,     "_fit_${ii}.pi");
     push (@fit_grp_spec_list, "_fit_${ii}_grp.pi");
     push (@fit_bkg_spec_list, "_fit_${ii}_bkg.pi");
+    push (@fit_arf_list,      "_fit_${ii}.arf");
+    push (@fit_rmf_list,      "_fit_${ii}.rmf");
 }
 ## varaibles }}}
 
@@ -330,7 +347,6 @@ sub bkg_rescale {
     chomp($bkg_pb_cnt);
     #print "src_pb_cnt: $src_pb_cnt\n";
     #print "bkg_pb_cnt: $bkg_pb_cnt\n";
-    #exit 233;
 
     # BACKSCAL & EXPOSURE of source spectrum
     my $src_backscal = `punlearn dmkeypar && dmkeypar $src_spec BACKSCAL echo=yes`;
@@ -366,13 +382,49 @@ sub bkg_rescale {
 }
 # rescale }}}
 
+# Extract spectrum and make ARF & RMF {{{
+# Usage: make_spectrum($input_fits, $region_file, $outroot, $asp, $msk, $bpix)
+sub make_spectrum {
+    my $argc = @_;
+    if ($argc != 6) {
+        print "ERROR: sub make_spectrum() requires 6 arguments!\n";
+        exit 31;
+    }
+    my $infile   = $_[0];
+    my $regfile  = $_[1];
+    my $outroot  = $_[2];
+    my $asol_lis = $_[3];
+    my $mskfile  = $_[4];
+    my $bpixfile = $_[5];
+    my $cmd_str = "punlearn specextract && "
+        . "specextract infile=\"$infile\[sky=region\($regfile\)\]\" "
+        . "outroot=\"$outroot\" bkgfile=\"\" "
+        . "asp=\"$asol_lis\" mskfile=\"$mskfile\" "
+        . "badpixfile=\"$bpixfile\" "
+        . "correctpsf=no weight=yes weight_rmf=yes "
+        . "energy=0.3:11.0:0.01 channel=1:1024:1 "
+        . "bkgresp=no combine=no binarfwmap=2 "
+        . "grouptype=NONE binspec=NONE "
+        . "verbose=1 clobber=yes";
+    #print $cmd_str;
+    system($cmd_str);
+
+    if (! -e "$outroot.rmf") {
+        symlink("$outroot.wrmf", "$outroot.rmf");
+    }
+    if (! -e "$outroot.arf") {
+        symlink("$outroot.warf", "$outroot.arf");
+    }
+}
+# make spectrum }}}
+
 # Extract spectrum from fits {{{
 # Usage: extract_spectrum($input_fits, $output_spec, $region_file)
 sub extract_spectrum {
     my $argc = @_;
     if ($argc != 3) {
-        print "ERROR: sub extract_spec() requires 3 arguments!\n";
-        exit 31;
+        print "ERROR: sub extract_spectrum() requires 3 arguments!\n";
+        exit 32;
     }
     my $infile  = $_[0];
     my $outfile = $_[1];
@@ -415,9 +467,9 @@ sub parse_result ($\@\%) {
         print "ERROR: sub parse_result() requires 3 argument!\n";
         exit 51;
     }
-    my $line=$_[0];
+    my $line = $_[0];
     my @para_name_list = @{$_[1]};
-    my %para_num= %{$_[2]};
+    my %para_num = %{$_[2]};
 
     my @parsed_results = ();
 
@@ -457,8 +509,8 @@ open(my $FIT_SCRIPT, ">", $fit_script_fn)
 foreach my $i (0 .. $#evt_list) {
     my $ii = $i + 1;
     print $FIT_SCRIPT "data ${ii}:${ii} $fit_grp_spec_list[$i]\n";
-    print $FIT_SCRIPT "response 1:${ii} $rmf_list[$i]\n";
-    print $FIT_SCRIPT "arf 1:${ii} $arf_list[$i]\n";
+    print $FIT_SCRIPT "response 1:${ii} $fit_rmf_list[$i]\n";
+    print $FIT_SCRIPT "arf 1:${ii} $fit_arf_list[$i]\n";
     print $FIT_SCRIPT "backgrnd ${ii} $fit_bkg_spec_list[$i]\n";
 }
 
@@ -643,10 +695,12 @@ foreach my $line (@region_lines) {
     # Prepare source and background spectra {{{
     print "Prepare source and background  spectra \.\.\.\n";
     foreach my $i (0 .. $#evt_list) {
-        # Prepare source spectrum
-        extract_spectrum($evt_list[$i], $fit_spec_list[$i], $fit_reg_fn);
+        # Prepare source spectrum, ARF, and RMF
+        make_spectrum($evt_list[$i], $fit_reg_fn,
+                      $fit_outroot_list[$i], $asol_list[$i],
+                      $msk_list[$i], $bpix_list[$i]);
         group_spectrum($fit_spec_list[$i], $fit_grp_spec_list[$i],
-            $grouptype, $grouptypeval, $binspec);
+                       $grouptype, $grouptypeval, $binspec);
         # Prepare background spectrum
         if ($bkg_type[$i] == NO_BKG) {
             # Dose not use a background
@@ -663,7 +717,7 @@ foreach my $line (@region_lines) {
             }
         } elsif ($bkg_type[$i] == BKG_SPEC) {
             # Directly use given background spectrum
-            system("cp -v $bkg_list[$i] $fit_bkg_spec_list[$i]");
+            copy($bkg_list[$i], $fit_bkg_spec_list[$i]);
             if ($rescale) {
                 bkg_rescale($fit_spec_list[$i], $fit_bkg_spec_list[$i]);
             }
